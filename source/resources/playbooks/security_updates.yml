@@ -1,0 +1,8 @@
+---
+- name: Install yum security updates
+  hosts:
+    - security_updates
+  become_user: root
+  become: yes
+  roles:
+    - security_updates

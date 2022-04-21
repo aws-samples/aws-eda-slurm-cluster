@@ -1,0 +1,7 @@
+---
+# Deconfigure SlurmSubmitter
+
+- name: Remove modulefile configurations
+  file:
+    dest: /etc/profile.d/slurm_{{ClusterName}}_modulefiles.sh
+    state: absent

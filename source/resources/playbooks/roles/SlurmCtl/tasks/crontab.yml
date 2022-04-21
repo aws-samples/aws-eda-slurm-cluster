@@ -1,0 +1,20 @@
+---
+- name: Create/Update Users
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/slurm_users_groups
+    dest: /etc/cron.d/slurm_users_groups
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
+- name: Cron to terminate old instances
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/terminate_old_instances
+    dest: /etc/cron.d/terminate_old_instances
+    owner: root
+    group: root
+    mode: 0600
+    force: yes

@@ -1,0 +1,261 @@
+---
+
+# Used by slurm_ec2_create_node_config.py
+- name: Create {{SlurmConfigDir}}/slurm_config.json
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmConfigDir}}/slurm_config.json"
+    src:   opt/slurm/cluster/config/slurm_config.json
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create {{SlurmLocalConfigDir}}/slurm_config.json
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmLocalConfigDir}}/slurm_config.json"
+    src:   opt/slurm/cluster/config/slurm_config.json
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create {{SlurmConfigDir}}/slurm_config.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmConfigDir}}/slurm_config.sh"
+    src:   opt/slurm/cluster/config/slurm_config.sh
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create {{SlurmLocalConfigDir}}/slurm_config.sh
+  template:
+    dest: "{{SlurmLocalConfigDir}}/slurm_config.sh"
+    src:   opt/slurm/cluster/config/slurm_config.sh
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create {{SlurmConfigDir}}/users_groups.json
+  when: PrimaryController|bool
+  shell:
+    cmd: |
+      set -ex
+      {{SlurmScriptsDir}}/create_users_groups_json.py -o {{SlurmConfigDir}}/users_groups.json
+    creates: "{{SlurmConfigDir}}/users_groups.json"
+
+- name: Create {{SlurmEtcDir}}/cgroup.conf
+  when: PrimaryController|bool
+  template:
+    src:   opt/slurm/cluster/etc/cgroup.conf
+    dest: "{{SlurmEtcDir}}/cgroup.conf"
+    owner: root
+    group: root
+    mode: 0664
+    force: yes
+  register: cgroup_conf_result
+
+- name: Create {{SlurmConfigDir}}/accounts.yml
+  when: PrimaryController|bool
+  template:
+    src:   opt/slurm/cluster/etc/accounts.yml.example
+    dest: "{{SlurmConfigDir}}/accounts.yml"
+    owner: root
+    group: root
+    mode: 0664
+    backup: yes
+  register: slurm_conf_result
+
+- name: Create slurm_nodes.conf
+  when: PrimaryController|bool
+  shell:
+    creates: "{{SlurmEtcDir}}/slurm_nodes.conf"
+    cmd: |
+      set -ex
+      cp {{INSTANCE_CONFIG_LOCAL_PATH}} {{INSTANCE_CONFIG_PATH}}
+      cd {{SlurmScriptsDir}}
+      if ! ./slurm_ec2_create_node_conf.py --config-file {{INSTANCE_CONFIG_LOCAL_PATH}} -o {{SlurmEtcDir}}/slurm_nodes.conf; then
+          rm -f {{SlurmEtcDir}}/slurm_nodes.conf
+          exit 1
+      fi
+      chown root:root {{SlurmEtcDir}}/slurm_nodes.conf
+      chmod 0644 {{SlurmEtcDir}}/slurm_nodes.conf
+  register: slurm_nodes_conf_result
+  tags:
+    - slurm_nodes_conf
+
+- name: Create slurm_licenses.conf
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmEtcDir}}/slurm_licenses.conf"
+    src: opt/slurm/cluster/etc/slurm_licenses.conf.example
+    owner: root
+    group: root
+    mode: 0664
+    backup: yes
+  register: slurm_licenses_conf_result
+
+- name: Create slurm_tres.conf
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmEtcDir}}/slurm_tres.conf"
+    src: opt/slurm/cluster/etc/slurm_tres.conf.example
+    owner: root
+    group: root
+    mode: 0664
+    backup: yes
+  register: slurm_tres_conf_result
+
+- name: Create {{SlurmEtcDir}}/slurm.conf
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmEtcDir}}/slurm.conf"
+    src: opt/slurm/cluster/etc/slurm.conf
+    owner: root
+    group: root
+    mode: 0664
+    backup: yes
+  register: slurm_conf_result
+  tags:
+    - slurm_conf
+
+- name: Create /etc/sysconfig/slurmctld
+  template:
+    src:   etc/sysconfig/slurmctld
+    dest: /etc/sysconfig/slurmctld
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+  register: sysconfig_slurmctld_result
+
+- name: Update /etc/systemd/system/slurmctld.service
+  template:
+    src:   etc/systemd/system/slurmctld.service
+    dest: /etc/systemd/system/slurmctld.service
+    owner: root
+    group: root
+    mode: 0644
+  register: slurmctld_service_result
+
+- name: Create /etc/systemd/system/slurm_down_nodes_clean.service
+  when: PrimaryController|bool
+  template:
+    dest: /etc/systemd/system/slurm_down_nodes_clean.service
+    src: etc/systemd/system/slurm_down_nodes_clean.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create /etc/systemd/system/slurm_down_nodes_clean.timer
+  when: PrimaryController|bool
+  template:
+    dest: /etc/systemd/system/slurm_down_nodes_clean.timer
+    src: etc/systemd/system/slurm_down_nodes_clean.timer
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Enable slurm_down_nodes_clean.timer
+  when: PrimaryController|bool
+  systemd:
+    name: slurm_down_nodes_clean.timer
+    daemon_reload: yes
+    enabled: yes
+
+# Configure logrotate
+
+- name: Create /etc/logrotate.d
+  template:
+    dest: /etc/logrotate.d/slurmctld
+    src:   etc/logrotate.d/slurmctld
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Wait for {{AccountingStorageHost}} to accept requests on port 6819
+  when: AccountingStorageHost|bool
+  wait_for:
+    host: "{{AccountingStorageHost}}"
+    port: "6819"
+    timeout: 1800 # 30 minutes
+
+- name: Get service facts
+  service_facts:
+
+- name: Wait for {{SlurmSbinDir}}/slurmctld
+  wait_for:
+    path: "{{SlurmSbinDir}}/slurmctld"
+    timeout: 1800 # 30 minutes
+
+- name: Restart slurmctld
+  when: ansible_facts.services['slurmctld.service']['state'] == 'running' and (cgroup_conf_result.changed or slurm_licenses_conf_result.changed or slurm_tres_conf_result.changed or slurm_conf_result.changed or sysconfig_slurmctld_result.changed or slurmctld_service_result.changed)
+  systemd:
+    name: slurmctld
+    enabled: yes
+    daemon_reload: yes
+    state: restarted
+  register: slurmctld_restarted
+
+- name: Start slurmctld
+  service:
+    name: slurmctld
+    enabled: yes
+    state: started
+  register: slurmctld_started
+
+- name: Wait for {{SlurmBinDir}}/scontrol
+  wait_for:
+    path: "{{SlurmBinDir}}/scontrol"
+    timeout: 1800 # 30 minutes
+
+- name: Wait for slurmctld to accept requests on port 6817
+  wait_for:
+    host: "127.0.0.1"
+    port: "6817"
+    timeout: 1800 # 30 minutes
+
+- name: Start slurm_down_nodes_clean
+  when: PrimaryController|bool
+  systemd:
+    name: slurm_down_nodes_clean
+    daemon_reload: yes
+    state: started
+
+- name: Create /etc/cron.d/slurm_cloudwatch
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/slurm_cloudwatch
+    dest: /etc/cron.d/slurm_cloudwatch
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
+- name: Create /etc/cron.d/slurm_accounts
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/slurm_accounts
+    dest: /etc/cron.d/slurm_accounts
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
+- name: Configure federation
+  when: PrimaryController|bool and Federation is defined
+  shell:
+    cmd: |
+      set -ex
+      # Not a good way to check if the federation exists. Can't show it if you aren't part of it.
+      yes | {{SlurmBinDir}}/sacctmgr add federation {{Federation}} || true
+      # Check to see if the cluster is in the federation
+      if ! {{SlurmBinDir}}/scontrol show federation | grep -E -q '^Self: +{{ClusterName}}:'; then
+          yes | {{SlurmBinDir}}/sacctmgr modify federation {{Federation}} set clusters+={{ClusterName}}
+      fi
+
+# Do this last because sometimes it doesn't work.
+- name: Reconfig slurm nodes after slurmctld started or restarted
+  when: PrimaryController|bool and slurmctld_restarted.changed
+  shell: |
+    {{SlurmBinDir}}/scontrol reconfig

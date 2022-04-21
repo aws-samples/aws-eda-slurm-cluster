@@ -1,0 +1,84 @@
+---
+# Tasks to install lustre-client
+
+- name: Check if lustre-client installed
+  register: lustre_client
+  shell:
+    cmd: |
+      set -ex
+      if yum list installed kmod-lustre-client lustre-client &> /dev/null; then
+          echo "installed"
+      else
+          echo "needs_install"
+      fi
+- name: Set lustre_client_installed
+  set_fact:
+    lustre_client_installed: "{{ lustre_client['stdout_lines'][0] == 'installed' }}"
+- debug:
+    msg: |
+      lustre_client_installed: {{lustre_client_installed}}
+      amazonlinux2: {{amazonlinux2}}
+      centos7_5_to_6: {{centos7_5_to_6}}
+      centos7_5_to_9: {{centos7_5_to_9}}
+      centos7_7_to_9: {{centos7_7_to_9}}
+      kernel: {{kernel}}
+
+- name: Install lustre client on Amazon Linux 2
+  when: not lustre_client_installed and amazonlinux2
+  shell:
+    cmd: |
+      set -ex
+      amazon-linux-extras install -y lustre2.10
+
+- name: Install lustre rpm public key
+  when: centos7_5_to_9
+  shell:
+    creates: /tmp/fsx-rpm-public-key.asc
+    cmd: |
+      set -ex
+      curl https://fsx-lustre-client-repo-public-keys.s3.amazonaws.com/fsx-rpm-public-key.asc -o /tmp/fsx-rpm-public-key.asc
+      sudo rpm --import /tmp/fsx-rpm-public-key.asc
+
+- name: Install lustre client on CentOS or RedHat 7.5 or 7.6 kernel 3.10.0-862.*
+  when: not lustre_client_installed and centos7_5_to_6 and kernel is match('3\.10\.0\-862\.*')
+  shell:
+    cmd: |
+      set -ex
+      yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.5/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.5-1.el7.x86_64.rpm
+      yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.5/el7/client/RPMS/x86_64/lustre-client-2.10.5-1.el7.x86_64.rpm
+
+- name: Install lustre client on CentOS or RedHat 7.5 or 7.6 kernel 3.10.0-957.*
+  when: not lustre_client_installed and centos7_5_to_6 and kernel is match('3\.10\.0\-957\.*')
+  shell:
+    cmd: |
+      set -ex
+      yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/kmod-lustre-client-2.10.8-1.el7.x86_64.rpm
+      yum -y install https://downloads.whamcloud.com/public/lustre/lustre-2.10.8/el7/client/RPMS/x86_64/lustre-client-2.10.8-1.el7.x86_64.rpm
+
+- name: Install lustre repo on CentOS or RedHat 7.7-9
+  when: centos7_7_to_9
+  shell:
+    creates: /etc/yum.repos.d/aws-fsx.repo
+    cmd: |
+      set -ex
+      curl https://fsx-lustre-client-repo.s3.amazonaws.com/el/7/fsx-lustre-client.repo -o /etc/yum.repos.d/aws-fsx.repo
+
+- name: Install kernel-3.10.0-1160.* required by lustre
+  when: centos7_7_to_9 and not kernel is match('3\.10\.0\-1160\.*')
+  register: kernel_update
+  yum:
+    state: present
+    name:
+      - kernel-3.10.0-1160.*
+
+- name: Reboot after kernel update
+  when: kernel_update['changed']
+  reboot:
+
+- name: Install lustre client on CentOS or RedHat 7.7-9
+  when: not lustre_client_installed and centos7_7_to_9 and kernel is match('3\.10\.0\-1160\.*')
+  yum:
+    state: present
+    name:
+      - kmod-lustre-client
+      - lustre-client

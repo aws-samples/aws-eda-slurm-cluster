@@ -1,0 +1,68 @@
+---
+ansible_ssh_user: ec2-user
+
+#ansible_ssh_user:
+#ansible_ssh_pass:
+
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null"
+
+SlurmUid: "{{SlurmUid}}"
+
+SlurmVersion: '{{SlurmVersion}}'
+
+ansible_architecture: "{{ansible_facts['architecture']}}"
+distribution: "{{ansible_facts['distribution']}}"
+distribution_major_version: "{{ansible_facts['distribution_major_version']}}"
+distribution_version: "{{ansible_facts['distribution_version']}}"
+kernel: "{{ansible_facts['kernel']}}"
+memtotal_mb: "{{ansible_facts['memtotal_mb']}}"
+
+# Derived facts
+Architecture:   "{%if ansible_architecture == 'aarch64'%}arm64{%else%}{{ansible_architecture}}{%endif%}"
+amazonlinux2:   "{{distribution == 'Amazon' and distribution_major_version == '2'}}"
+alma:           "{{distribution == 'AlmaLinux'}}"
+alma8:          "{{alma and distribution_major_version == '8'}}"
+centos:         "{{distribution == 'CentOS'}}"
+centos7:        "{{centos and distribution_major_version == '7'}}"
+rhel:           "{{distribution == 'RedHat'}}"
+rhel7:          "{{rhel and distribution_major_version == '7'}}"
+rhel8:          "{{rhel and distribution_major_version == '8'}}"
+rocky:          "{{distribution == 'Rocky'}}"
+rocky8:         "{{rocky and distribution_major_version == '8'}}"
+rhelclone:      "{{alma or centos or rocky}}"
+rhel8clone:     "{{rhelclone and distribution_major_version == '8'}}"
+centos7_5_to_6: "{{distribution in ['CentOS', 'RedHat'] and distribution_version is match('7\\.[5-6]')}}"
+centos7_5_to_9: "{{distribution in ['CentOS', 'RedHat'] and distribution_version is match('7\\.[5-9]')}}"
+centos7_7_to_9: "{{distribution in ['CentOS', 'RedHat'] and distribution_version is match('7\\.[7-9]')}}"
+
+# Create separate build and release dirs because binaries built on AmazonLinux2 don't run on CentOS 7
+SlurmBaseDir:    "{{FileSystemMountPath}}"
+SlurmAnsibleDir: "{{SlurmBaseDir}}/ansible"
+SlurmSrcDir:     "{{SlurmBaseDir}}/src/{{SlurmVersion}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
+SlurmVersionDir: "{{SlurmBaseDir}}/slurm-{{SlurmVersion}}"
+SlurmOSDir:      "{{SlurmVersionDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
+SlurmSbinDir:    "{{SlurmOSDir}}/sbin"
+SlurmBinDir:     "{{SlurmOSDir}}/bin"
+SlurmScriptsDir: "{{SlurmBaseDir}}/bin"
+SlurmRoot:       "{{SlurmOSDir}}"
+
+# Cluster specific directories
+SlurmAccountingDir:  "{{SlurmBaseDir}}/accounting"
+SlurmConfigDir:      "{{SlurmBaseDir}}/config"
+SlurmLocalConfigDir: "/opt/slurm/config"
+SlurmEtcDir:         "{{SlurmBaseDir}}/etc"
+SlurmLogsDir:        "{{SlurmBaseDir}}/logs"
+SlurmVarDir:         "{{SlurmBaseDir}}/var"
+SlurmConf:           "{{SlurmEtcDir}}/slurm.conf"
+
+ModulefilesBaseDir: "{{SlurmBaseDir}}/modules/modulefiles"
+
+SupportedDistributions:
+- AlmaLinux/8/arm64
+- AlmaLinux/8/x86_64
+- Amazon/2/arm64
+- Amazon/2/x86_64
+- CentOS/7/x86_64
+- RedHat/8/arm64
+- Rocky/8/arm64
+- Rocky/8/x86_64

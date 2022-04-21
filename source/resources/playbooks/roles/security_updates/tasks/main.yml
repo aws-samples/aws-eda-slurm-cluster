@@ -1,0 +1,8 @@
+---
+# tasks file for security_updates
+
+- name: Install Security updates
+  yum:
+    state: latest
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    security: yes

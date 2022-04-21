@@ -1,0 +1,130 @@
+---
+# tasks file for all
+
+- debug: var=ansible_facts
+
+- name: Show vars set in inventories/groupvars/all
+  debug:
+    msg: |
+      ansible_architecture: {{ansible_architecture}}
+      Architecture: {{Architecture}}
+      distribution: {{distribution}}
+      distribution_major_version: {{distribution_major_version}}
+      distribution_version: {{distribution_version}}
+      kernel: {{kernel}}
+      memtotal_mb: {{memtotal_mb}}
+
+      amazonlinux2: {{amazonlinux2}}
+      alma:         {{alma}}
+      alma8:        {{alma8}}
+      centos:       {{centos}}
+      centos7:      {{centos7}}
+      rhel:         {{rhel}}
+      rhel7:        {{rhel7}}
+      rhel8:        {{rhel8}}
+      rocky:        {{rocky}}
+      rocky8:       {{rocky8}}
+      rhelclone:    {{rhelclone}}
+      rhel8clone:   {{rhel8clone}}
+      centos7_5_to_6: {{centos7_5_to_6}}
+      centos7_5_to_9: {{centos7_5_to_9}}
+      centos7_7_to_9: {{centos7_7_to_9}}
+
+      ansible_ssh_user:        {{ansible_ssh_user}}
+      ansible_ssh_common_args: {{ansible_ssh_common_args}}
+
+      SlurmUid:           {{SlurmUid}}
+      SlurmVersion:       {{SlurmVersion}}
+      SlurmBaseDir:       {{SlurmBaseDir}}
+      SlurmSrcDir:        {{SlurmSrcDir}}
+      SlurmVersionDir:    {{SlurmVersionDir}}
+      SlurmOSDir:         {{SlurmOSDir}}
+      SlurmSbinDir:       {{SlurmSbinDir}}
+      SlurmBinDir:        {{SlurmBinDir}}
+      SlurmScriptsDir:    {{SlurmScriptsDir}}
+      SlurmRoot:          {{SlurmRoot}}
+      ModulefilesBaseDir: {{ModulefilesBaseDir}}
+      SupportedDistributions: {{SupportedDistributions}}
+
+      Cluster Specific Vars
+      SlurmAccountingDir: {{SlurmAccountingDir}}
+      SlurmConfigDir:     {{SlurmConfigDir}}
+      SlurmEtcDir:        {{SlurmEtcDir}}
+      SlurmLogsDir:       {{SlurmLogsDir}}
+      SlurmVarDir:        {{SlurmVarDir}}
+      SlurmConf:          {{SlurmConf}}
+
+- name: Set timezone
+  timezone:
+    name: "{{TimeZone}}"
+
+# CentOS pip 19.3.1 is broken. Developers recommend using "python3 -m pip" but the ansible
+# pip task breaks when you use an executable with spaces.
+# Create my own pip3 wrapper instead.
+- name: Create pip3 wrapper script
+  template:
+    src: usr/bin/pip3
+    dest: /usr/bin/pip3
+    backup: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Install python3
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - python3
+
+# Required for the selinux module
+- name: Install libselinux-python
+  when: not(rhel8 or rhel8clone)
+  yum:
+    state: present
+    name:
+      - libselinux-python
+
+- name: Install python3-libselinux
+  when: rhel8 or rhel8clone
+  yum:
+    state: present
+    name:
+      - python3-libselinux
+
+# Selinux breaks ssh
+- name: Set Selinux mode to disabled
+  selinux:
+    state: disabled
+
+# Used by mount_ssds.bash
+- name: Install packages required by mount_ssds.bash
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - jq
+      - nvme-cli
+      - lvm2
+
+# Make sure mount_ssds.sh runs late
+- name: Create /var/lib/cloud/scripts/per-boot/90_mount_ssds.bash
+  template:
+    dest: /var/lib/cloud/scripts/per-boot/90_mount_ssds.bash
+    src: var/lib/cloud/scripts/per-boot/90_mount_ssds.bash
+    owner: root
+    group: root
+    mode: 0744
+
+- name: Execute /var/lib/cloud/scripts/per-boot/90_mount_ssds.bash
+  shell:
+    cmd: /var/lib/cloud/scripts/per-boot/90_mount_ssds.bash && touch /var/lib/cloud/instance/sem/mounted_ssds
+    creates: /var/lib/cloud/instance/sem/mounted_ssds
+
+- name: Give /tmp write permissions
+  file:
+    path: /tmp
+    state: directory
+    owner: root
+    group: root
+    mode: 0777

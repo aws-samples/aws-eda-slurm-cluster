@@ -1,0 +1,10 @@
+---
+- name: Configure SLURM node instances
+  hosts: SlurmNode
+  become_user: root
+  become: yes
+  roles:
+    # Don't use slurm_node role because it starts the services which should be done by userdata
+    - SlurmNodeUpdate
+    - lustre-client
+    - mount_slurm_fs

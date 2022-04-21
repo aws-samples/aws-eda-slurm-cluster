@@ -1,0 +1,26 @@
+---
+# Unmount SLURM file system
+
+- name: Print vars
+  debug:
+    msg: |
+      FileSystemDns:       {{FileSystemDns}}
+      FileSystemMountPath: {{FileSystemMountPath}}
+      FileSystemMountSrc:  {{FileSystemMountSrc}}
+      FileSystemOptions:   {{FileSystemOptions}}
+      FileSystemPort:      {{FileSystemPort}}
+      FileSystemType:      {{FileSystemType}}
+
+- name: Unmount SLURM file system
+  mount:
+    backup: yes
+    fstype: "{{FileSystemType}}"
+    opts: "{{FileSystemOptions}}"
+    path: "{{FileSystemMountPath}}"
+    src: "{{FileSystemMountSrc}}"
+    state: absent
+
+- name: Remove {{FileSystemMountPath}}
+  file:
+    state: absent
+    path: "{{FileSystemMountPath}}"

@@ -1,0 +1,63 @@
+---
+jenkins:
+  fairshare: 10
+  users:
+  - jenkins
+
+project1:
+  fairshare: 90
+
+project1-dv:
+  parent: project1
+  fairshare: 80
+  users:
+  - dvuser1
+project1-pd:
+  parent: project1
+  fairshare: 10
+  users:
+  - pduser1
+project1-rtl:
+  parent: project1
+  fairshare: 10
+  users:
+  - rtluser1
+project1-fv:
+  parent: project1
+  fairshare: 10
+  users:
+  - fvuser1
+
+project2:
+  fairshare: 90
+
+project2-dv:
+  parent: project2
+  fairshare: 80
+  users:
+  - dvuser1
+project2-pd:
+  parent: project2
+  fairshare: 10
+  users:
+  - pduser1
+project2-rtl:
+  parent: project2
+  fairshare: 10
+  users:
+  - rtluser1
+project2-fv:
+  parent: project2
+  fairshare: 10
+  users:
+  - fvuser1
+
+infrastructure:
+  fairshare: 10
+  users:
+  - user1
+  - user2
+
+# Account for unassigned users so that they belong to an account.
+unassigned:
+  fairshare: 1

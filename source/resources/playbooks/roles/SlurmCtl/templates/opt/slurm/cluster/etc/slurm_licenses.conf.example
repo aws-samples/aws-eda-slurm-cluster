@@ -1,0 +1,8 @@
+#
+#
+# Licenses
+# See: https://slurm.schedmd.com/licenses.html
+# Jobs request using -L or --licenses
+# To see license usage:
+#     scontrol show lic
+Licenses=vcs:800,ansys:1

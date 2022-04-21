@@ -1,0 +1,16 @@
+[Unit]
+Description=Slurm controller daemon
+After=munged.service network.target remote-fs.target
+ConditionPathExists={{SlurmConf}}
+
+[Service]
+Type=forking
+EnvironmentFile=-/etc/sysconfig/slurmctld
+ExecStart={{SlurmSbinDir}}/slurmctld $SLURMCTLD_OPTIONS
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/slurmctld.pid
+LimitNOFILE=65536
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

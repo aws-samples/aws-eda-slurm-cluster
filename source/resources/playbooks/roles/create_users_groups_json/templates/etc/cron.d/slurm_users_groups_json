@@ -1,0 +1,4 @@
+MAILTO=''
+SLURM_ROOT={{SlurmRoot}}
+PATH="$SLURM_ROOT/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+*/5 * * * * root {{SlurmScriptsDir}}/create_users_groups_json.py -o {{SlurmConfigDir}}/users_groups.json

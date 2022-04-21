@@ -1,0 +1,7 @@
+---
+- name: Configure host to save users/groups to json
+  hosts: localgroup
+  become_user: root
+  become: yes
+  roles:
+    - create_users_groups_json

@@ -1,0 +1,19 @@
+---
+
+# Create a crontab to regularly update the users/groups json file with latest user and group information.
+# This is used to create matching local users on all slurm instances and
+# Should only be installed on 1 instance.
+- name: Create /etc/cron.d/slurm_users_groups_json
+  template:
+    dest: /etc/cron.d/slurm_{{ClusterName}}_create_users_groups_json
+    src:   etc/cron.d/slurm_users_groups_json
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
+# The file gets created on slurmctl and has no users and groups so this needs to be run to update it.
+- name: Create/update {{SlurmScriptsDir}}/users_groups.json
+  shell:
+    cmd: |
+      {{SlurmScriptsDir}}/create_users_groups_json.py -o {{SlurmConfigDir}}/users_groups.json

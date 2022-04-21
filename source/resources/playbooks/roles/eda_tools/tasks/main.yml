@@ -1,0 +1,741 @@
+---
+# tasks file for common
+
+# Uncomment to display all of the collected facts for all instances.
+#- debug: var=ansible_facts
+
+#- name: Save env
+#  shell: |
+#    env | sort > /tmp/ansible-common-env.txt
+
+# Use "state: present" instead of latest so that the package versions
+# stay stable and to reduce the possibility of installation failures
+# caused by new packages
+# The last 2 tasks update installed packages with security and bug fixes.
+
+- name: Install awscliv2
+  shell:
+    cmd: |
+      set -ex
+      export PATH=/usr/local/bin:$PATH
+      if aws --version | grep aws-cli/2; then
+          echo "awscli v2 already installed"
+          exit 0
+      fi
+      cd /tmp
+      if yum list installed awscli &> /dev/null; then
+          yum -y remove awscli
+      fi
+      rm -rf /usr/local/aws-cli
+      rm -f awscliv2.zip
+      rm -rf aws
+      if [[ {{Architecture}} == 'x86_64' ]]; then
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+      elif [[ {{Architecture}} == 'arm64' ]]; then
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
+      else
+        echo "error: Unsupported {{Architecture}} architecture"
+        exit 1
+      fi
+      unzip awscliv2.zip
+      ./aws/install --update
+      rm -f awscliv2.zip
+      rm -rf aws
+
+- name: Remove old python packages
+  when: distribution == 'Amazon'
+  tags:
+    - python
+    - packages
+  yum:
+    state: removed
+    name:
+      - python34
+      - python34-pip
+      - python36
+      - python36-pip
+
+- name: Install python3
+  tags:
+    - python
+    - packages
+    - pip
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - python3
+      - python3-pip
+
+- name: Install packages required by python packages
+  when: (rhel8 or rhel8clone) and Architecture == 'arm64'
+  tags:
+    - python
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - gcc-c++
+      - platform-python-devel
+
+- name: Install cython, numpy
+  when: (rhel8 or rhel8clone) and Architecture == 'arm64'
+  tags:
+    - python
+    - packages
+  pip:
+    executable: /usr/bin/pip3
+    state: present
+    name:
+      - cython
+      - numpy
+
+- name: Install EDA pip3 packages
+  tags:
+    - python
+    - packages
+  pip:
+    executable: /usr/bin/pip3
+    state: present
+    name:
+      - boto3
+      - git-review
+      - python-hostlist
+      - requests
+      - virtualenv
+
+- name: Install pandas
+  tags:
+    - python
+    - packages
+  pip:
+    executable: /usr/bin/pip3
+    state: present
+    name:
+      - pandas
+
+# The amazon repo only has the 64 bit of compat-libstdc++-33 and
+# tools need both the 32 and 64 bit versions.
+# The 32 bit version can be installed from the centos mirror, but it is a different
+# version than the Amazon Linux 64 bit version so the solution is to delete Amazon version
+# and install both versions from the centos mirror.
+#
+# This package doesn't exist on RedHat or aarch64/arm64.
+#
+# I commented this out after it had been deleted from all workspaces so it doesn't remove
+# the centos version.
+#- name: Remove compat-libstdc++-33.x86_64 on Amazon Linux
+#  when: distribution == 'Amazon'
+#  yum:
+#    name:
+#      - compat-libstdc++-33.x86_64
+#    state: removed
+- name: Install compat-libstdc++-33 on Amazon Linux
+  when: distribution == 'Amazon' and Architecture == 'x86_64'
+  tags:
+    - libstdc++
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - http://mirror.centos.org/centos/7/os/x86_64/Packages/compat-libstdc++-33-3.2.3-72.el7.x86_64.rpm
+      - http://mirror.centos.org/centos/7/os/x86_64/Packages/compat-libstdc++-33-3.2.3-72.el7.i686.rpm
+- name: Install compat-libstdc++-33 on CentOS
+  when: centos7 and Architecture == 'x86_64'
+  tags:
+    - libstdc++
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - compat-libstdc++-33.x86_64
+      - compat-libstdc++-33.i686
+
+# The packages that provide the pulseaudo libs are different between CentOS and Amazon
+- name: Install pulseaudio on CentOS
+  when: distribution != 'Amazon'
+  tags:
+    - pulseaudio
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - pulseaudio-libs
+- name: Install pulseaudio on Amazon Linux
+  when: distribution == 'Amazon'
+  tags:
+    - pulseaudio
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - pulseaudio
+
+# libcrypt doesn't exist on CentOS, but the libs are aleady installed in the base image.
+- name: Install libcrypt on Amazon Linux
+  when: distribution == 'Amazon' and Architecture == 'x86_64'
+  tags:
+    - libcrypt
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - libcrypt.x86_64
+      - libcrypt.i686
+- name: Install libcrypt on Amazon Linux
+  when: distribution == 'Amazon' and Architecture == 'arm64'
+  tags:
+    - libcrypt
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - libcrypt
+
+- name: Install perl-Switch on non-RedHat
+  when: not rhel and not rhel8clone
+  tags:
+    - perl-switch
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - perl-Switch
+
+# @todo perl-Switch not found on rhel7
+# - name: Install perl-Switch on RedHat
+#   when: distribution == 'RedHat'
+#   tags:
+#     - perl-switch
+#     - packages
+#   yum:
+#     state: present
+#     disablerepo: "{{yum_disablerepo|default(omit)}}"
+#     enablerepo: "rhel-7-server-rhui-optional-rpms,rhui-rhel-7-server-rhui-optional-rpms"
+#     name:
+#       - perl-Switch
+
+- name: Install non-RedHat packages
+  when: not rhel and not rhel8clone
+  tags:
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - uuid-devel
+      - xorg-x11-server-devel
+
+- name: Install xorg-x11-fonts-ISO8859-15-100dpi
+  when: distribution != 'RedHat'
+  tags:
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - xorg-x11-fonts-ISO8859-15-100dpi
+
+# Needed by slurm that was compiled on centos
+- name: Install ncurses-compat-libs on Amazon Linux
+  when: distribution == 'Amazon'
+  tags:
+    - ncurses
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - ncurses-compat-libs
+
+# Update elfutils-libelf.x86_64 to latest if elfutils-libelf.i686 is not installed
+# Otherwise you can get a multilib conflict between the 2.
+# @todo This is failing on RedHat with a repository error
+- name: Check if elfutils-libelf.i686 installed
+  when: distribution != 'RedHat'
+  stat:
+    path: /lib/elfutils
+  register: result
+  tags:
+    - elfutils
+    - packages
+- name: /lib/elfutils exists
+  when: distribution != 'RedHat' and result.stat.exists
+  tags:
+    - elfutils
+    - packages
+  shell: echo "/lib/elfutils  exists"
+- name: Update elfutils-libelf.x86_64 to latest
+  when: Architecture == 'x86_64' and distribution != 'RedHat' and not result.stat.exists
+  tags:
+    - elfutils
+    - packages
+  yum:
+    state: latest
+    name:
+      - elfutils-libelf.x86_64
+- name: Install elfutils-libelf
+  when: distribution != 'RedHat' and Architecture == 'x86_64'
+  tags:
+    - elfutils
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - elfutils-libelf.x86_64
+      - elfutils-libelf.i686
+- name: Install elfutils-libelf
+  when: Architecture == 'arm64'
+  tags:
+    - elfutils
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - elfutils-libelf
+
+# redhat-lsb doesn't exist on AmazonLinux
+- name: Install system-lsb on Amazon Linux
+  when: distribution == 'Amazon'
+  tags:
+    - lsb
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - system-lsb
+
+# redhat-lsb doesn't exist on AmazonLinux
+- name: Install redhat-lsb on CentOs and RedHat
+  when: distribution in ['CentOS', 'RedHat']
+  tags:
+    - lsb
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - redhat-lsb
+
+# gperf doesn't exist on RedHat
+- name: Install gperf on CentOs and Amazon
+  when: centos7 or distribution == 'Amazon'
+  tags:
+    - gperf
+    - packages
+    - eda_packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - gperf
+
+# Split the packages into groups to ease debug if an install fails.
+
+- name: Install glibc
+  when: Architecture == 'x86_64'
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    name:
+      - glibc.x86_64
+      - glibc.i686
+
+- name: Install EDA packages 1
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - bc
+      - bzip2-devel
+      - cmake
+      - cmake3
+      - collectd
+      - compat-libtiff3
+      - csh
+      - ctags
+      - dos2unix
+      - emacs
+      - environment-modules
+      - fuse
+      - fuse-libs
+      - gcc
+      - gcc-c++
+      - gdb
+      - glibc
+      - git
+      - git-lfs
+      - indent
+      - jq
+      - krb5-workstation
+      - ksh
+
+- name: Install gpaste
+  when: not(rhel8 or rhel8clone)
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - gpaste
+      - gpaste-ui
+
+# Update libstdc++.x86_64 to latest if libstdc++.i686 is not installed
+# Otherwise you can get a multilib conflict between the 2.
+- name: Check if libstdc++.i686 installed
+  when: Architecture == 'x86_64'
+  tags:
+    - libstdc++
+    - packages
+  stat:
+    path: /lib/libstdc++.so.6
+  register: result
+#- name: libstdc++.so.6 exists
+#  shell: echo "libstdc++.so.6 exists"
+#  when: result.stat.exists
+- name: Update libstdc++.x86_64 to latest
+  when: Architecture == 'x86_64' and not result.stat.exists
+  tags:
+    - libstdc++
+    - packages
+  yum:
+    state: latest
+    name:
+      - libstdc++.x86_64
+- name: Install libstdc++
+  when: Architecture == 'x86_64'
+  tags:
+    - libstdc++
+    - packages
+  yum:
+    state: present
+    name:
+      - libstdc++.x86_64
+      - libstdc++.i686
+- name: Install libstdc++
+  when: Architecture == 'arm64'
+  tags:
+    - libstdc++
+    - packages
+  yum:
+    state: present
+    name:
+      - libstdc++
+
+- name: Install EDA packages 2
+  when: Architecture == 'x86_64'
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - libICE.x86_64
+      - libICE.i686
+      - libSM.x86_64
+      - libSM.i686
+      - libXcursor.x86_64
+      - libXcursor.i686
+      - libXext.x86_64
+      - libXext.i686
+      - libXrandr.x86_64
+      - libXrandr.i686
+
+- name: Install EDA packages 2
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - libaio
+      - libffi-devel
+      - libICE
+      - libmng
+      - libpng12
+      - libSM
+      - libstdc++-docs
+      - libX11-devel
+      - libXcursor
+      - libXdmcp
+      - libXext
+      - libXmu
+      - libXp
+      - libXrandr
+      - libXScrnSaver
+
+- name: Install ncurses-libs
+  when: Architecture == 'x86_64'
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - ncurses-libs.x86_64
+      - ncurses-libs.i686
+
+- name: Install EDA packages 3
+  when: not(rhel8 or rhel8clone)
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - gstreamer
+      - lzma-sdk-devel
+      - pandoc # For generating html from markdown
+      - qt
+      - qt3
+      - tkcvs
+      - vte3
+
+- name: Install EDA packages 3
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - lsof
+      - make
+      - man-pages
+      - meld
+      - mesa-libGLU
+      - ncurses-devel
+      - ncurses-libs
+      - nedit
+      - net-tools
+      - nfs-utils
+      - openldap-clients
+      - openssh-clients
+      - openssl-devel
+      - parallel
+      - perf
+      - perl-XML-Parser
+      - readline-devel
+      - screen
+      - socat
+      - sqlite-devel
+      - strace
+      - stress
+      - stress-ng
+      - tcl
+      - tcl-devel
+      - tcpdump
+      - tcsh
+      - time
+      - tk
+      - tk-devel
+      - tmux
+      - tofrodos
+      - vim-X11
+      - vte-profile
+      - wget
+      - which
+
+- name: Install EDA packages 4
+  tags:
+    - eda_packages
+    - packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - xkeyboard-config
+      - xorg-x11-font-utils
+      - xorg-x11-fonts-100dpi
+      - xorg-x11-fonts-75dpi
+      - xorg-x11-fonts-ISO8859-1-100dpi
+      - xorg-x11-fonts-ISO8859-1-75dpi
+      - xorg-x11-fonts-ISO8859-14-100dpi
+      - xorg-x11-fonts-ISO8859-14-75dpi
+      - xorg-x11-fonts-ISO8859-15-75dpi
+      - xorg-x11-fonts-ISO8859-2-100dpi
+      - xorg-x11-fonts-ISO8859-2-75dpi
+      - xorg-x11-fonts-ISO8859-9-100dpi
+      - xorg-x11-fonts-ISO8859-9-75dpi
+      - xorg-x11-fonts-Type1
+      - xorg-x11-fonts-cyrillic
+      - xorg-x11-fonts-ethiopic
+      - xorg-x11-fonts-misc
+
+- name: Install EDA packages 5
+  tags:
+    - packages
+    - eda_packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - apr-util
+      - gnuplot
+      - xterm
+      - xz-libs
+      - zlib-devel
+      - gd
+      - tigervnc
+
+- name: Install compat-db47
+  when: not(distribution == 'Amazon' and Architecture == 'arm64') and not(rhel8 or rhel8clone)
+  tags:
+    - packages
+    - eda_packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - compat-db47
+
+- name: Check if /usr/lib64/libreadline.so.5 exists
+  stat:
+    path: /usr/lib64/libreadline.so.5
+  register: libreadline5
+- name: Check if /usr/lib64/libreadline.so.6 exists
+  stat:
+    path: /usr/lib64/libreadline.so.6
+  register: libreadline6
+- name: Create /usr/lib64/libreadline.so.5
+  when: libreadline6.stat.exists and not libreadline5.stat.exists
+  file:
+    src:  /usr/lib64/libreadline.so.6
+    path: /usr/lib64/libreadline.so.5
+    state: link
+    owner: root
+    group: root
+    mode: 0777
+
+- name: Check if /usr/lib64/libhistory.so.5 exists
+  stat:
+    path: /usr/lib64/libreadline.so.5
+  register: libhistory5
+- name: Check if /usr/lib64/libhistory.so.6 exists
+  stat:
+    path: /usr/lib64/libreadline.so.6
+  register: libhistory6
+- name: Create /usr/lib64/libhistory.so.5
+  when: libhistory6.stat.exists and not libhistory5.stat.exists
+  file:
+    src:  /usr/lib64/libhistory.so.6
+    path: /usr/lib64/libhistory.so.5
+    state: link
+    owner: root
+    group: root
+    mode: 0777
+
+- name: Check if /usr/lib64/libncurses.so exists
+  stat:
+    path: /usr/lib64/libncurses.so
+  register: libncurses
+- name: Check if /usr/lib64/libncurses.so.5 exists
+  stat:
+    path: /usr/lib64/libncurses.so.5
+  register: libncurses5
+- name: Create /usr/lib64/libncurses.so
+  when: libncurses5.stat.exists and not libncurses.stat.exists
+  file:
+    src:  /usr/lib64/libncurses.so.5
+    path: /usr/lib64/libncurses.so
+    state: link
+    owner: root
+    group: root
+    mode: 0777
+
+- name: Set nodejs version
+  set_fact:
+    nodejs_version: '16.13.2'
+
+- name: Set nodejs download URL
+  when: Architecture == 'x86_64'
+  set_fact:
+    nodejs_url: "https://nodejs.org/dist/v{{nodejs_version}}/node-v{{nodejs_version}}-linux-x64.tar.xz"
+    nodejs_tarball: "node-v{{nodejs_version}}-linux-x64.tar.xz"
+    nodejs_dir: "/opt/node-v{{nodejs_version}}-linux-x64"
+
+- name: Set nodejs download URL
+  when: Architecture == 'arm64'
+  set_fact:
+    nodejs_url: "https://nodejs.org/dist/v{{nodejs_version}}/node-v{{nodejs_version}}-linux-arm64.tar.xz"
+    nodejs_tarball: "node-v{{nodejs_version}}-linux-arm64.tar.xz"
+    nodejs_dir: "/opt/node-v{{nodejs_version}}-linux-arm64"
+
+- name: Install nodejs
+  shell:
+    creates: "{{nodejs_dir}}"
+    cmd: |
+      set -ex
+      cd /tmp
+      wget {{nodejs_url}}
+      cd /opt
+      tar -xf /tmp/{{nodejs_tarball}}
+      rm /tmp/{{nodejs_tarball}}
+
+- name: Add nodejs to sh path
+  template:
+    src:   etc/profile.d/nodejs.sh
+    dest: /etc/profile.d/nodejs.sh
+    backup: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Add nodejs to csh path
+  template:
+    src:   etc/profile.d/nodejs.csh
+    dest: /etc/profile.d/nodejs.csh
+    backup: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Install ejs
+  shell:
+    creates: "{{nodejs_dir}}/lib/node_modules/ejs"
+    cmd: |
+      set -ex
+      source /etc/profile.d/nodejs.sh
+      npm install --global ejs
+
+- name: Install typescript
+  shell:
+    creates: "{{nodejs_dir}}/lib/node_modules/typescript"
+    cmd: |
+      set -ex
+      source /etc/profile.d/nodejs.sh
+      npm install --global typescript
+
+# - name: Install ejs NPM package
+#   npm:
+#     name: ejs
+#     global: yes
+#     executable: "{{nodejs_dir}}/bin/npm"
+
+# - name: Install typescript NPM package
+#   npm:
+#     name: typescript
+#     global: yes
+#     executable: "{{nodejs_dir}}/bin/npm"

@@ -1,0 +1,137 @@
+---
+# tasks file for install_slurm
+
+- name: Install epel from amazon-linux-extras
+  when: distribution == 'Amazon'
+  shell:
+    cmd: amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel from yum
+  when: distribution in ['CentOS', 'RedHat']
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - epel-release
+
+- name: Enable PowerTools repo
+  when: rhel8clone
+  shell:
+    cmd: yum-config-manager --enable PowerTools || yum-config-manager --enable powertools
+
+- name: Enable rhel-7-server-rhui-optional-rpms
+  when: rhel7
+  shell:
+    cmd: |
+      set -ex
+      yum-config-manager --enable rhel-7-server-rhui-optional-rpms
+      yum-config-manager --enable rhui-REGION-rhel-server-optional
+
+- name: Enable codeready-builder-for-rhel-8-rhui-rpms repo
+  when: rhel8
+  shell:
+    cmd: |
+      yum-config-manager --enable codeready-builder-for-rhel-8-rhui-rpms
+
+- name: Install slurm packages
+  yum:
+    state: present
+    name:
+      - bzip2
+      - crudini
+      - emacs
+      - freeipmi-devel
+      - fwknop
+      - gcc
+      - gtk2-devel
+      - http-parser-devel
+      - hwloc-devel
+      - json-c-devel
+      - libcurl-devel
+      - libyaml-devel
+      - lua-devel
+      - lz4-devel
+      - mailx
+      - make
+      - man2html
+      - munge
+      - munge-devel
+      - munge-libs
+      - mysql-devel
+      - numactl-devel
+      - pam-devel
+      - perl-devel
+      - pmix-devel
+      - python3
+      - readline-devel
+      - rng-tools
+      - rrdtool-devel
+      - wget
+
+- name: Install hdf5-devel
+  when: not(distribution == 'Amazon' and Architecture == 'arm64') and not(rhel8 or rhel8clone)
+  yum:
+    state: present
+    name:
+      - hdf5-devel
+
+- name: Install libjwt-devel
+  when: not(distribution == 'Amazon' and Architecture == 'arm64')
+  yum:
+    state: present
+    name:
+      - libjwt-devel
+
+- name: Download slurm source
+  shell: |
+    set -xe
+
+    mkdir -p {{SlurmSrcDir}}
+    cd {{SlurmSrcDir}}
+    wget https://download.schedmd.com/slurm/slurm-{{SlurmVersion}}.tar.bz2
+    bzip2 -d slurm-{{SlurmVersion}}.tar.bz2
+    tar -xf slurm-{{SlurmVersion}}.tar
+    rm slurm-{{SlurmVersion}}.tar
+
+  args:
+    creates: "{{SlurmSrcDir}}/slurm-{{SlurmVersion}}/INSTALL"
+
+- name: Build and install slurm on {{distribution}} {{distribution_major_version}}
+  args:
+    creates: "{{SlurmBinDir}}/srun"
+  shell: |
+    set -xe
+
+    cd {{SlurmSrcDir}}/slurm-{{SlurmVersion}}
+    ./configure --prefix {{SlurmOSDir}}/ &> configure.log
+    make &> slurm-make.log
+    make contrib &> slurm-make-contrib.log
+
+    make install &> slurm-make-install.log
+    make install-contrib &> slurm-make-install-contrib.log
+
+- name: Create {{SlurmOSDir}}/etc
+  file:
+    state: link
+    src:  "{{SlurmEtcDir}}"
+    path: "{{SlurmOSDir}}/etc"
+    owner: root
+    group: root
+
+- name: Create {{SlurmOSDir}}/etc
+  file:
+    state: link
+    src:  "{{SlurmOSDir}}/lib/libnss_slurm.so.2"
+    path: "/usr/lib64/libnss_slurm.so.2"
+    owner: root
+    group: root
+
+- name: Enable nss_slurm
+  lineinfile:
+    path: /etc/nsswitch.conf
+    state: present
+    regexp: '^(passwd:\s+)'
+    line: '\1nss_slurm sss files systemd'
+    backrefs: yes
+    backup: yes

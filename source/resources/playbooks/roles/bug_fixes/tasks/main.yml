@@ -1,0 +1,8 @@
+---
+# tasks file for bug_fixes
+
+- name: Install bug fixes
+  yum:
+    state: latest
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    bugfix: yes

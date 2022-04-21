@@ -1,0 +1,299 @@
+---
+- name: Create {{SlurmScriptsDir}}/create_users_groups_json.py
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/create_users_groups_json.py"
+    src: opt/slurm/cluster/bin/create_users_groups_json.py
+    owner: root
+    group: root
+    mode: 0700
+
+- name: Create {{SlurmScriptsDir}}/create_users_groups.py
+  when: PrimaryController|bool
+  template:
+    src:   opt/slurm/cluster/bin/create_users_groups.py
+    dest: "{{SlurmScriptsDir}}/create_users_groups.py"
+    owner: root
+    group: root
+    mode: 0700
+
+- name: Create {{SlurmScriptsDir}}/epilog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/epilog.sh"
+    src:  opt/slurm/cluster/bin/epilog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/prolog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/prolog.sh"
+    src:  opt/slurm/cluster/bin/prolog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/sbatch_wrap.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/sbatch_wrap.sh"
+    src:  opt/slurm/cluster/bin/sbatch_wrap.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/slurmctld-epilog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/slurmctld-epilog.sh"
+    src:  opt/slurm/cluster/bin/slurmctld-epilog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/slurmctld-prolog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/slurmctld-prolog.sh"
+    src:  opt/slurm/cluster/bin/slurmctld-prolog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/srun-epilog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/srun-epilog.sh"
+    src:  opt/slurm/cluster/bin/srun-epilog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/srun-prolog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/srun-prolog.sh"
+    src:  opt/slurm/cluster/bin/srun-prolog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/task-epilog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/task-epilog.sh"
+    src:  opt/slurm/cluster/bin/task-epilog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/task-prolog.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/task-prolog.sh"
+    src:  opt/slurm/cluster/bin/task-prolog.sh
+    owner: root
+    group: root
+    mode: 0775
+
+# Put a copy of slurm_ec2_create_node_conf.py on file system so can be run on any instance
+- name: Create {{SlurmScriptsDir}}/slurm_ec2_create_node_conf.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/slurm_ec2_create_node_conf.py"
+    src: opt/slurm/cluster/bin/slurm_ec2_create_node_conf.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/SlurmNodeUserData.sh
+  when: PrimaryController|bool
+  copy:
+    dest:  "{{SlurmScriptsDir}}/SlurmNodeUserData.sh"
+    src:  opt/slurm/cluster/bin/SlurmNodeUserData.sh
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/SlurmPlugin.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/SlurmPlugin.py"
+    src: opt/slurm/cluster/bin/SlurmPlugin.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmConfigDir}}/SlurmVersion.sh
+  when: PrimaryController|bool
+  template:
+    src:   opt/slurm/cluster/config/SlurmVersion.sh
+    dest: "{{SlurmConfigDir}}/SlurmVersion.sh"
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+
+- name: Create {{SlurmLocalConfigDir}}/SlurmVersion.sh
+  when: PrimaryController|bool
+  template:
+    src:   opt/slurm/cluster/config/SlurmVersion.sh
+    dest: "{{SlurmLocalConfigDir}}/SlurmVersion.sh"
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+
+- name: Create {{SlurmConfigDir}}/SlurmVersion.json
+  when: PrimaryController|bool
+  template:
+    src:   opt/slurm/cluster/config/SlurmVersion.json
+    dest: "{{SlurmConfigDir}}/SlurmVersion.json"
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+
+- name: Create {{SlurmLocalConfigDir}}/SlurmVersion.json
+  when: PrimaryController|bool
+  template:
+    src:   opt/slurm/cluster/config/SlurmVersion.json
+    dest: "{{SlurmLocalConfigDir}}/SlurmVersion.json"
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+
+- name: Create {{SlurmScriptsDir}}/create_slurm_accounts.py
+  when: PrimaryController|bool
+  copy:
+    src:   opt/slurm/cluster/bin/create_slurm_accounts.py
+    dest: "{{SlurmScriptsDir}}/create_slurm_accounts.py"
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfo.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/EC2InstanceTypeInfo.py"
+    src: opt/slurm/cluster/bin/EC2InstanceTypeInfo.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/requeue_node_jobs.py
+  when: PrimaryController|bool
+  copy:
+    src:   opt/slurm/cluster/bin/requeue_node_jobs.py
+    dest: "{{SlurmScriptsDir}}/requeue_node_jobs.py"
+    owner: root
+    group: root
+    mode: 0700
+    force: yes
+
+- name: Create {{SlurmScriptsDir}}/slurm_ec2_create_node_conf.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/slurm_ec2_create_node_conf.py"
+    src: opt/slurm/cluster/bin/slurm_ec2_create_node_conf.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/slurm_ec2_publish_cw.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/slurm_ec2_publish_cw.py"
+    src: opt/slurm/cluster/bin/slurm_ec2_publish_cw.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/slurm_ec2_resume_fail.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/slurm_ec2_resume_fail.py"
+    src: opt/slurm/cluster/bin/slurm_ec2_resume_fail.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/slurm_ec2_resume.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/slurm_ec2_resume.py"
+    src: opt/slurm/cluster/bin/slurm_ec2_resume.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/slurm_ec2_stop.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/slurm_ec2_stop.py"
+    src: opt/slurm/cluster/bin/slurm_ec2_stop.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/slurm_ec2_terminate.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/slurm_ec2_terminate.py"
+    src: opt/slurm/cluster/bin/slurm_ec2_terminate.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/SlurmPlugin.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/SlurmPlugin.py"
+    src: opt/slurm/cluster/bin/SlurmPlugin.py
+    owner: root
+    group: root
+    mode: 0755
+    backup: true
+
+- name: Create {{SlurmScriptsDir}}/spot_monitor.py
+  when: PrimaryController|bool
+  copy:
+    src:   opt/slurm/cluster/bin/spot_monitor.py
+    dest: "{{SlurmScriptsDir}}/spot_monitor.py"
+    owner: root
+    group: root
+    mode: 0700
+    force: yes
+
+- name: Create {{SlurmScriptsDir}}/slurm_down_nodes_clean.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/slurm_down_nodes_clean.sh"
+    src:   opt/slurm/cluster/bin/slurm_down_nodes_clean.sh
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/terminate_old_instances.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/terminate_old_instances.py"
+    src:   opt/slurm/cluster/bin/terminate_old_instances.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmBaseDir}}/test/*
+  when: PrimaryController|bool
+  template:
+    src:   "{{item}}"
+    dest: "{{SlurmBaseDir}}/test/{{item | basename}}"
+    owner: root
+    group: root
+    mode: 0775
+    force: yes
+  with_fileglob:
+    - "templates/opt/slurm/cluster/test/*"

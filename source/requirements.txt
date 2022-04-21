@@ -1,0 +1,14 @@
+-e .
+aws-cdk-lib==2.12.0
+boto3
+colored
+constructs>=10.0.0
+hostlist
+isodate
+jinja2
+pytest
+python-hostlist
+pip
+requests
+PyYAML==5.4.1
+schema

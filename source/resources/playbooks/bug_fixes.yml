@@ -1,0 +1,8 @@
+---
+- name: Install yum bug fixes
+  hosts:
+    - all
+  become_user: root
+  become: yes
+  roles:
+    - bug_fixes

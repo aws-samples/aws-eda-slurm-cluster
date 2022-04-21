@@ -1,0 +1,46 @@
+---
+
+- name: Create munge key
+  # https://github.com/dun/munge/wiki/Installation-Guide
+  when: PrimaryController|bool
+  shell: |
+    set -xe
+
+    mkdir -p {{SlurmConfigDir}}
+    if [[ ":{{MungeKeySsmParameter}}" == ":" ]]; then
+        dd if=/dev/random bs=1 count=1024 > {{SlurmConfigDir}}/munge.key
+        chmod 0400 {{SlurmConfigDir}}/munge.key
+    else
+        aws ssm get-parameter --name {{MungeKeySsmParameter}} --query 'Parameter.Value' --output text | base64 -d > {{SlurmConfigDir}}/munge.key
+    fi
+  args:
+    creates: "{{SlurmConfigDir}}/munge.key"
+
+- name: Create {{SlurmAnsibleDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmAnsibleDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: rsync playbooks to file system
+  when: PrimaryController|bool
+  shell:
+    cmd: |
+      set -ex
+      rsync -av /root/playbooks/ {{SlurmAnsibleDir}}/playbooks
+      rsync -av /root/ansible_extra_vars.yml {{SlurmAnsibleDir}}/
+
+- { include: packages.yml, tags: packages }
+- { include: rc_local.yml, tags: rc_local }
+- { include: networking.yml, tags: networking }
+- { include: user_slurm.yml, tags: users }
+- { include: slurm_directories.yml, tags: slurm_directories }
+- { include: slurm_scripts.yml, tags: slurm_scripts }
+- { include: slurm_accounting.yml, tags: slurm_accounting }
+- { include: munge.yml, tags: munge }
+- { include: slurm_modulefiles.yml, tags: slurm_modulefiles }
+- { include: crontab.yml, tags: crontab }
+- { include: slurm_configuration.yml, tags: slurm_configuration }

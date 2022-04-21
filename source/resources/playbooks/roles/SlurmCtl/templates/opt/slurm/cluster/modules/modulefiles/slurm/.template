@@ -1,0 +1,132 @@
+#%Module1.0
+########################################
+##
+## SLURM modulefile
+##
+## Docs: https://modules.readthedocs.io/en/latest/modulefile.html
+########################################
+
+set nicename "SLURM"
+
+set thisname [ module-info name ]
+set namelen  [llength [split $thisname "/"]]
+set toolname [lindex [split $thisname "/" ] $namelen-2 ]
+set version  [lindex [split $thisname "/" ] end ]
+
+proc ModulesHelp { } {
+  global thisname toolname nicename
+  puts stderr "\t$thisname - loads the env for $nicename\n"
+}
+
+module-whatis "loads the env for $toolname version $version"
+
+prepend-path PATH {{SlurmScriptsDir}}
+prepend-path PATH {{SlurmVersionDir}}/{{item}}/bin
+prepend-path PATH {{SlurmBaseDir}}/bin
+
+setenv SLURM_CLUSTER_NAME {{ClusterName}}
+
+# sbatch defaults
+if { [ module-info mode load ] || [ module-info mode display ] } {
+    if { ! [ info exists ::env(SBATCH_MEM_PER_NODE) ] } {
+        setenv SBATCH_MEM_PER_NODE 100M
+        setenv SBATCH_MEM_PER_NODE_SET ""
+    }
+    if { ! ( [ info exists ::env(SBATCH_REQUEUE) ] || [ info exists ::env(SBATCH_NO_REQUEUE) ] ) } {
+        setenv SBATCH_REQUEUE ""
+        setenv SBATCH_REQUEUE_SET ""
+    }
+    if { ! [ info exists ::env(SBATCH_TIMELIMIT) ] } {
+        setenv SBATCH_TIMELIMIT "1:0:0"
+        setenv SBATCH_TIMELIMIT_SET ""
+    }
+} elseif { [ module-info mode remove ] } {
+    if { [ info exists ::env(SBATCH_MEM_PER_NODE_SET) ] } {
+        unsetenv SBATCH_MEM_PER_NODE
+        unsetenv SBATCH_MEM_PER_NODE_SET
+    }
+    if { [ info exists ::env(SBATCH_REQUEUE_SET) ] } {
+        unsetenv SBATCH_REQUEUE
+        unsetenv SBATCH_REQUEUE_SET
+    }
+    if { [ info exists ::env(SBATCH_TIMELIMIT_SET) ] } {
+        unsetenv SBATCH_TIMELIMIT
+        unsetenv SBATCH_TIMELIMIT_SET
+    }
+}
+
+# srun defaults
+if { [ module-info mode load ] || [ module-info mode display ] } {
+    if { ! [ info exists ::env(SLURM_CPUS_PER_TASK) ] } {
+        setenv SLURM_CPUS_PER_TASK 1
+        setenv SLURM_CPUS_PER_TASK_SET ""
+    }
+    if { ! [ info exists ::env(SLURM_MEM_PER_NODE) ] } {
+        setenv SLURM_MEM_PER_NODE 100M
+        setenv SLURM_MEM_PER_NODE_SET ""
+    }
+    if { ! [ info exists ::env(SLURM_TIMELIMIT) ] } {
+        setenv SLURM_TIMELIMIT "1:0:0"
+        setenv SLURM_TIMELIMIT_SET ""
+    }
+} elseif { [ module-info mode remove ] } {
+    if { [ info exists ::env(SLURM_CPUS_PER_TASK_SET) ] } {
+        unsetenv SLURM_CPUS_PER_TASK
+        unsetenv SLURM_CPUS_PER_TASK_SET
+    }
+    if { [ info exists ::env(SLURM_MEM_PER_NODE_SET) ] } {
+        unsetenv SLURM_MEM_PER_NODE
+        unsetenv SLURM_MEM_PER_NODE_SET
+    }
+    if { [ info exists ::env(SLURM_TIMELIMIT_SET) ] } {
+        unsetenv SLURM_TIMELIMIT
+        unsetenv SLURM_TIMELIMIT_SET
+    }
+}
+
+# squeue defaults
+#
+# Output format
+# If SQUEUE_FORMAT or SQUEUE_FORMAT2 already set then doen't change them.
+# This is to avoid overwriting a user's settings.
+#
+# SQUEUE_FORMAT doesn't allow all fields so prefer SQUEUE_FORMAT2
+# default: "%.18i %9P %8j %8u %12T %.10M %.6D %R"
+# JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
+# --long:  "%.18i %.9P %.8j %.8u %.2t %.10M %.6D %R"
+# JOBID PARTITION     NAME     USER    STATE       TIME TIME_LIMI  NODES NODELIST(REASON)
+#setenv SQUEUE_FORMAT  '%.9i %.19P %.9j %.8u %.10T %R'
+#
+# SQUEUE_FORMAT2 has all available fields
+# BatchHost: Similar to NodeList
+# ClusterFeature
+#
+# Priority
+# Reason
+#
+# TimeUsed
+# tres-alloc
+# UserId
+if { [ module-info mode load ] || [ module-info mode display ] } {
+    if { ! [ info exists ::env(SQUEUE_SORT) ] } {
+        # Sort by state, priority
+        setenv SQUEUE_SORT "t,-p"
+        setenv SQUEUE_SORT_SET ""
+    }
+    if { ! ( [ info exists ::env(SQUEUE_FORMAT) ] || [ info exists ::env(SQUEUE_FORMAT2) ] ) } {
+        setenv SQUEUE_FORMAT2 "Cluster:16 ,Partition:9 ,JobArrayId:16 ,Priority:12 ,State:11 ,UserName:8 ,Name:16 ,NumNodes:.5 ,NumCPUs:.4 ,MinMemory:.10 ,Feature:15 ,Dependency:10 ,Licenses:8 ,ReasonList:25"
+        #
+        # Time and priority information
+        #setenv SQUEUE_FORMAT2 "JobId:.6 ,Partition:9 ,State:7 ,UserName:8 ,Name:16 ,SubmitTime:16 ,PendingTime:12 ,TimeLimit:18 ,EndTime:18 ,ReasonList"
+        setenv SQUEUE_FORMAT2_SET ""
+    }
+} elseif { [ module-info mode remove ] } {
+    if { [ info exists ::env(SQUEUE_SORT_SET) ] } {
+        unsetenv SQUEUE_SORT
+        unsetenv SQUEUE_SORT_SET
+    }
+    if { [ info exists ::env(SQUEUE_FORMAT2_SET) ] } {
+        unsetenv SQUEUE_FORMAT2
+        unsetenv SQUEUE_FORMAT2_SET
+    }
+}

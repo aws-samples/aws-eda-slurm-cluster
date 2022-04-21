@@ -1,0 +1,31 @@
+---
+localgroup:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
+SlurmCtl:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
+SlurmDbd:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
+SlurmNode:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
+SlurmNodeAmi:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
+SlurmSubmitter:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local

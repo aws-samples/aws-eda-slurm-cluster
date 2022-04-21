@@ -1,0 +1,15 @@
+---
+- name: Configure eda_tools packages
+  hosts:
+    - ami_GridEngineHost
+    - ami_jenkins_slave
+    - ami_SlurmNode
+    - dcv
+    - grid_hosts
+    - GridEngineHost
+    - SlurmNode
+    - workspaces
+  become_user: root
+  become: yes
+  roles:
+    - eda_tools

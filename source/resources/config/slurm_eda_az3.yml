@@ -1,0 +1,91 @@
+---
+# Federated Slurm cluster for EDA
+#
+# This is the 3rd AZ that must be created after the 1st AZ and 2nd clusters.
+# Shares the SlurmDbd instance from the 1st AZ's cluster.
+# Redundant controllers and typical instances used by EDA.
+# Uses CentOS 7 and AlmaLinux 8 and both x86_64 and arm64 architectures.
+
+StackName: slurmedaaz3
+
+SubnetId: subnet-xxxxxxxxxxxxxxxxx # PrivateSubnet3
+
+# This is optional, but highly recommended
+#ErrorSnsTopicArn: arn:aws:sns:{{region}}:{AccountId}:{TopicName}
+
+slurm:
+  #MungeKeySsmParameter: "/slurm/munge_key"
+
+  SlurmCtl:
+    # For high availability configure multiple controllers
+    NumberOfControllers: 2
+
+  # The accounting database is required to enable fairshare scheduling
+  # It is managed by the Slurm Database Daemon (slurmdbd) instance
+  # This instance can be created as part of the cluster or can use an existing instance.
+  ExistingSlurmDbd:
+    StackName: slurmedaaz1
+
+  Federation:
+    Name: slurmeda
+    FederatedClusterStackNames:
+      - slurmedaaz1
+      - slurmedaaz2
+
+  # InstanceConfig:
+  # Configure the instances used by the cluster
+  # A partition will be created for each combination of Base OS, Architecture, and Spot
+  InstanceConfig:
+    UseSpot: true
+    DefaultPartition: CentOS_7_x86_64_spot
+    NodesPerInstanceType: 5
+    BaseOsArchitecture:
+      AlmaLinux: {8: [x86_64, arm64]}
+      CentOS:
+        7: [x86_64]
+    Include:
+      MaxSizeOnly: false
+      InstanceFamilies:
+        - 'c5'                # Mixed depending on size
+        #- 'c5a'               # AMD EPYC 7R32 3.3 GHz
+        #- 'c5ad'              # AMD EPYC 7R32 3.3 GHz
+        #- 'c6i'               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
+        - 'c6g'               # AWS Graviton2 Processor 2.5 GHz
+        #- 'c6gd'              # AWS Graviton2 Processor 2.5 GHz
+        #- 'f1'                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
+        - 'm5'                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
+        #- 'm5d'               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
+        #- 'm5a'               # AMD EPYC 7571 2.5 GHz
+        #- 'm5ad'              # AMD EPYC 7571 2.5 GHz
+        #- 'm5zn'              # Intel Xeon Platinum 8252 4.5 GHz
+        #- 'm6a'               # AMD EPYC 7R13 Processor 3.6 GHz
+        #- 'm6i'               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
+        - 'm6g'               # AWS Graviton2 Processor 2.5 GHz
+        #- 'm6gd'              # AWS Graviton2 Processor 2.5 GHz
+        #- 'r5'                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
+        #- 'r5d'               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
+        #- 'r5b'               # Intel Xeon Platinum 8259 (Cascade Lake) 3.1 GHz
+        #- 'r5a'               # AMD EPYC 7571 2.5 GHz
+        #- 'r5ad'              # AMD EPYC 7571 2.5 GHz
+        #- 'r6i'               # Intel Xeon 8375C (Ice Lake) 3.5 GHz 1TB
+        #- 'r6g'               # AWS Graviton2 Processor 2.5 GHz
+        #- 'r6gd'              # AWS Graviton2 Processor 2.5 GHz
+        #- 'x1'                # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 2TB
+        #- 'x1e'               # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 4TB
+        #- 'x2gd'              # AWS Graviton2 Processor 2.5 GHz 1TB
+        #- 'z1d'               # Intel Xeon Platinum 8151 4.0 GHz
+        #- 'u-6tb1'            # Intel Xeon Scalable (Skylake) 6 TB
+        #- 'u-9tb1'            # Intel Xeon Scalable (Skylake) 9 TB
+        #- 'u-12tb1'           # Intel Xeon Scalable (Skylake) 12 TB
+      InstanceTypes: []
+        #- 'c5\.(l|x|2|4|9|18).*'  # Intel Xeon Platinum 8124M 3.4 GHz
+        #- 'c5\.(12|24).*'         # Intel Xeon Platinum 8275L 3.6 GHz
+        #- 'c5d\.(l|x|2|4|9|18).*' # Intel Xeon Platinum 8124M 3.4 GHz
+        #- 'c5d\.(12|24).*'        # Intel Xeon Platinum 8275L 3.6 GHz
+    Exclude:
+      InstanceFamilies: []
+      InstanceTypes:
+        - '.*\.metal'
+
+  # Use defaults from schema
+  storage: {'efs': {}}

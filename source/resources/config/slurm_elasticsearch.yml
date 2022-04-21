@@ -1,0 +1,61 @@
+---
+# Minimal Slurm cluster with an ElasticSearch domain
+# Creates a new domain and configures Slurm to write completed job information to the domain.
+
+StackName: slurmes
+
+slurm:
+  # InstanceConfig:
+  # Configure the instances used by the cluster
+  # A partition will be created for each combination of Base OS, Architecture, and Spot
+  InstanceConfig:
+    UseSpot: true
+    DefaultPartition: CentOS_7_x86_64_spot
+    NodesPerInstanceType: 10
+    BaseOsArchitecture:
+      AlmaLinux: {8: [x86_64, arm64]}
+      CentOS:
+        7: [x86_64]
+    Include:
+      MaxSizeOnly: false
+      InstanceFamilies:
+        - t3
+        - t4g
+      InstanceTypes: []
+    Exclude:
+      InstanceFamilies: []
+      InstanceTypes:
+        - '.*\.metal'
+
+  # ElasticSearch:
+  # Configure the ElasticSearch/OpenSearch domain used by the slurm cluster
+  # If not specified then won't be created or used by the cluster.
+  # master_nodes: Defaults to 0
+  # data_nodes: Must be a multiple of number_of_azs
+  ElasticSearch:
+    ebs_volume_size: 20
+    ebs_volume_type: GP2
+    enable_version_upgrade: False
+    number_of_azs: 2
+    master_nodes: 3
+    master_node_instance_type: m5.large.search
+    data_nodes: 2
+    data_node_instance_type: m5.large.search
+    warm_nodes: 0
+    warm_instance_type: ultrawarm.medium.search
+
+  # JobCompType:
+  # Values:
+  #     jobcomp/none
+  #     jobcomp/elasticsearch
+  #     jobcomp/filetxt
+  JobCompType: jobcomp/elasticsearch
+  #
+  # JobCompLoc:
+  # Used with jobcomp/elasticsearch
+  # A complete URL endpoint with format <host>:<port>/<target>/_doc
+  #JobCompLoc: http://{{EsDomain}}.{{Region}}.es.amazonaws.com/slurm/_doc
+
+  # Use defaults from schema
+  SlurmCtl: {}
+  storage: {'efs': {}}

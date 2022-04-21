@@ -1,0 +1,26 @@
+---
+
+- name: Install epel from amazon-linux-extras
+  when: ansible_facts['distribution'] == 'Amazon'
+  shell:
+    cmd: |
+      set -ex
+      amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel
+  when: ansible_facts['distribution'] == 'CentOS'
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - epel-release
+
+- name: Install slurm_submitter packages
+  yum:
+    state: present
+    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    name:
+      - environment-modules
+      - munge
+      - python3

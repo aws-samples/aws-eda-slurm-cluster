@@ -1,0 +1,14 @@
+---
+# tasks file for slurm_submitter
+- { include: packages.yml, tags: [ packages ] }
+- { include: users.yml, tags: [ slurm, slurm_user ] }
+- { include: munge.yml, tags: [ slurm, munge ] }
+
+- name: Configure modules
+  template:
+    dest: /etc/profile.d/slurm_{{ClusterName}}_modulefiles.sh
+    src:  ../../SlurmCtl/templates/etc/profile.d/slurm_modulefiles.sh
+    owner: root
+    group: root
+    mode: 0644
+    force: yes

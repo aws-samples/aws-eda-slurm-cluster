@@ -1,0 +1,4 @@
+%Admins@{{domain}}  ALL=(ALL:ALL) NOPASSWD:ALL
+%sudoers@{{domain}} ALL=(ALL:ALL) NOPASSWD:AL
+%admins  ALL=(ALL:ALL) NOPASSWD: ALL
+%sudoers ALL=(ALL:ALL) NOPASSWD: ALL

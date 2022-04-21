@@ -1,0 +1,53 @@
+---
+- name: Create {{ModulefilesBaseDir}}/{{item}}/{{ClusterName}}
+  when: PrimaryController|bool
+  loop: "{{SupportedDistributions}}"
+  file:
+    path: "{{ModulefilesBaseDir}}/{{item}}/{{ClusterName}}"
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create slurm modulefile .template
+  when: PrimaryController|bool
+  loop: "{{SupportedDistributions}}"
+  template:
+    dest: "{{ModulefilesBaseDir}}/{{item}}/{{ClusterName}}/.template"
+    src:   opt/slurm/cluster/modules/modulefiles/slurm/.template
+    owner: root
+    group: root
+    mode: 0664
+    force: yes
+
+- name: Create slurm modulefile
+  when: PrimaryController|bool
+  loop: "{{SupportedDistributions}}"
+  file:
+    path: "{{ModulefilesBaseDir}}/{{item}}/{{ClusterName}}/{{SlurmVersion}}"
+    src:  "{{ModulefilesBaseDir}}/{{item}}/{{ClusterName}}/.template"
+    state: link
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create slurm modulefile .version
+  when: PrimaryController|bool
+  loop: "{{SupportedDistributions}}"
+  template:
+    dest: "{{ModulefilesBaseDir}}/{{item}}/{{ClusterName}}/.version"
+    src:   opt/slurm/cluster/modules/modulefiles/slurm/.version
+    owner: root
+    group: root
+    mode: 0664
+    force: yes
+
+- name: Configure modules - /etc/profile.d/slurm_{{ClusterName}}_modulefiles.sh
+  when: PrimaryController|bool
+  template:
+    dest: /etc/profile.d/slurm_{{ClusterName}}_modulefiles.sh
+    src:   etc/profile.d/slurm_modulefiles.sh
+    owner: root
+    group: root
+    mode: 0644
+    force: yes

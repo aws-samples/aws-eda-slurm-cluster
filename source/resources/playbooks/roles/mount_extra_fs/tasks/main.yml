@@ -1,0 +1,24 @@
+---
+# Mount extra file systems
+
+- name: Print vars
+  debug:
+    msg: |
+      ExtraMounts: {{ExtraMounts}}
+
+- name: Install nfs-utils
+  yum:
+    state: present
+    name:
+      - nfs-utils
+
+- name: Mount ExtraMounts
+  when: ExtraMounts|length > 0
+  loop: "{{ExtraMounts}}"
+  mount:
+    backup: yes
+    fstype: "{{item.type}}"
+    opts: "{{item.options}}"
+    path: "{{item.dest}}"
+    src: "{{item.src}}"
+    state: mounted

@@ -1,0 +1,29 @@
+---
+# Slurm cluster to test Alma Linux support
+
+StackName: slurmalma
+
+slurm:
+  # InstanceConfig:
+  # Configure the instances used by the cluster
+  # A partition will be created for each combination of Base OS, Architecture, and Spot
+  InstanceConfig:
+    UseSpot: true
+    DefaultPartition: AlmaLinux_8_x86_64_spot
+    NodesPerInstanceType: 10
+    BaseOsArchitecture:
+      AlmaLinux: {8: [x86_64, arm64]}
+    Include:
+      MaxSizeOnly: false
+      InstanceFamilies:
+        - t3
+        - t4g
+      InstanceTypes: []
+    Exclude:
+      InstanceFamilies: []
+      InstanceTypes:
+        - '.*\.metal'
+
+  # Use defaults from schema
+  SlurmCtl: {}
+  storage: {'efs': {}}

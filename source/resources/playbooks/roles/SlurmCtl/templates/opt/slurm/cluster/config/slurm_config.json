@@ -1,0 +1,20 @@
+
+{
+    "AWS_DEFAULT_REGION": "{{Region}}",
+    "CloudWatchPeriod": "{{CloudWatchPeriod}}",
+    "ClusterName": "{{ClusterName}}",
+    "DOMAIN": "{{Domain}}",
+    "EC2_KEY_PAIR": "{{EC2_KEYPAIR}}",
+    "MaxStoppedDuration": "{{MaxStoppedDuration}}",
+    "region": "{{Region}}",
+    "SLURM_POWER_LOG": "/var/log/slurm/power_save.log",
+    "SlurmConfigDir": "{{SlurmConfigDir}}",
+    "SlurmLogsDir": "{{SlurmLogsDir}}",
+    "SLURMNODE_PROFILE_ARN": "{{SlurmNodeProfileArn}}",
+    "SLURMNODE_ROLE_NAME": "{{SlurmNodeRoleName}}",
+    "SLURMNODE_SECURITY_GROUP": "{{SlurmNodeSecurityGroup}}",
+    "SLURMNODE_SUBNET": "{{GridSubnet1}}",
+    "SlurmScriptsDir": "{{SlurmScriptsDir}}",
+    "STACK_NAME": "{{STACK_NAME}}",
+    "SuspendAction": "{{SuspendAction}}"
+}

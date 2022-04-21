@@ -1,0 +1,2 @@
+#!/bin/bash
+ifconfig eth0 txqueuelen 4096

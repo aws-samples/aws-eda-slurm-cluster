@@ -1,0 +1,10 @@
+---
+- name: Configure SLURM Submitters
+  hosts: SlurmSubmitter
+  become_user: root
+  become: yes
+  roles:
+    - all
+    - lustre-client
+    - mount_slurm_fs
+    - SlurmSubmitter

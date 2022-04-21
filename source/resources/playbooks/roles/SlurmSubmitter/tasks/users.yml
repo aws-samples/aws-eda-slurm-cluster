@@ -1,0 +1,7 @@
+---
+- name: Create slurm user
+  user:
+    name: slurm
+    system: yes
+    state: present
+    create_home: no

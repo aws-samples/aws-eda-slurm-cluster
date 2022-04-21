@@ -1,0 +1,42 @@
+---
+# Mount SLURM file system
+
+- name: Print vars
+  debug:
+    msg: |
+      FileSystemDns:       {{FileSystemDns}}
+      FileSystemMountPath: {{FileSystemMountPath}}
+      FileSystemMountSrc:  {{FileSystemMountSrc}}
+      FileSystemOptions:   {{FileSystemOptions}}
+      FileSystemPort:      {{FileSystemPort}}
+      FileSystemType:      {{FileSystemType}}
+      ExtraMounts:         {{ExtraMounts}}
+
+- name: Install nfs-utils
+  yum:
+    state: present
+    name:
+      - nfs-utils
+
+- name: Create {{FileSystemMountPath}}
+  file:
+    path: "{{FileSystemMountPath}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Wait for file system dns to exist
+  wait_for:
+    host: "{{FileSystemDns}}"
+    port: "{{FileSystemPort}}"
+    timeout: 1800 # 30 minutes
+
+- name: Mount SLURM file system
+  mount:
+    backup: yes
+    fstype: "{{FileSystemType}}"
+    opts: "{{FileSystemOptions}}"
+    path: "{{FileSystemMountPath}}"
+    src: "{{FileSystemMountSrc}}"
+    state: mounted

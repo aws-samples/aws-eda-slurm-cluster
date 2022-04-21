@@ -1,0 +1,11 @@
+
+/var/log/slurm/slurmdbd.log
+{
+    daily
+    rotate 7
+    notifempty
+    missingok
+    #postrotate
+    #    systemctl restart slurmdbd
+    #endscript
+}

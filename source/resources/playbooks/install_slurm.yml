@@ -1,0 +1,9 @@
+---
+- name: Build slurm
+  hosts: local
+  connection: local
+  become_user: root
+  become: yes
+  roles:
+    - all
+    - install_slurm

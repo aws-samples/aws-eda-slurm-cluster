@@ -1,0 +1,122 @@
+---
+- name: Create /var/spool/slurmd
+  file:
+    path: /var/spool/slurmd
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create {{SlurmLogsDir}}
+  file:
+    path: "{{SlurmLogsDir}}"
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create {{SlurmLogsDir}}/{{SlurmCtlHostname}}
+  file:
+    path: "{{SlurmLogsDir}}/{{SlurmCtlHostname}}"
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create /var/log/slurm
+  file:
+    path: /var/log/slurm
+    src: "{{SlurmLogsDir}}/{{SlurmCtlHostname}}"
+    state: link
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create {{SlurmAccountingDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmAccountingDir}}"
+    state: directory
+    owner: slurm
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmAnsibleDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmAnsibleDir}}"
+    state: directory
+    owner: slurm
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmBinDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmBinDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmConfigDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmConfigDir}}"
+    state: directory
+    owner: slurm
+    group: root
+    mode: 0700
+
+- name: Create {{SlurmLocalConfigDir}}
+  file:
+    path: "{{SlurmLocalConfigDir}}"
+    state: directory
+    owner: slurm
+    group: root
+    mode: 0700
+
+- name: Create {{SlurmEtcDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmEtcDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmScriptsDir}}"
+    state: directory
+    owner: slurm
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmVarDir}}/spool
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmVarDir}}/spool"
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create {{SlurmBaseDir}}/test
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmBaseDir}}/test"
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0755
+
+- name: Create {{SlurmConfigDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmConfigDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775

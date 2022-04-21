@@ -1,0 +1,174 @@
+#
+# COMPUTE NODES
+#
+# Create a NodeName for each instance type
+# The NodeNames can then be added to partions.
+#
+# Weight is $/hour * 10,000
+#
+# OS is chosen by partition, not weight
+#
+# Static nodes used for testing and job submission
+NodeName=Default State=UNKNOWN
+NodeName=c7-t3-l-s-[0-0]       CPUs=1  RealMemory=7500    Feature=c7,centos7,t3,t3.large,x86_64,GHz:2.5     Weight=832
+NodeName=rh7-t3-l-s-[0-0]      CPUs=1  RealMemory=7500    Feature=rh7,rhel7,t3,t3.large,x86_64,GHz:2.5      Weight=832
+NodeName=al2-t3-l-s-[0-0]      CPUs=1  RealMemory=7500    Feature=al2,al2,t3,t3.large,x86_64,GHz:2.5        Weight=832
+
+# Exclude reserved instances from being stopped or terminated
+#SuspendExcNodes=\
+#c7-t3-l-s-[0-0],\
+#rh7-t3-l-s-[0-0],\
+#al2-t3-l-s-[0-0],\
+#c7-z1d-12xl-[0-17],\
+#c7-x1-32xl-[0-3],\
+#c7-r5d-24xl-[0-39],\
+#c7-m5d-24xl-[0-15],\
+#c7-m5dn-24xl-[0-4],\
+#c7-c5d-24xl-[0-13],\
+#c7-c5-24xl-[0-3]
+
+#
+# Cloud nodes that get powered up and down
+# Scripts assume the following NodeName pattern: os-instancetype-index
+#   os: al2 | centos6 | centos7
+#   instancetype: '.' replaced with '_'
+# Gres: Generic resources
+# Jobs will be schedule on the node with the lowest weight that meets the requirements.
+#   * Lower weight == higher priority
+#   * Give more expensive instances higher weights.
+#   * RHEL7 instances are billed per hour so they should have the highest weight.
+NodeName=Default State=CLOUD
+
+# CentOS 7 Nodes
+NodeName=c7-c5-24xl-[0-999]    CPUs=48 RealMemory=186777  Feature=c7,centos7,c5,c5.24xlarge,x86_64,GHz:3.6         Weight=40800
+NodeName=c7-c5d-24xl-[0-999]   CPUs=48 RealMemory=186777  Feature=c7,centos7,c5d,c5d.24xlarge,x86_64,GHz:3.6,ssd   Weight=46080
+NodeName=c7-c5n-18xl-[0-999]   CPUs=36 RealMemory=186777  Feature=c7,centos7,c5n,c5n.18xlarge,x86_64,GHz:3.4       Weight=38880
+
+NodeName=c7-m5-24xl-[0-999]    CPUs=48 RealMemory=373555  Feature=c7,centos7,m5,m5.24xlarge,x86_64,GHz:3.1         Weight=46080
+NodeName=c7-m5d-24xl-[0-69]    CPUs=48 RealMemory=373555  Feature=c7,centos7,m5d,m5d.24xlarge,x86_64,GHz:3.1,ssd   Weight=54240
+NodeName=c7-m5dn-24xl-[0-999]  CPUs=48 RealMemory=373555  Feature=c7,centos7,m5dn,m5dn.24xlarge,x86_64,GHz:3.1,ssd Weight=65279
+NodeName=c7-m5n-24xl-[0-999]   CPUs=48 RealMemory=373555  Feature=c7,centos7,m5n,m5n.24xlarge,x86_64,GHz:3.1       Weight=57120
+
+NodeName=c7-r5d-16xl-[0-999]   CPUs=32 RealMemory=498073  Feature=c7,centos7,r5d,r5d.16xlarge,x86_64,GHz:3.1,ssd   Weight=46080
+NodeName=c7-r5d-24xl-[0-999]   CPUs=48 RealMemory=747110  Feature=c7,centos7,r5d,r5d.24xlarge,x86_64,GHz:3.1,ssd   Weight=69120
+NodeName=c7-r5dn-24xl-[0-999]  CPUs=48 RealMemory=747110  Feature=c7,centos7,r5dn,r5dn.24xlarge,x86_64,GHz:3.1,ssd Weight=80160
+
+NodeName=c7-t3-2xl-[0-999]     CPUs=4  RealMemory=31129   Feature=c7,centos7,t3,t3.2xlarge,x86_64,GHz:2.5          Weight=3328
+NodeName=c7-t3-l-[0-999]       CPUs=1  RealMemory=7500    Feature=c7,centos7,t3,t3.large,x86_64,GHz:2.5            Weight=832
+
+NodeName=c7-x1-32xl-[0-29]     CPUs=64 RealMemory=1898905 Feature=c7,centos7,x1,x1.32xlarge,x86_64,GHz:2.3,ssd     Weight=133380
+NodeName=c7-x1e-32xl-[0-9]     CPUs=64 RealMemory=3797811 Feature=c7,centos7,x1e,x1e.32xlarge,x86_64,GHz:2.3,ssd   Weight=266880
+
+NodeName=c7-z1d-12xl-[0-49]    CPUs=24 RealMemory=373555  Feature=c7,centos7,z1d,z1d.12xlarge,x86_64,GHz:4.0,ssd   Weight=44640
+
+# RedHat 7 Nodes
+NodeName=rh7-c5-24xl-[0-999]   CPUs=48 RealMemory=186777  Feature=rh7,rhel7,c5,c5.24xlarge,x86_64,GHz:3.6          Weight=40800
+NodeName=rh7-c5d-24xl-[0-999]  CPUs=48 RealMemory=186777  Feature=rh7,rhel7,c5d,c5d.24xlarge,x86_64,GHz:3.6,ssd    Weight=46080
+NodeName=rh7-c5n-18xl-[0-999]  CPUs=36 RealMemory=186777  Feature=rh7,rhel7,c5n,c5n.18xlarge,x86_64,GHz:3.4        Weight=38880
+
+NodeName=rh7-m5-24xl-[0-999]   CPUs=48 RealMemory=373555  Feature=rh7,rhel7,m5,m5.24xlarge,x86_64,GHz:3.1          Weight=46080
+NodeName=rh7-m5d-24xl-[0-69]   CPUs=48 RealMemory=373555  Feature=rh7,rhel7,m5d,m5d.24xlarge,x86_64,GHz:3.1,ssd    Weight=54240
+NodeName=rh7-m5dn-24xl-[0-999] CPUs=48 RealMemory=373555  Feature=rh7,rhel7,m5dn,m5dn.24xlarge,x86_64,GHz:3.1,ssd  Weight=65279
+NodeName=rh7-m5n-24xl-[0-999]  CPUs=48 RealMemory=373555  Feature=rh7,rhel7,m5n,m5n.24xlarge,x86_64,GHz:3.1        Weight=57120
+
+NodeName=rh7-r5d-16xl-[0-999]  CPUs=32 RealMemory=498073  Feature=rh7,rhel7,r5d,r5d.16xlarge,x86_64,GHz:3.1,ssd    Weight=46080
+NodeName=rh7-r5d-24xl-[0-999]  CPUs=48 RealMemory=747110  Feature=rh7,rhel7,r5d,r5d.24xlarge,x86_64,GHz:3.1,ssd    Weight=69120
+NodeName=rh7-r5dn-24xl-[0-999] CPUs=48 RealMemory=747110  Feature=rh7,rhel7,r5dn,r5dn.24xlarge,x86_64,GHz:3.1,ssd  Weight=80160
+
+NodeName=rh7-t3-2xl-[0-999]    CPUs=4  RealMemory=31129   Feature=rh7,rhel7,t3,t3.2xlarge,x86_64,GHz:2.5           Weight=3328
+NodeName=rh7-t3-l-[0-999]      CPUs=1  RealMemory=7500    Feature=rh7,rhel7,t3,t3.large,x86_64,GHz:2.5             Weight=832
+
+NodeName=rh7-x1-32xl-[0-29]    CPUs=64 RealMemory=1898905 Feature=rh7,rhel7,x1,x1.32xlarge,x86_64,GHz:2.3,ssd      Weight=133380
+NodeName=rh7-x1e-32xl-[0-9]    CPUs=64 RealMemory=3797811 Feature=rh7,rhel7,x1e,x1e.32xlarge,x86_64,GHz:2.3,ssd    Weight=266880
+
+NodeName=rh7-z1d-12xl-[0-39]   CPUs=24 RealMemory=373555  Feature=rh7,rhel7,z1d,z1d.12xlarge,x86_64,GHz:4.0,ssd    Weight=44640
+
+# Amazon Linux 2
+NodeName=al2-t3-2xl-[0-999]    CPUs=4  RealMemory=31129   Feature=al2,al2,t3,t3.2xlarge,x86_64,GHz:2.5             Weight=3328
+NodeName=al2-t3-l-[0-999]      CPUs=1  RealMemory=7500    Feature=al2,al2,t3,t3.large,x86_64,GHz:2.5               Weight=832
+
+#
+# Partitions: Slurm's version of queues
+# Selected by -p option
+
+PartitionName=Default MaxTime=INFINITE State=UP default=NO PriorityTier=1
+
+PartitionName=static Nodes=\
+c7-t3-l-s-[0-0],\
+rh7-t3-l-s-[0-0],\
+al2-t3-l-s-[0-0]
+
+PartitionName=regress Default=YES Nodes=\
+c7-c5-24xl-[0-999],\
+c7-c5d-24xl-[0-999],\
+c7-c5n-18xl-[0-999],\
+c7-m5-24xl-[0-999],\
+c7-m5d-24xl-[0-69],\
+c7-m5dn-24xl-[0-999],\
+c7-m5n-24xl-[0-999],\
+c7-r5d-16xl-[0-999],\
+c7-r5d-24xl-[0-999],\
+c7-r5dn-24xl-[0-999],\
+c7-t3-2xl-[0-999],\
+c7-t3-l-[0-999],\
+c7-x1-32xl-[0-29],\
+c7-x1e-32xl-[0-9],\
+c7-z1d-12xl-[0-49]
+
+PartitionName=centos7 Default=NO Nodes=\
+c7-c5-24xl-[0-999],\
+c7-c5d-24xl-[0-999],\
+c7-c5n-18xl-[0-999],\
+c7-m5-24xl-[0-999],\
+c7-m5d-24xl-[0-69],\
+c7-m5dn-24xl-[0-999],\
+c7-m5n-24xl-[0-999],\
+c7-r5d-16xl-[0-999],\
+c7-r5d-24xl-[0-999],\
+c7-r5dn-24xl-[0-999],\
+c7-t3-2xl-[0-999],\
+c7-t3-l-[0-999],\
+c7-x1-32xl-[0-29],\
+c7-x1e-32xl-[0-9],\
+c7-z1d-12xl-[0-49]
+
+PartitionName=rhel7 Default=NO Nodes=\
+rh7-c5-24xl-[0-19],\
+rh7-c5d-24xl-[0-19],\
+rh7-c5n-18xl-[0-19],\
+rh7-m5-24xl-[0-19],\
+rh7-m5d-24xl-[0-69],\
+rh7-m5dn-24xl-[0-19],\
+rh7-m5n-24xl-[0-19],\
+rh7-r5d-16xl-[0-19],\
+rh7-r5d-24xl-[0-19],\
+rh7-r5dn-24xl-[0-19],\
+rh7-t3-2xl-[0-999],\
+rh7-t3-l-[0-999],\
+rh7-x1-32xl-[0-29],\
+rh7-x1e-32xl-[0-9],\
+rh7-z1d-12xl-[0-39]
+
+PartitionName=al2 Default=NO Nodes=\
+al2-t3-2xl-[0-999],\
+al2-t3-l-[0-999]
+
+PartitionName=interactive PriorityTier=10000 Nodes=\
+c7-c5-24xl-[0-999],\
+c7-c5d-24xl-[0-999],\
+c7-c5n-18xl-[0-999],\
+c7-m5-24xl-[0-999],\
+c7-m5d-24xl-[0-69],\
+c7-m5dn-24xl-[0-999],\
+c7-m5n-24xl-[0-999],\
+c7-r5d-16xl-[0-999],\
+c7-r5d-24xl-[0-999],\
+c7-r5dn-24xl-[0-999],\
+c7-t3-l-[0-999],\
+c7-t3-2xl-[0-999],\
+c7-x1-32xl-[0-29],\
+c7-x1e-32xl-[0-9],\
+c7-z1d-12xl-[0-49],\
+c7-t3-l-s-[0-0]
+
+PartitionName=all Nodes=ALL

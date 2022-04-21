@@ -1,0 +1,30 @@
+---
+
+- name: Wait for {{SlurmConfigDir}}/munge.key
+  wait_for:
+    path: "{{SlurmConfigDir}}/munge.key"
+    timeout: 1800 # 30 minutes
+
+- name: Copy {{SlurmConfigDir}}/munge.key to /etc/munge/munge.key
+  copy:
+    dest: /etc/munge/munge.key
+    remote_src: true
+    src: "{{SlurmConfigDir}}/munge.key"
+    owner: munge
+    group: munge
+    mode: 0400
+
+- name: Update /etc/systemd/system/munged.service
+  template:
+    dest: /etc/systemd/system/munged.service
+    src:   etc/systemd/system/munged.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Start munged
+  service:
+    name: munged
+    enabled: yes
+    daemon_reload: yes
+    state: restarted

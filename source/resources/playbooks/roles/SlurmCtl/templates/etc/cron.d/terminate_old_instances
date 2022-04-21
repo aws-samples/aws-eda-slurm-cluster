@@ -1,0 +1,4 @@
+MAILTO=''
+SLURM_ROOT={{SlurmRoot}}
+PATH="{{SlurmScriptsDir}}:{{SlurmBinDir}}:/sbin:/bin:/usr/sbin:/usr/bin"
+0 * * * * root {{SlurmScriptsDir}}/terminate_old_instances.py

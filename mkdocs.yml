@@ -1,0 +1,12 @@
+site_name: EDA SLURM Cluster on AWS
+nav:
+  - 'index.md'
+  - 'deploy.md'
+  - 'run_jobs.md'
+  - 'soca_integration.md'
+  - 'f1-ami.md'
+  - 'federation.md'
+  - 'implementation.md'
+  - 'debug.md'
+  - 'todo.md'
+  - 'mkdocs.md'

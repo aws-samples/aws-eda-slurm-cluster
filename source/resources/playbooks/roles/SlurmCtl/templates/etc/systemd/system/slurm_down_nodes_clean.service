@@ -1,0 +1,9 @@
+[Unit]
+Description=Clean up down slurm nodes
+Wants=slurm_down_nodes_clean.timer
+
+[Service]
+ExecStart={{SlurmScriptsDir}}/slurm_down_nodes_clean.sh
+
+[Install]
+WantedBy=multi-user.target

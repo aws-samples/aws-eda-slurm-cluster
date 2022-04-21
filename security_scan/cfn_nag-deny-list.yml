@@ -1,0 +1,14 @@
+
+RulesToSuppress:
+- id: W12 # IAM policy should not allow * resource
+  reason: LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB created by CDK so can't fix.
+- id: W58 # Lambda functions require permission to write CloudWatch Logs
+  reason: Logs permissions granted by AWSLambdaBasicExecutionRole
+- id: W76 # SPCM for IAM policy document is higher than 25
+  reason: "SlurmCtlPolicyD0AD24C6, SlurmNodeAmiRoleDefaultPolicy24A6F225, SlurmNodeAmiPolicyD9697183"
+- id: W77 # Secrets Manager Secret should explicitly specify KmsKeyId. Besides control of the key this will allow the secret to be shared cross-account
+  reason: Using AWS provided key
+- id: W89 # Lambda functions should be deployed inside a VPC
+  reason: No VPC is required so not sure why this is a warning. Seems to violate principle of least privilege.
+- id: W92 # Lambda functions should define ReservedConcurrentExecutions to reserve simultaneous executions
+  reason: Not required by these lambdas which are infrequently called

@@ -1,0 +1,8 @@
+---
+
+- name: Create slurm user
+  user:
+    name: slurm
+    system: yes
+    uid: '{{SlurmUid}}'
+    create_home: no
