@@ -1,4 +1,4 @@
-# ToDo List
+# To Do List
 
 List of tasks to be completed.
 
