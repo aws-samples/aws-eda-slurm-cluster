@@ -3,6 +3,7 @@ package-lock.json
 .pytest_cache
 *.egg-info
 node_modules
+**/__pycache__/
 
 # Environments
 .env

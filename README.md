@@ -11,6 +11,8 @@ Key features are:
 * User and group fair share scheduling
 * SLURM accounting database
 * CloudWatch dashboard
+* Job preemption
+* Multi-cluster federation
 * Manage on-premises compute nodes
 * Configure partitions (queues) and nodes that are always on to support reserved instances RIs and savings plans.
 
@@ -18,11 +20,11 @@ Key features are:
 
 This SLURM cluster supports the following OSes:
 
+* Alma Linux 8
 * Amazon Linux 2
-* RedHat 7 and 8
 * CentOS 7
-* AlmaLinux 8
-* RockyLinux 8
+* RedHat 7 and 8
+* Rocky Linux 8
 
 RedHat stopped supporting CentOS 8, so for a similar RedHat 8 binary compatible distribution we support Alma Linux and
 Rocky Linux as replacements for CentOS.
@@ -34,18 +36,20 @@ RedHat 7 and CentOS 7 do not support Graviton 2.
 
 This provides the following different combinations of OS and processor architecture.
 
-* Amazon Linux 2 and x86_64
+* Alma Linux 8 and arm64
+* Alma Linux 8 and x86_64
 * Amazon Linux 2 and arm64
-* RedHat 7 and x86_64
-* RedHat 8 and x86_64
-* RedHat 8 and arm64
+* Amazon Linux 2 and x86_64
 * CentOS 7 and x86_64
-* AlmaLinux 8 and x86_64
-* AlmaLinux 8 and arm64
-* RockyLinux 8 and x86_64
-* RockyLinux 8 and arm64
+* RedHat 7 and x86_64
+* RedHat 8 and arm64
+* RedHat 8 and x86_64
+* Rocky Linux 8 and arm64
+* Rocky Linux 8 and x86_64
 
 ## Documentation
+
+To view the docs, clone the repository and run mkdocs:
 
 The docs are in the docs directory. You can view them in an editor or using the mkdocs tool.
 
@@ -57,7 +61,7 @@ source ~/.mkdocs_venv/bin/activate
 pip install mkdocs
 ```
 
-To view the docs, clone the repository and run mkdocs:
+Then run mkdocs.
 
 ```
 source ~/.mkdocs_venv/bin/activate

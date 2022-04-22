@@ -7,14 +7,21 @@
     set -xe
 
     mkdir -p {{SlurmConfigDir}}
-    if [[ ":{{MungeKeySsmParameter}}" == ":" ]]; then
+
+    # If MungeKeySsmParameter is set and the parameter already exists then get the munge key and use it.
+    # Otherwise, create a new key and save it in the parameter
+    if [[ ":{{MungeKeySsmParameter}}" != ":" ]] && aws ssm get-parameter --name {{MungeKeySsmParameter}} &> /dev/null; then
+        aws ssm get-parameter --name {{MungeKeySsmParameter}} --query 'Parameter.Value' --output text | base64 -d > {{SlurmConfigDir}}/munge.key
+    else
+        # Create a new munge key
         dd if=/dev/random bs=1 count=1024 > {{SlurmConfigDir}}/munge.key
         chmod 0400 {{SlurmConfigDir}}/munge.key
-    else
-        aws ssm get-parameter --name {{MungeKeySsmParameter}} --query 'Parameter.Value' --output text | base64 -d > {{SlurmConfigDir}}/munge.key
+        if [[ ":{{MungeKeySsmParameter}}" != ":" ]]; then
+            # Save the new key in SSM Parameter Store
+            value=$(base64 -w 0 {{SlurmConfigDir}}/munge.key)
+            aws ssm put-parameter --name {{MungeKeySsmParameter}} --description 'Munge key to be shared by SLURM clusters' --type String --value $value
+        fi
     fi
-  args:
-    creates: "{{SlurmConfigDir}}/munge.key"
 
 - name: Create {{SlurmAnsibleDir}}
   when: PrimaryController|bool

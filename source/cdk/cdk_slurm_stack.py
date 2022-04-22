@@ -1570,6 +1570,7 @@ class CdkSlurmStack(Stack):
 
             if self.munge_key_ssm_parameter:
                 self.munge_key_ssm_parameter.grant_read(slurmctl_instance)
+                self.munge_key_ssm_parameter.grant_write(slurmctl_instance)
 
             # Configure user_data
             instance_template_vars['SlurmCtlHostname'] = hostname

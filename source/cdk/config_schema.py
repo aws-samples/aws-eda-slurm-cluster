@@ -60,7 +60,7 @@ config_schema = Schema(
         'slurm': {
             Optional('SlurmVersion', default='21.08.6'): str,
             Optional('ClusterName'): str,
-            Optional('MungeKeySsmParameter', default=''): str,
+            Optional('MungeKeySsmParameter', default='/slurm/munge_key'): str,
             'SlurmCtl': {
                 Optional('NumberOfControllers', default=1): And(Use(int), lambda n: 1 <= n <= 3),
                 Optional('BaseHostname', default='slurmctl'): str,
