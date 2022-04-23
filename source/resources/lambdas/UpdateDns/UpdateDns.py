@@ -70,5 +70,6 @@ def lambda_handler(event, context):
     except Exception as e:
         logging.exception(str(e))
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, str(e))
+        raise
 
     cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "{} {}.{} {}".format(properties['Type'], properties['Hostname'], properties['Domain'], properties['Value']))

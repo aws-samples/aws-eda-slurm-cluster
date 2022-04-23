@@ -1,8 +1,6 @@
 # AWS EDA Slurm Cluster
 
-[View on GitHub Pages](https://aws-samples.github.io/aws-eda-slurm-cluster/)
-
-This repository contains an AWS Cloud Development Kit (CDK) application that creates a SLURM cluster that is suitable for running production EDA workloads on AWS.
+This repository contains an AWS Cloud Development Kit (CDK) application that creates a Slurm cluster that is suitable for running production EDA workloads on AWS.
 Key features are:
 
 * Automatic scaling of AWS EC2 instances based on demand
@@ -11,7 +9,7 @@ Key features are:
 * Batch and interactive partitions (queues)
 * Managed tool licenses as a consumable resource
 * User and group fair share scheduling
-* SLURM accounting database
+* Slurm accounting database
 * CloudWatch dashboard
 * Job preemption
 * Multi-cluster federation
@@ -21,7 +19,7 @@ Key features are:
 
 ## Operating System and Processor Architecture Support
 
-This SLURM cluster supports the following OSes:
+This Slurm cluster supports the following OSes:
 
 * Alma Linux 8
 * Amazon Linux 2
@@ -32,7 +30,7 @@ This SLURM cluster supports the following OSes:
 RedHat stopped supporting CentOS 8, so for a similar RedHat 8 binary compatible distribution we support Alma Linux and
 Rocky Linux as replacements for CentOS.
 
-This SLURM cluster supports both Intel/AMD (x86_64) based instances and ARM Graviton2 (arm64/aarch64) based instances.
+This Slurm cluster supports both Intel/AMD (x86_64) based instances and ARM Graviton2 (arm64/aarch64) based instances.
 
 [Graviton 2 instances require](https://github.com/aws/aws-graviton-getting-started/blob/main/os.md) Amazon Linux 2, RedHat 8, AlmaLinux 8, or RockyLinux 8 operating systems.
 RedHat 7 and CentOS 7 do not support Graviton 2.
@@ -52,7 +50,9 @@ This provides the following different combinations of OS and processor architect
 
 ## Documentation
 
-To view the docs, clone the repository and run mkdocs:
+[View on GitHub Pages](https://aws-samples.github.io/aws-eda-slurm-cluster/)
+
+To view the docs locally, clone the repository and run mkdocs:
 
 The docs are in the docs directory. You can view them in an editor or using the mkdocs tool.
 
@@ -74,10 +74,16 @@ firefox http://127.0.0.1:8000/ &
 
 Open a browser to: http://127.0.0.1:8000/
 
+Or you can simply let make do this for you.
+
+```
+make local-docs
+```
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
 
 ## License
 
-This library is licensed under the MIT-0 License. See the LICENSE file.
+This library is licensed under the MIT-0 License. See the [LICENSE](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/LICENSE) file.

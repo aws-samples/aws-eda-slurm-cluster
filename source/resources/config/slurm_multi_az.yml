@@ -1,0 +1,257 @@
+---
+# Sample configuraton that creates a minimal Slurm cluster
+# Shows all available configuration options
+# Note that CentOS 8 has been discontinued and support has been removed.
+# Uses arm64 architecture for SlurmCtl and SlurmDbd by default.
+# No SlurmDbd in this configuration.
+
+termination_protection: True # Enable (recommended) or Disable Cloudformation Stack termination protection
+
+#====================================================================
+# Parameters that must be in the config file or on the command line.
+# Command line values override values in the config file.
+#====================================================================
+StackName: slurmminimal
+#Region: us-east-1
+#SshKeyPair: name of your ec2 keypair
+#VpcId: vpc-xxxxxxxxxxxxxxxxx
+
+# SubnetId:
+# Optional. If not specified then the first private subnet is chosen.
+#SubnetId: subnet-xxxxxxxxxxxxxxxxx # PrivateSubnet1
+#SubnetId: subnet-xxxxxxxxxxxxxxxxx # PrivateSubnet2
+#SubnetId: subnet-xxxxxxxxxxxxxxxxx # PrivateSubnet3
+
+# This is optional, but highly recommended
+#ErrorSnsTopicArn: arn:aws:sns:{{region}}:{AccountId}:{TopicName}
+
+#====================================================================
+# Required Parameters
+#====================================================================
+
+# Domain: Optional
+# Domain name for the Route 53 private hosted zone that will be used
+# by the slurm cluster for DNS.
+# By default will be {StackName}.local
+# Alternately, provide HostedZoneId of an existing Route53 hosted zone to use.
+# Cannot specify both Domain and HostedZoneId.
+# Domain: "{{StackName}}.local"
+
+# HostedZoneId: Optional
+# ID of an existing hosted zone that will be used by the slurm cluster for DNS.
+# Alternately, provide Domain name to use for a new Route53 hosted zone to use.
+# Cannot specify both Domain and HostedZoneId.
+# HostedZoneId:
+
+TimeZone: 'US/Central'
+
+slurm:
+  # High level configuration
+
+  SlurmVersion: "21.08.5"
+
+  # ClusterName:
+  # Optional
+  # Must be unique if multiple clusters deployed in the same VPC.
+  # Default: StackName
+  # ClusterName: slurm
+
+  # MungeKeySsmParameter
+  # SSM String Parameter with a base64 encoded munge key to use for the cluster.
+  # Use this if your submitters need to use more than 1 cluster.
+  #MungeKeySsmParameter: "/slurm/munge_key"
+
+  SlurmCtl:
+    # For high availability configure multiple controllers
+    NumberOfControllers: 1
+    # The index will be appended to BaseHostname starting with 1.
+    BaseHostname: slurmctl
+
+    # architecture: x86_64 or arm64
+    #architecture: x86_64
+    #instance_type: "c5.large"
+    architecture: arm64
+    instance_type: "c6g.large"
+    volume_size: 200 # Size of the EBS root disk
+
+    # SuspendAction
+    # Set to stop or terminate.
+    # Stopped nodes will restart quicker, but you will continue to be charged for the EBS volumes
+    # attached to the instance.
+    SuspendAction: stop
+    #
+    # MaxStoppedDuration
+    # In ISO 8601 duration format: https://en.wikipedia.org/wiki/ISO_8601#Durations
+    # Default: 1 hour = P0Y0M0DT1H0M0S
+    # Evaluated at least hourly
+    MaxStoppedDuration: P0Y0M0DT1H0M0S
+
+    CloudWatchPeriod: 5 # Cloudwatch metric collection period in minutes. Default value is 5. Set to 1 for finer resolution.
+                        # Also used in the dashboard widgets.
+
+  # The accounting database is required to enable fairshare scheduling
+  # It is managed by the Slurm Database Daemon (slurmdbd) instance
+  # This instance can be created as part of the cluster or can use an existing instance.
+  # SlurmDbd:
+  #   # It is recommended to get the basic cluster configured and working before enabling the accounting database
+  #   UseSlurmDbd: False
+
+  #   # Hostname:
+  #   # Hostname of the slurmdbd instance if CreateSlurmdbd is true.
+  #   Hostname: slurmdbd
+
+  #   # architecture: x86_64 or arm64
+  #   #architecture: x86_64
+  #   #instance_type: "m5.large"
+  #   architecture: arm64
+  #   instance_type: "m6g.large"
+  #   volume_size: 200 # Size of the EBS root disk
+
+  #   database:
+  #     port: 3306
+
+  # Federation:
+  #   Name: slurmeda
+  #   SlurmCtlSecurityGroups:
+  #     SecurityGroupName: sg-xxxxxxxxxxxxxxxxx
+
+  SlurmNodeAmis:
+    instance_type:
+      x86_64: m5.large
+      arm64:  m6g.large
+
+    # Customized AMIs with file system mounts, packages, etc. configured.
+    # If these aren't defined then the generic base AMIs are used.
+    # Example in the comment below is the AWS FPGA Developer AMI
+    #BaseAmis:
+    #  us-east-1:
+    #    Amazon: {2: {x86_64: {ImageId: ami-0efdec76678df9a64, RootDeviceSize: '+5'}}}
+    #    CentOS: {7: {x86_64: {ImageId: ami-02155c6289e76719a, RootDeviceSize: 90}}}
+
+  # External security groups that should be able to use the cluster
+  # SubmitterSecurityGroupIds:
+  #   soca-ComputeNodeSG: sg-xxxxxxxxxxxxxxxxx
+
+  # SubmitterInstanceTags:
+  #   'soca:ClusterId': ['soca-xyz']
+
+  # InstanceConfig:
+  # Configure the instances used by the cluster
+  # A partition will be created for each combination of Base OS, Architecture, and Spot
+  #
+  # UseSpot:
+  #     Create both on-demand and spot nodes
+  #     Default: true
+  # DefaultPartition:
+  #     By default this will be the first OS/Architecture listed in BaseOsArchitecture.
+  #     Add '_spot' to the end to make spot the default purchase option.
+  # NodesPerInstanceType:
+  #     The number of nodes that will be defined for each instance type.
+  # Include*/Exclude*:
+  #     Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
+  #     Exclude patterns are processed first and take precedence over any includes.
+  #     A empty list is the same as '.*'.
+  # MaxSizeOnly: If MaxSizeOnly is True then only the largest instance type in
+  #     a family will be included unless specific instance types are included.
+  #     Default: false
+  InstanceConfig:
+    UseSpot: true
+    DefaultPartition: AlmaLinux_8_arm64_spot
+    NodesPerInstanceType: 10
+    BaseOsArchitecture:
+      AlmaLinux: {8: [x86_64, arm64]}
+      # Amazon: {2: [x86_64, arm64]}
+      CentOS:
+        7: [x86_64]
+      # Amazon: {2: [x86_64, arm64]}
+      # RedHat:
+      #   7: [x86_64]
+      #   8: [x86_64, arm64]
+      # Rocky: {8: [x86_64, arm64]}
+    Include:
+      MaxSizeOnly: false
+      InstanceFamilies:
+        - t3
+        - t4g
+      InstanceTypes: []
+    Exclude:
+      InstanceFamilies: []
+      InstanceTypes:
+        - '.+\.(micro|nano)'   # Not enough memory
+        - '.*\.metal'
+    AZs:
+      - Priority: 1
+        #Region: us-east-1
+        Subnet: subnet-xxxxxxxxxxxxxxxxx # PrivateSubnet1
+      - Priority: 2
+        #Region: us-east-1
+        Subnet: subnet-xxxxxxxxxxxxxxxxx # PrivateSubnet2
+      - Priority: 3
+        #Region: us-east-1
+        Subnet: subnet-xxxxxxxxxxxxxxxxx # PrivateSubnet3
+
+  # ElasticSearch:
+  # Configure the ElasticSearch/OpenSearch domain used by the slurm cluster
+  # If not specified then won't be created or used by the cluster.
+  # master_nodes: Defaults to 0
+  # data_nodes: Must be a multiple of number_of_azs
+  # ElasticSearch:
+  #   ebs_volume_size: 20
+  #   ebs_volume_type: GP2
+  #   enable_version_upgrade: False
+  #   number_of_azs: 2
+  #   master_nodes: 3
+  #   master_node_instance_type: m5.large.search
+  #   data_nodes: 2
+  #   data_node_instance_type: m5.large.search
+  #   warm_nodes: 0
+  #   warm_instance_type: ultrawarm.medium.search
+
+  # JobCompType:
+  # Values:
+  #     jobcomp/none
+  #     jobcomp/elasticsearch
+  #     jobcomp/filetxt
+  JobCompType: jobcomp/filetxt
+  #
+  # JobCompLoc:
+  # Used with jobcomp/elasticsearch
+  # A complete URL endpoint with format <host>:<port>/<target>/_doc
+  #JobCompLoc: http://{{EsDomain}}.{{Region}}.es.amazonaws.com/slurm/_doc
+
+  # Configure your Storage options below
+  # @todo support fsxn, test if efs will gate scaling of the cluster
+  storage:
+    # mount_path:
+    # Default is /opt/slurm/{{cluster_name}}
+    #mount_path: ""
+    provider: "efs" # efs or lustre
+    #kms_key_arn:
+    removal_policy : "DESTROY" # DESTROY, RETAIN, SNAPSHOT. Choices: RETAIN will preserve the EFS even if you delete the stack. Any other value will delete EFS if you delete the CFN stack
+    efs:
+      use_efs_helper: false
+      throughput_mode: "BURSTING" # Choices: BURSTING, PROVISIONED
+      # provisioned_throughput_per_second: 1 # In MiB/s. Minimum value of 1
+      performance_mode: "GENERAL_PURPOSE" # Choices: GENERAL_PURPOSE, MAX_IO
+      encrypted: True # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-encrypted
+      lifecycle_policy: "AFTER_30_DAYS" # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
+    lustre:
+        deployment_type: "SCRATCH_2" # Allowed values: PERSISTENT_1 | SCRATCH_1 | SCRATCH_2. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-deploymenttype
+        drive_cache_type: "NONE" # Allowed values: NONE | READ. Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
+        per_unit_storage_throughput: 50 # Allowed values: 12, 40 for HDD, 50, 100, 200 for SSD. Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
+        storage_capacity: 1200 # For SCRATCH_2 and PERSISTENT_1 types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
+        storage_type: "SSD" # Allowed values: SSD or HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagetype
+
+    # ExtraMounts
+    # Additional mounts for compute nodes
+    # This examle shows SOCA EFS file systems.
+    # This is required so the compute node as the same file structure as the remote desktops.
+    #ExtraMounts:
+    #  - dest: /apps
+    #    src: fs-xxxxxxxx.efs.us-east-1.amazonaws.com:/
+    #    type: nfs4
+    #    options: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport
+    #  - dest: /data
+    #    src: fs-xxxxxxxx.efs.us-east-1.amazonaws.com:/
+    #    type: nfs4
+    #    options: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport

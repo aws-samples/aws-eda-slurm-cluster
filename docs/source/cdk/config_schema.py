@@ -1,1 +1,0 @@
-../../../source/cdk/config_schema.py

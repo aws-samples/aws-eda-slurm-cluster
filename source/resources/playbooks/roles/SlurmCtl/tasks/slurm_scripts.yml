@@ -1,4 +1,49 @@
 ---
+- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/__init__.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/__init__.py"
+    src: opt/slurm/cluster/bin/EC2InstanceTypeInfoPkg/__init__.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/EC2InstanceTypeInfo.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/EC2InstanceTypeInfo.py"
+    src: opt/slurm/cluster/bin/EC2InstanceTypeInfoPkg/EC2InstanceTypeInfo.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/get_ec2_instance_info.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/get_ec2_instance_info.py"
+    src: opt/slurm/cluster/bin/EC2InstanceTypeInfoPkg/get_ec2_instance_info.py
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/retry_boto3_throttling.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/retry_boto3_throttling.py"
+    src: opt/slurm/cluster/bin/EC2InstanceTypeInfoPkg/retry_boto3_throttling.py
+    owner: root
+    group: root
+    mode: 0755
+
 - name: Create {{SlurmScriptsDir}}/create_users_groups_json.py
   when: PrimaryController|bool
   template:
@@ -171,15 +216,6 @@
   copy:
     src:   opt/slurm/cluster/bin/create_slurm_accounts.py
     dest: "{{SlurmScriptsDir}}/create_slurm_accounts.py"
-    owner: root
-    group: root
-    mode: 0755
-
-- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfo.py
-  when: PrimaryController|bool
-  copy:
-    dest: "{{SlurmScriptsDir}}/EC2InstanceTypeInfo.py"
-    src: opt/slurm/cluster/bin/EC2InstanceTypeInfo.py
     owner: root
     group: root
     mode: 0755

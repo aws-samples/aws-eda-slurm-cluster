@@ -5,6 +5,7 @@
   debug:
     msg: |
       FileSystemDns:       {{FileSystemDns}}
+      FileSystemIpAddress: {{FileSystemIpAddress}}
       FileSystemMountPath: {{FileSystemMountPath}}
       FileSystemMountSrc:  {{FileSystemMountSrc}}
       FileSystemOptions:   {{FileSystemOptions}}

@@ -104,6 +104,7 @@ config_schema = Schema(
         Optional('SshKeyPair'): str,
         # Optional so can be specified on the command-line
         Optional('VpcId'): And(str, lambda s: re.match('vpc-', s)),
+        Optional('CIDR'): And(str, lambda s: re.match(r'\d+\.\d+\.\d+\.\d+/\d+', s)),
         #
         # SubnetId
         # Optional. If not specified then the first private subnet is chosen.
@@ -114,15 +115,14 @@ config_schema = Schema(
         # Domain:
         #     Domain name for the Route 53 private hosted zone that will be used
         #     by the slurm cluster for DNS.
+        #     Alternately, provide HostedZoneId of an existing Route53 hosted zone to use and
+        #     the zone name of the HostedZoneId.
         #     By default will be {StackName}.local
-        #     Alternately, provide HostedZoneId of an existing Route53 hosted zone to use.
-        #     Cannot specify both Domain and HostedZoneId.
         Optional('Domain'): str,
         #
         # HostedZoneId:
         #     ID of an existing hosted zone that will be used by the slurm cluster for DNS.
-        #     Alternately, provide Domain name to use for a new Route53 hosted zone to use.
-        #     Cannot specify both Domain and HostedZoneId.
+        #     You must provide the Domain name of the HostedZone if it is different than the default.
         Optional('HostedZoneId'): str,
         Optional('TimeZone', default='US/Central'): str,
         'slurm': {
@@ -240,11 +240,6 @@ config_schema = Schema(
                 #     Configure spot instances
                 Optional('UseSpot', default=True): bool,
                 #
-                # DefaultPartition:
-                #     By default this will be the first OS/Architecture listed in BaseOsArchitecture.
-                #     Add '_spot' to the end to make spot the default purchase option.
-                'DefaultPartition': str,
-                #
                 # NodesPerInstanceType:
                 #     The number of nodes that will be defined for each instance type.
                 'NodesPerInstanceType': int,
@@ -271,6 +266,19 @@ config_schema = Schema(
                 Optional('Exclude', default={'InstanceFamilies': [], 'InstanceTypes': []}): {
                     'InstanceFamilies': [str],
                     'InstanceTypes': [str]
+                },
+                Optional('Regions', default=[]): {
+                    str: {
+                        'VpcId': And(str, lambda s: re.match('vpc-', s)),
+                        'CIDR': str,
+                        'SshKeyPair': str,
+                        'AZs': [
+                            {
+                                'Priority': int,
+                                'Subnet': And(str, lambda s: re.match('subnet-', s))
+                            }
+                        ],
+                    }
                 },
                 Optional('AlwaysOnNodes', default=[]): [
                     str # Nodelist

@@ -4,7 +4,6 @@
 - name: Install slurm_node packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
     name:
       - emacs
       - hwloc-libs

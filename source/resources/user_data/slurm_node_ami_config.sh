@@ -27,7 +27,7 @@ if [ -e /var/lib/cloud/instance/sem/ami.txt ]; then
     ami=$(cat /var/lib/cloud/instance/sem/ami.txt)
     echo "First reboot after ami ($ami) created."
     chmod +x /root/WaitForAmi.py
-    /root/WaitForAmi.py --ami-id $ami --ssm-parameter $SlurmNodeAmiSsmParameter --instance-id $instance_id
+    /root/WaitForAmi.py --ami-id $ami --base-ssm-parameter $SlurmNodeAmiSsmParameterBaseName --instance-id $instance_id --compute-regions $ComputeRegions
     # Delete the semaphore so that if the instance reboots because of template changes then a new AMI will be created
     mv /var/lib/cloud/instance/sem/ami.txt /var/lib/cloud/instance/sem/$ami.txt
     exit 0

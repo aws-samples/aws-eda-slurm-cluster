@@ -40,6 +40,10 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
         setenv SBATCH_TIMELIMIT "1:0:0"
         setenv SBATCH_TIMELIMIT_SET ""
     }
+    if { ! [ info exists ::env(SBATCH_PARTITION) ] } {
+        setenv SBATCH_PARTITION "{{DefaultPartition}}"
+        setenv SBATCH_PARTITION_SET ""
+    }
 } elseif { [ module-info mode remove ] } {
     if { [ info exists ::env(SBATCH_MEM_PER_NODE_SET) ] } {
         unsetenv SBATCH_MEM_PER_NODE
@@ -53,6 +57,10 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
         unsetenv SBATCH_TIMELIMIT
         unsetenv SBATCH_TIMELIMIT_SET
     }
+    if { [ info exists ::env(SBATCH_TIMELIMIT_SET) ] } {
+        unsetenv SBATCH_PARTITION
+        unsetenv SBATCH_PARTITION_SET
+    }
 }
 
 # srun defaults
@@ -64,6 +72,10 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
     if { ! [ info exists ::env(SLURM_MEM_PER_NODE) ] } {
         setenv SLURM_MEM_PER_NODE 100M
         setenv SLURM_MEM_PER_NODE_SET ""
+    }
+    if { ! [ info exists ::env(SLURM_PARTITION) ] } {
+        setenv SLURM_PARTITION "{{DefaultPartition}}"
+        setenv SLURM_PARTITION_SET ""
     }
     if { ! [ info exists ::env(SLURM_TIMELIMIT) ] } {
         setenv SLURM_TIMELIMIT "1:0:0"
@@ -77,6 +89,10 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
     if { [ info exists ::env(SLURM_MEM_PER_NODE_SET) ] } {
         unsetenv SLURM_MEM_PER_NODE
         unsetenv SLURM_MEM_PER_NODE_SET
+    }
+    if { ! [ info exists ::env(SLURM_PARTITION) ] } {
+        unsetenv SLURM_PARTITION
+        unsetenv SLURM_PARTITION_SET
     }
     if { [ info exists ::env(SLURM_TIMELIMIT_SET) ] } {
         unsetenv SLURM_TIMELIMIT
@@ -114,7 +130,7 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
         setenv SQUEUE_SORT_SET ""
     }
     if { ! ( [ info exists ::env(SQUEUE_FORMAT) ] || [ info exists ::env(SQUEUE_FORMAT2) ] ) } {
-        setenv SQUEUE_FORMAT2 "Cluster:16 ,Partition:9 ,JobArrayId:16 ,Priority:12 ,State:11 ,UserName:8 ,Name:16 ,NumNodes:.5 ,NumCPUs:.4 ,MinMemory:.10 ,Feature:15 ,Dependency:10 ,Licenses:8 ,ReasonList:25"
+        setenv SQUEUE_FORMAT2 "Cluster:16 ,Partition:15 ,JobArrayId:16 ,Priority:12 ,State:11 ,UserName:8 ,Name:16 ,NumNodes:.5 ,NumCPUs:.4 ,MinMemory:.10 ,Feature:15 ,Dependency:10 ,Licenses:8 ,ReasonList:30"
         #
         # Time and priority information
         #setenv SQUEUE_FORMAT2 "JobId:.6 ,Partition:9 ,State:7 ,UserName:8 ,Name:16 ,SubmitTime:16 ,PendingTime:12 ,TimeLimit:18 ,EndTime:18 ,ReasonList"

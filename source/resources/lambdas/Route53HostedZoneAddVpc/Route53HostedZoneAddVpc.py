@@ -17,25 +17,20 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 '''
-Configure the Ontap file system
+Create/delete route53 zone in another region.
 '''
-import cfnresponse
+
 import boto3
+import cfnresponse
 import logging
-from time import sleep
 
 logging.getLogger().setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     try:
-        logging.info("event: {}".format(event))
-        requestType = event['RequestType']
-        if requestType == 'Delete':
-            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "")
-            return
-
+        logging.info(f"event:\n{json.dumps(event, indent=4)}")
         properties = event['ResourceProperties']
-        required_properties = ['SvmId']
+        required_properties = ['HostedZoneId', 'VpcId', 'VpcRegion']
         error_message = ""
         for property in required_properties:
             try:
@@ -45,16 +40,36 @@ def lambda_handler(event, context):
         if error_message:
             raise KeyError(error_message)
 
-        fsx_client = boto3.client('fsx')
-        response = fsx_client.describe_storage_virtual_machines(StorageVirtualMachineIds=[properties['SvmId']])['StorageVirtualMachines'][0]
-        dns_name = response['Endpoints']['Nfs']['DNSName']
-        logging.info(f"DNSName={dns_name}")
+        requestType = event['RequestType']
 
-        logging.info('Success')
+        route53_client = boto3.client('route53')
+
+        if requestType in ['Update', 'Delete']:
+            try:
+                route53_client.disassociate_vpc_from_hosted_zone(
+                    HostedZoneId = properties['HostedZoneId'],
+                    VPC = {
+                        'VPCRegion': properties['VpcRegion'],
+                        'VPCId': properties['VpcId'],
+                    },
+                    HostedZoneConfig = {'PrivateZone': True}
+                )
+            except:
+                pass
+
+        if requestType in ['Create', 'Update']:
+            route53_client.associate_vpc_with_hosted_zone(
+                HostedZoneId = properties['HostedZoneId'],
+                VPC = {
+                    'VPCRegion': properties['VpcRegion'],
+                    'VPCId': properties['VpcId'],
+                },
+                HostedZoneConfig = {'PrivateZone': True}
+            )
 
     except Exception as e:
         logging.exception(str(e))
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, str(e))
         raise
 
-    cfnresponse.send(event, context, cfnresponse.SUCCESS, {'DNSName': dns_name}, f"{dns_name}")
+    cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "")

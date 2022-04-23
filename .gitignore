@@ -6,4 +6,7 @@ site/
 # Jekyll
 Gemfile.lock
 .jekyll-cache
+.mkdocs_venv/
 _site
+site/
+.vscode/

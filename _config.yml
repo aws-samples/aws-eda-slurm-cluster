@@ -1,4 +1,0 @@
-theme: jekyll-theme-slate
-exclude:
-  - source/cdk.out
-  - source/resources/playbooks
