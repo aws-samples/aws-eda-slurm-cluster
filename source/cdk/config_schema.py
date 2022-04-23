@@ -58,7 +58,7 @@ config_schema = Schema(
         Optional('HostedZoneId'): str,
         Optional('TimeZone', default='US/Central'): str,
         'slurm': {
-            Optional('SlurmVersion', default='21.08.6'): str,
+            Optional('SlurmVersion', default='21.08.7'): str,
             Optional('ClusterName'): str,
             Optional('MungeKeySsmParameter', default='/slurm/munge_key'): str,
             'SlurmCtl': {
