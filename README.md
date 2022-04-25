@@ -17,6 +17,7 @@ Key features are:
 * Multi-cluster federation
 * Manage on-premises compute nodes
 * Configure partitions (queues) and nodes that are always on to support reserved instances RIs and savings plans.
+* AWS Fault Injection Simulator (FIS) templates to test spot terminations
 
 ## Operating System and Processor Architecture Support
 

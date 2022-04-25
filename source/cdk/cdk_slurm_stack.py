@@ -2198,69 +2198,82 @@ class CdkSlurmStack(Stack):
         )
         self.suppress_cfn_nag(self.fis_spot_termination_role, "W11", "ec2:DescribeInstances does not support resource-level permissions")
 
-        single_spot_termination_injection_template = fis.CfnExperimentTemplate(
-            self, 'SingleSpotTerminationFISTemplate',
-            description = 'Inject 1 spot termination notification',
-            role_arn = self.fis_spot_termination_role.role_arn,
-            targets = {
-                'spot_instances': fis.CfnExperimentTemplate.ExperimentTemplateTargetProperty(
-                    resource_type = 'aws:ec2:spot-instance',
-                    selection_mode = 'COUNT(1)', # [ALL, COUNT(n), PERCENT(n)]
-                    resource_tags = {
-                        'spot': 'True',
-                        'ClusterName': self.config['slurm']['ClusterName']
-                    }
+        fis_log_group = logs.LogGroup(
+            self,
+            "FISLogGroup",
+            retention = logs.RetentionDays.TEN_YEARS
+            )
+        fis_log_group.grant_write(self.fis_spot_termination_role)
+        fis_log_configuration = fis.CfnExperimentTemplate.ExperimentTemplateLogConfigurationProperty(
+            log_schema_version = 1,
+            cloud_watch_logs_configuration = {'LogGroupArn': fis_log_group.log_group_arn}
+            )
+
+        resource_tags = {
+            'spot': 'True',
+            'ClusterName': self.config['slurm']['ClusterName']
+            }
+        resource_type = 'aws:ec2:spot-instance'
+        filters = [
+            fis.CfnExperimentTemplate.ExperimentTemplateTargetFilterProperty(
+                path = 'State.Name',
+                values = [
+                    'starting',
+                    'running',
+                    'stopping'
+                    ]
                 )
-            },
-            actions = {
+            ]
+        actions = {
                 'spot_termination': fis.CfnExperimentTemplate.ExperimentTemplateActionProperty(
                     action_id = 'aws:ec2:send-spot-instance-interruptions',
                     parameters = {'durationBeforeInterruption': 'PT5M'}, # Time between rebalance recommendation and spot termination notification
                     targets = {'SpotInstances': 'spot_instances'}
                 )
-            },
-            tags = {
-                'Name': f"{self.stack_name} SingleSpotTerminationFISTemplate"
-            },
-            stop_conditions = [
-                fis.CfnExperimentTemplate.ExperimentTemplateStopConditionProperty(
-                    source = 'none', # ['none', 'aws:cloudwatch:alarm']
-                    #value = ''
+            }
+        stop_conditions = [
+            fis.CfnExperimentTemplate.ExperimentTemplateStopConditionProperty(
+                source = 'none', # ['none', 'aws:cloudwatch:alarm']
+                #value = ''
                 )
             ]
+
+        fis.CfnExperimentTemplate(
+            self, 'SpotTerminationFISTemplate1Instance',
+            description = f"Inject spot termination notification to 1 instance in {self.config['slurm']['ClusterName']} slurm cluster",
+            tags = {'Name': f"{self.stack_name} SpotTermination 1 instance"},
+            targets = {
+                'spot_instances': fis.CfnExperimentTemplate.ExperimentTemplateTargetProperty(
+                    selection_mode = 'COUNT(1)', # [ALL, COUNT(n), PERCENT(n)]
+                    resource_tags = resource_tags,
+                    resource_type = resource_type,
+                    filters = filters
+                    )
+                },
+            actions = actions,
+            log_configuration = fis_log_configuration,
+            role_arn = self.fis_spot_termination_role.role_arn,
+            stop_conditions = stop_conditions
         )
 
-        all_spot_termination_injection_template = fis.CfnExperimentTemplate(
-            self, 'AllSpotTerminationFISTemplate',
-            description = 'Inject spot termination notification to all spot instances',
-            role_arn = self.fis_spot_termination_role.role_arn,
-            targets = {
-                'spot_instances': fis.CfnExperimentTemplate.ExperimentTemplateTargetProperty(
-                    resource_type = 'aws:ec2:spot-instance',
-                    selection_mode = 'ALL', # [ALL, COUNT(n), PERCENT(n)]
-                    resource_tags = {
-                        'spot': 'True',
-                        'ClusterName': self.config['slurm']['ClusterName']
-                    }
-                )
-            },
-            actions = {
-                'spot_termination': fis.CfnExperimentTemplate.ExperimentTemplateActionProperty(
-                    action_id = 'aws:ec2:send-spot-instance-interruptions',
-                    parameters = {'durationBeforeInterruption': 'PT5M'}, # Time between rebalance recommendation and spot termination notification
-                    targets = {'SpotInstances': 'spot_instances'}
-                )
-            },
-            tags = {
-                'Name': f"{self.stack_name} AllSpotTerminationFISTemplate"
-            },
-            stop_conditions = [
-                fis.CfnExperimentTemplate.ExperimentTemplateStopConditionProperty(
-                    source = 'none', # ['none', 'aws:cloudwatch:alarm']
-                    #value = ''
-                )
-            ]
-        )
+        for spot_instance_percent in [1, 25, 50, 100]:
+            fis.CfnExperimentTemplate(
+                self, f'SpotTerminationFISTemplate{spot_instance_percent}Percent',
+                description = f'Inject spot termination notification to {spot_instance_percent} percent of spot instances',
+                tags = {'Name': f"{self.stack_name} SpotTermination {spot_instance_percent} Percent"},
+                targets = {
+                    'spot_instances': fis.CfnExperimentTemplate.ExperimentTemplateTargetProperty(
+                        selection_mode = f'PERCENT({spot_instance_percent})', # [ALL, COUNT(n), PERCENT(n)]
+                        resource_tags = resource_tags,
+                        resource_type = resource_type,
+                        filters = filters
+                        )
+                    },
+                actions = actions,
+                log_configuration = fis_log_configuration,
+                role_arn = self.fis_spot_termination_role.role_arn,
+                stop_conditions = stop_conditions
+            )
 
     def suppress_cfn_nag(self, resource, msg_id, reason):
         # Warnings suppressed:
