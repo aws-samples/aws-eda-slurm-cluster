@@ -111,6 +111,14 @@
     make install &> slurm-make-install.log
     make install-contrib &> slurm-make-install-contrib.log
 
+- name: Create {{SlurmEtcDir}}
+  file:
+    path: "{{SlurmEtcDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+
 - name: Create {{SlurmOSDir}}/etc
   file:
     state: link

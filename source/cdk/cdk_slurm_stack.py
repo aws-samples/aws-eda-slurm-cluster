@@ -414,6 +414,29 @@ class CdkSlurmStack(Stack):
             code=aws_lambda.Code.from_bucket(updateDnsLambdaAsset.bucket, updateDnsLambdaAsset.s3_object_key)
         )
 
+        getOntapSvmDNSNameLambdaAsset = s3_assets.Asset(self, "GetOntapSvmDNSNameLambdaAsset", path="resources/lambdas/GetOntapSvmDNSName")
+        self.get_ontap_svm_dnsname_lambda = aws_lambda.Function(
+            self, "GetOntapSvmDNSNameLambda",
+            function_name=f"{self.stack_name}-GetOntapSvmDNSNameLambda",
+            description="Get the DNSName attribute of an Ontap SVM",
+            memory_size=128,
+            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="GetOntapSvmDNSName.lambda_handler",
+            code=aws_lambda.Code.from_bucket(getOntapSvmDNSNameLambdaAsset.bucket, getOntapSvmDNSNameLambdaAsset.s3_object_key)
+        )
+
+        self.get_ontap_svm_dnsname_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "fsx:DescribeStorageVirtualMachines",
+                    ],
+                resources=['*']
+                )
+            )
+
         deconfigureClusterLambdaAsset = s3_assets.Asset(self, "DeconfigureClusterLambdaAsset", path="resources/lambdas/DeconfigureCluster")
         self.deconfigure_cluster_lambda = aws_lambda.Function(
             self, "DeconfigureClusterLambda",
@@ -748,50 +771,7 @@ class CdkSlurmStack(Stack):
             'SNAPSHOT': RemovalPolicy.SNAPSHOT,
             }
 
-        if self.config['slurm']['storage']['provider'] == "lustre":
-            deployment_types = {
-                'PERSISTENT_1': fsx.LustreDeploymentType.PERSISTENT_1,
-                'SCRATCH_1': fsx.LustreDeploymentType.SCRATCH_1,
-                'SCRATCH_2': fsx.LustreDeploymentType.SCRATCH_2,
-            }
-            deployment_type = deployment_types[self.config['slurm']['storage']['lustre']['deployment_type']]
-
-            if deployment_type == fsx.LustreDeploymentType.PERSISTENT_1:
-                per_unit_storage_throughput = self.config['slurm']['storage']['lustre']['per_unit_storage_throughput']
-                if per_unit_storage_throughput not in [50, 100, 200]:
-                    raise ValueError(f"Invalid per_unit_storage_throughput: {per_unit_storage_throughput}")
-            else:
-                per_unit_storage_throughput = None
-
-            lustre_configuration = fsx.LustreConfiguration(
-                deployment_type = deployment_type,
-                per_unit_storage_throughput = per_unit_storage_throughput,
-                )
-
-            self.file_system = fsx.LustreFileSystem(
-                self, "FSxLustre",
-                lustre_configuration = lustre_configuration,
-                vpc = self.vpc,
-                vpc_subnet = self.vpc.select_subnets(subnet_type=ec2.SubnetType.PRIVATE).subnets[0],
-                kms_key = kms_key,
-                removal_policy = removal_policies[self.config['slurm']['storage']['removal_policy']],
-                security_group = self.lustre_sg,
-                storage_capacity_gib = self.config['slurm']['storage']['lustre']['storage_capacity'],
-                )
-
-            self.file_system_port = 988
-
-            self.file_system_type = 'lustre'
-            self.file_system_dns = self.file_system.dns_name
-            self.file_system_mount_name = self.file_system.mount_name
-
-            self.file_system_mount_source = f"{self.file_system_dns}@tcp:/{self.file_system_mount_name}"
-
-            self.file_system_options = 'noatime,flock'
-
-            self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo mount -t lustre -o {self.file_system_options} {self.file_system_mount_source}{self.config['slurm']['storage']['mount_path']}"
-
-        elif self.config['slurm']['storage']['provider'] == "efs":
+        if self.config['slurm']['storage']['provider'] == "efs":
             lifecycle_policies = {
                 'None': None,
                 'AFTER_14_DAYS': efs.LifecyclePolicy.AFTER_14_DAYS,
@@ -828,9 +808,11 @@ class CdkSlurmStack(Stack):
                 # @BUG Cloudformation fails with: Resource handler returned message: "One or more LifecyclePolicy objects specified are malformed
                 #out_of_infrequent_access_policy = efs.OutOfInfrequentAccessPolicy.AFTER_1_ACCESS,
                 removal_policy = removal_policies[self.config['slurm']['storage']['removal_policy']],
-                vpc_subnets  = ec2.SubnetSelection(subnets=[self.subnet]),
+                vpc_subnets  = ec2.SubnetSelection(subnets=self.subnets),
                 security_group  = self.nfs_sg
                 )
+
+            self.file_system_dependency = self.file_system
 
             self.file_system_dns = f"{self.file_system.file_system_id}.efs.{self.region}.amazonaws.com"
             self.file_system_dns = self.file_system_dns
@@ -851,13 +833,145 @@ class CdkSlurmStack(Stack):
 
             self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo yum -y install nfs-utils && sudo mount -t {self.file_system_type} -o {self.file_system_options} {self.file_system_mount_src} {self.config['slurm']['storage']['mount_path']}"
 
+        elif self.config['slurm']['storage']['provider'] == "lustre":
+            deployment_types = {
+                'PERSISTENT_1': fsx.LustreDeploymentType.PERSISTENT_1,
+                'SCRATCH_1': fsx.LustreDeploymentType.SCRATCH_1,
+                'SCRATCH_2': fsx.LustreDeploymentType.SCRATCH_2,
+            }
+            deployment_type = deployment_types[self.config['slurm']['storage']['lustre']['deployment_type']]
+
+            if deployment_type == fsx.LustreDeploymentType.PERSISTENT_1:
+                per_unit_storage_throughput = self.config['slurm']['storage']['lustre']['per_unit_storage_throughput']
+                if per_unit_storage_throughput not in [50, 100, 200]:
+                    raise ValueError(f"Invalid per_unit_storage_throughput: {per_unit_storage_throughput}")
+            else:
+                per_unit_storage_throughput = None
+
+            lustre_configuration = fsx.LustreConfiguration(
+                deployment_type = deployment_type,
+                per_unit_storage_throughput = per_unit_storage_throughput,
+                )
+
+            self.file_system = fsx.LustreFileSystem(
+                self, "FSxLustre",
+                lustre_configuration = lustre_configuration,
+                vpc = self.vpc,
+                vpc_subnet = self.vpc.select_subnets(subnet_type=ec2.SubnetType.PRIVATE).subnets[0],
+                kms_key = kms_key,
+                removal_policy = removal_policies[self.config['slurm']['storage']['removal_policy']],
+                security_group = self.lustre_sg,
+                storage_capacity_gib = self.config['slurm']['storage']['lustre']['storage_capacity'],
+                )
+
+            self.file_system_dependency = self.file_system
+
+            self.file_system_port = 988
+
+            self.file_system_type = 'lustre'
+            self.file_system_dns = self.file_system.dns_name
+            self.file_system_mount_name = self.file_system.mount_name
+
+            self.file_system_mount_source = f"{self.file_system_dns}@tcp:/{self.file_system_mount_name}"
+
+            self.file_system_options = 'noatime,flock'
+
+            self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo mount -t lustre -o {self.file_system_options} {self.file_system_mount_source} {self.config['slurm']['storage']['mount_path']}"
+
+        elif self.config['slurm']['storage']['provider'] == "ontap":
+            if 'iops' in self.config['slurm']['storage']['ontap']:
+                disk_iops_configuration = fsx.CfnFileSystem.DiskIopsConfigurationProperty(
+                    iops = self.config['slurm']['storage']['ontap']['iops'],
+                    mode = 'USER_PROVISIONED'
+                )
+            else:
+                disk_iops_configuration = fsx.CfnFileSystem.DiskIopsConfigurationProperty(
+                    mode = 'AUTOMATIC'
+                )
+
+            ontap_configuration_kwargs = {
+                'deployment_type': self.config['slurm']['storage']['ontap']['deployment_type'],
+                'preferred_subnet_id': self.subnet.subnet_id,
+                'throughput_capacity': self.config['slurm']['storage']['ontap']['throughput_capacity']
+            }
+            ontap_configuration = fsx.CfnFileSystem.OntapConfigurationProperty(**ontap_configuration_kwargs)
+
+            subnet_ids = [self.subnet.subnet_id]
+            if self.config['slurm']['storage']['ontap']['deployment_type'] == 'MULTI_AZ_1':
+                for subnet in self.vpc.private_subnets:
+                    if subnet.subnet_id != self.subnet.subnet_id:
+                        subnet_ids.append(subnet.subnet_id)
+                        break
+
+            self.file_system = fsx.CfnFileSystem(
+                self, "Ontap",
+                file_system_type = 'ONTAP',
+                subnet_ids = subnet_ids,
+                ontap_configuration = ontap_configuration,
+                security_group_ids = [self.nfs_sg.security_group_id],
+                storage_capacity = self.config['slurm']['storage']['ontap']['storage_capacity'],
+                )
+
+            self.svm = fsx.CfnStorageVirtualMachine(
+                self, "OntapSVM",
+                file_system_id = self.file_system.ref,
+                name = 'slurm',
+                root_volume_security_style = 'UNIX'
+            )
+
+            svm_id = self.svm.ref
+
+            # Get DNSName of SVM
+            self.file_system_dns = CustomResource(
+                self, f"OntapSvmDNSName",
+                service_token = self.get_ontap_svm_dnsname_lambda.function_arn,
+                properties={
+                    "SvmId": svm_id
+                }
+            ).get_att_string('DNSName')
+
+            # Add a volume
+            self.volume = fsx.CfnVolume(
+                self, 'OntapVolume',
+                name = 'slurm',
+                ontap_configuration = fsx.CfnVolume.OntapConfigurationProperty(
+                    junction_path = '/slurm',
+                    size_in_megabytes = str(self.config['slurm']['storage']['ontap']['storage_capacity'] * 1024),
+                    storage_efficiency_enabled = 'true',
+                    storage_virtual_machine_id = svm_id,
+                    security_style = 'UNIX',
+                    tiering_policy = fsx.CfnVolume.TieringPolicyProperty(
+                        cooling_period = self.config['slurm']['storage']['ontap']['cooling_period'],
+                        name = self.config['slurm']['storage']['ontap']['tiering_policy']
+                    )
+                ),
+                volume_type = 'ONTAP'
+            )
+
+            self.file_system_dependency = self.volume
+
+            self.file_system_port = 2049
+
+            self.file_system_type = 'nfs'
+
+            self.file_system_mount_name = ""
+
+            self.file_system_mount_source = f"{self.file_system_dns}:/slurm"
+
+            self.file_system_options = 'nfsvers=4.1'
+
+            self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo mount -t nfs -o {self.file_system_options} {self.file_system_mount_source} {self.config['slurm']['storage']['mount_path']}"
+
         else:
             raise ValueError(f"Invalid value of slurm.storage.provider: {self.config['slurm']['storage']['provider']}")
 
         Tags.of(self.file_system).add("Name", f"{self.stack_name}-Slurm")
 
-        CfnOutput(self, "FileSystemType",
+        CfnOutput(self, "FileSystemProvider",
             value = self.config['slurm']['storage']['provider']
+        )
+        CfnOutput(self, "FileSystemType",
+            value = self.file_system_type
         )
         CfnOutput(self, "FileSystemMountName",
             value = self.file_system_mount_name
@@ -870,15 +984,15 @@ class CdkSlurmStack(Stack):
         )
 
         CfnOutput(self, "ConfigureSubmitterCommand",
-            value = f"sudo yum -y install epel-release && sudo yum -y install ansible && cd {self.config['slurm']['storage']['mount_path']}/ansible/playbooks && ansible-playbook -i inventories/local.yml -e @../ansible_extra_vars.yml SlurmSubmitter.yml"
+            value = f"sudo yum -y install epel-release && sudo yum -y install ansible && pushd {self.config['slurm']['storage']['mount_path']}/ansible/playbooks && ansible-playbook -i inventories/local.yml -e @../ansible_extra_vars.yml SlurmSubmitter.yml && popd"
         )
 
         CfnOutput(self, "ConfigureSyncSlurmUsersGroups",
-            value = f"sudo yum -y install epel-release && sudo yum -y install ansible && cd {self.config['slurm']['storage']['mount_path']}/ansible/playbooks && ansible-playbook -i inventories/local.yml -e @../ansible_extra_vars.yml create_users_groups_json.yml"
+            value = f"sudo yum -y install epel-release && sudo yum -y install ansible && pushd {self.config['slurm']['storage']['mount_path']}/ansible/playbooks && ansible-playbook -i inventories/local.yml -e @../ansible_extra_vars.yml create_users_groups_json.yml && popd"
         )
 
         CfnOutput(self, "DeconfigureClusterCommand",
-            value = f"sudo mkdir -p /tmp/{self.config['slurm']['ClusterName']} && cd /tmp/{self.config['slurm']['ClusterName']} && sudo rsync -av {self.config['slurm']['storage']['mount_path']}/ansible . && cd ansible/playbooks && sudo ansible-playbook -i inventories/local.yml -e @../ansible_extra_vars.yml SlurmSubmitterDeconfigure.yml && cd /tmp && rm -rf {self.config['slurm']['ClusterName']}"
+            value = f"sudo mkdir -p /tmp/{self.config['slurm']['ClusterName']} && pushd /tmp/{self.config['slurm']['ClusterName']} && sudo rsync -av {self.config['slurm']['storage']['mount_path']}/ansible . && cd ansible/playbooks && sudo ansible-playbook -i inventories/local.yml -e @../ansible_extra_vars.yml SlurmSubmitterDeconfigure.yml && cd /tmp && rm -rf {self.config['slurm']['ClusterName']} && popd"
         )
 
         if 'SubmitterInstanceTags' in self.config['slurm']:
@@ -1536,7 +1650,7 @@ class CdkSlurmStack(Stack):
             Tags.of(slurmctl_instance).add("hostname", hostname)
             Tags.of(slurmctl_instance).add("NodeType", "slurm_slurmctl")
 
-            slurmctl_instance.node.add_dependency(self.file_system)
+            slurmctl_instance.node.add_dependency(self.file_system_dependency)
 
             instance_template_vars = self.get_instance_template_vars('SlurmCtl')
             instance_template_vars['PrimaryController'] = instance_index == 1
@@ -1695,7 +1809,7 @@ class CdkSlurmStack(Stack):
         Tags.of(self.slurmdbd_instance).add("hostname", hostname)
         Tags.of(self.slurmdbd_instance).add("NodeType", "slurm_slurmdbd")
 
-        self.slurmdbd_instance.node.add_dependency(self.file_system)
+        self.slurmdbd_instance.node.add_dependency(self.file_system_dependency)
         self.slurmdbd_instance.node.add_dependency(self.db_cluster)
 
         self.database_secret.grant_read(self.slurmdbd_instance)
@@ -1996,7 +2110,7 @@ class CdkSlurmStack(Stack):
                     Tags.of(self.slurm_node_ami_instance).add("Name", name)
                     Tags.of(self.slurm_node_ami_instance).add("NodeType", "slurm_node_ami")
 
-                    self.slurm_node_ami_instance.node.add_dependency(self.file_system)
+                    self.slurm_node_ami_instance.node.add_dependency(self.file_system_dependency)
 
                     self.ami_ssm_parameters[distribution][distribution_major_version][architecture] = ssm.StringParameter(
                         self, f"SlurmNodeAmiSsmParameter{distribution}{distribution_major_version}{architecture}",

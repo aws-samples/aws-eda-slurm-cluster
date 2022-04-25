@@ -165,10 +165,10 @@ config_schema = Schema(
             Optional('SlurmUid', default=900): int,
             'storage': {
                 Optional('mount_path'): str,
-                Optional('provider', default='efs'): And(str, lambda s: s in ('efs', 'lustre')),
+                Optional('provider', default='efs'): And(str, lambda s: s in ('efs', 'lustre', 'ontap')),
                 Optional('removal_policy', default='RETAIN'): And(str, lambda s: s in ('DESTROY', 'RETAIN', 'SNAPSHOT')),
                 Optional('kms_key_arn'): str,
-                Optional('efs', default={}): {
+                Optional('efs'): {
                     Optional('enable_automatic_backups', default=False): bool,
                     Optional('lifecycle_policy', default='AFTER_30_DAYS'): And(str, lambda s: s in filesystem_lifecycle_policies),
                     Optional('use_efs_helper', default=False): bool,
@@ -183,6 +183,14 @@ config_schema = Schema(
                     Optional('per_unit_storage_throughput', default=50): int,
                     Optional('storage_capacity', default=1200): int,
                     Optional('storage_type'): And(str, lambda s: s in ('HDD', 'SSD')),
+                },
+                Optional('ontap'): {
+                    Optional('deployment_type', default='SINGLE_AZ_1'): And(str, lambda s: s in ('SINGLE_AZ_1', 'MULTI_AZ_1')),
+                    Optional('storage_capacity', default=1024): And(int, lambda s: s >= 1024 and s <= 196608), # 1024 GiB up to 196,608 GiB (192 TiB)
+                    Optional('iops'): int,
+                    Optional('throughput_capacity', default=128): And(int, lambda s: s in [128, 256, 512, 1024, 2048]),
+                    Optional('tiering_policy', default='AUTO'): And(str, lambda s: s in ('ALL', 'AUTO', 'NONE', 'SNAPSHOT_ONLY')),
+                    Optional('cooling_period', default=31): And(int, lambda s: (s >= 2 and s <= 183)),
                 },
                 Optional('ExtraMounts', default=[]): [
                     {
