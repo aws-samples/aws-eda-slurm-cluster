@@ -102,3 +102,5 @@ ln -s $logs_dir /var/log/slurm
 
 systemctl enable slurmd
 systemctl start slurmd
+# Restart so that log file goes to file system
+systemctl restart spot_monitor

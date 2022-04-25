@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/bin/bash -e
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
@@ -11,17 +11,20 @@ cd $repodir
 deactivate &> /dev/null || true
 
 if ! yum list installed make &> /dev/null; then
+    echo -e "\nInstalling make"
     sudo yum -y install make
 fi
 
 if ! yum list installed wget &> /dev/null; then
+    echo -e "\nInstalling wget"
     sudo yum -y install wget
 fi
 
 if ! python3 --version &> /dev/null; then
-    echo "Installing python3"
+    echo -e "\nInstalling python3"
     sudo yum -y install python3
 fi
+
 # Check python version
 python_version=$(python3 --version 2>&1 | awk '{print $2}')
 python_major_version=$(echo $python_version | cut -d '.' -f 1)
@@ -32,7 +35,7 @@ if [[ $python_minor_version -lt 6 ]]; then
 fi
 
 if ! node -v &> /dev/null; then
-    echo "node not found in your path."
+    echo -e "\nnode not found in your path."
     echo "Installing nodejs in your home dir. Hit ctrl-c to abort"
     pushd $HOME
     wget https://nodejs.org/dist/v16.13.1/node-v16.13.1-linux-x64.tar.xz
@@ -61,8 +64,7 @@ if [[ $node_major_version -eq 14 ]] && [[ $node_minor_version -lt 6 ]]; then
 fi
 
 # Create a local installation of cdk
-# If you change the CDK version here, make sure to change it in source/requirements.txt
-CDK_VERSION=2.12.0
+CDK_VERSION=2.21.1 # If you change the CDK version here, make sure to also change it in source/requirements.txt
 if ! cdk --version &> /dev/null; then
     echo "CDK not installed. Installing global version of cdk@$CDK_VERSION."
     sudo npm install -g aws-cdk@$CDK_VERSION

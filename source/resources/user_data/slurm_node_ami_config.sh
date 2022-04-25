@@ -19,6 +19,18 @@ function on_exit {
 }
 trap on_exit EXIT
 
+instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
+
+# Don't do anything after the reboot caused by AMI creation.
+# Just go ahead and stop the instance.
+if [ -e /var/lib/cloud/instance/sem/ami.txt ]; then
+    ami=$(cat /var/lib/cloud/instance/sem/ami.txt)
+    echo "First reboot after ami ($ami) created."
+    mv /var/lib/cloud/instance/sem/ami.txt /var/lib/cloud/instance/sem/$(ami).txt
+    aws ec2 stop-instances --instance-id $instance_id
+    exit 0
+fi
+
 # Install security updates first.
 # Since this is Amazon Linux 2 don't need to configure proxy because yum repos are in S3.
 # Disable epel because it isn't in S3 and requires configuration.
@@ -56,9 +68,6 @@ ansible-playbook $PLAYBOOKS_PATH/SlurmNodeAmi.yml \
     -e @/root/ansible_extra_vars.yml
 popd
 
-# Remove the automatic rerun once have successfully configured so that this doesn't run on slurm nodes
-rm -f /var/lib/cloud/scripts/per-boot/10_part-001
-
 # Save logs for debugging problems, delete the rest
 mkdir -p /root/logs
 mv /var/log/ansible.log /root/logs || true
@@ -69,14 +78,16 @@ rm -f /var/log/chrony/* || true
 rm -f /var/log/slurm/* || true
 rm -f /var/log/tuned/* || true
 
-instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
 ami_id=$(aws ec2 create-image --instance-id $instance_id --name ${STACK_NAME}-SlurmNode-$DISTRIBUTION-$DISTRIBUTION_MAJOR_VERSION-$ARCHITECTURE-$(date '+%Y-%m-%d-%H-%M-%S') --output text)
 aws ec2 create-tags --resources $ami_id --tags Key=Name,Value="${STACK_NAME}-SlurmNodeAMI-$DISTRIBUTION-$DISTRIBUTION_MAJOR_VERSION-$ARCHITECTURE"
 aws ec2 create-tags --resources $ami_id --tags Key=Stack,Value="${STACK_NAME}"
 aws ec2 create-tags --resources $ami_id --tags Key=ClusterName,Value="${ClusterName}"
+echo $ami_id > /var/lib/cloud/instance/sem/ami.txt
 
 return_code='300'
 while [[ $return_code != '202' ]]; do
     sleep 1
     return_code=$(aws lambda invoke --cli-binary-format raw-in-base64-out --function-name $WaitForAmiLambda --payload "{\"ami-id\": \"$ami_id\", \"ssm-parameter\": \"$SlurmNodeAmiSsmParameter\", \"instance-id\": \"$instance_id\"}" --invocation-type Event foo.txt --output text)
 done
+
+aws ec2 stop-instances --instance-id $instance_id

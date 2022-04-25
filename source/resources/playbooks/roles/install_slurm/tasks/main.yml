@@ -97,7 +97,7 @@
   args:
     creates: "{{SlurmSrcDir}}/slurm-{{SlurmVersion}}/INSTALL"
 
-- name: Build and install slurm on {{distribution}} {{distribution_major_version}}
+- name: Build and install slurm on {{distribution}} {{distribution_major_version}} on {{Architecture}}
   args:
     creates: "{{SlurmBinDir}}/srun"
   shell: |

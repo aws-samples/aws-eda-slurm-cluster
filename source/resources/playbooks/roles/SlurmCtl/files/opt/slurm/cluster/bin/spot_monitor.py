@@ -27,6 +27,7 @@ import requests
 from socket import gethostname
 # Subprocess not being used to execute user supplied data
 import subprocess # nosec
+from subprocess import CalledProcessError # nosec
 import sys
 from time import sleep
 
@@ -38,6 +39,7 @@ logger.addHandler(logger_rotatingFileHandler)
 logger.setLevel(logging.INFO)
 
 SLURM_ROOT = os.environ['SLURM_ROOT']
+SCANCEL = f"{SLURM_ROOT}/bin/scancel"
 SCONTROL = f"{SLURM_ROOT}/bin/scontrol"
 SQUEUE = f"{SLURM_ROOT}/bin/squeue"
 METADATA_URL = 'http://169.254.169.254/latest/meta-data/'
@@ -98,7 +100,7 @@ def main():
                     logger.info(str(message))
                     logger.info(f"Draining {hostname}")
                     drain(hostname, 'SpotTermination')
-                    logger.info("Requeueing jobs on {hostname}")
+                    logger.info(f"Requeueing jobs on {hostname}")
                     requeue_jobs(hostname)
                     write_cw_metric(hostname, 'SpotTermination')
                     logger.info(f"Powering down {hostname}")
@@ -106,6 +108,8 @@ def main():
                     sys.exit(0)
 
                 sleep(5)
+        except SystemExit:
+            pass
         except:
             logger.exception(f"Unhandled exception in spot_monitor. Restarting after 5 seconds.")
             sleep(5)
@@ -125,8 +129,8 @@ def write_cw_metric(hostname, event_name):
 def drain(hostname, event_name):
     logger.info(f"Setting {hostname} to drain so new jobs do not run on it.")
     try:
-        subprocess.run([SCONTROL, 'update', f"nodename={hostname}", 'state=DRAIN', f"reason='{event_name}'"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
-    except subprocess.CalledProcessError as e:
+        subprocess.check_output([SCONTROL, 'update', f"nodename={hostname}", 'state=DRAIN', f"reason='{event_name}'"], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
+    except CalledProcessError as e:
         logger.exception(f"Could not drain {hostname}\ncommand: {e.cmd}\noutput:\n{e.output}")
     logger.info(f"{hostname} draining")
 
@@ -134,25 +138,29 @@ def requeue_jobs(hostname):
     logger.info(f"Requeuing jobs on {hostname}")
     try:
         lines = subprocess.check_output([SQUEUE, '--noheader', '--format=%A', f"--nodelist={hostname}"], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
-    except subprocess.CalledProcessError as e:
+    except CalledProcessError as e:
         logger.exception(f"Could not get list of jobs\ncommand: {e.cmd}\noutput:\n{e.output}")
-    logger.info(f"Jobs running on {hostname}:\n{lines}")
     jobs = lines.split('\n')
-    if jobs[-1] == '': jobs = jobs[0:-1]
-    logger.info(f"{len(jobs)} jobs")
-    if len(jobs):
-        joblist = ','.join(jobs)
-        logger.info(f"Requeueing {joblist}")
+    if jobs[-1] == '':
+        jobs = jobs[0:-1]
+    lines = '\n'.join(jobs)
+    logger.info(f"{len(jobs)} jobs running on {hostname}:\n{lines}")
+    for job in jobs:
+        logger.info(f"Requeueing {job}")
         try:
-            subprocess.run([SCONTROL, 'requeue', f"{joblist}"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
-        except subprocess.CalledProcessError as e:
-            logger.exception(f"Could not requeue jobs\ncommand: {e.cmd}\noutput:\n{e.output}")
+            subprocess.check_output([SCONTROL, 'requeue', f"{job}"], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
+        except CalledProcessError as e:
+            logger.warning(f"Could not requeue {job}\ncommand: {e.cmd}\noutput:\n{e.output}")
+            try:
+                subprocess.check_output([SCANCEL, f"{job}"], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
+            except CalledProcessError as e:
+                logger.exception(f"Could not cancel {job}\ncommand: {e.cmd}\noutput:\n{e.output}")
 
 def power_down(hostname, event_name):
     logger.info(f"Powering down {hostname}")
     try:
-        subprocess.run([SCONTROL, 'update', f"nodename={hostname}", 'state=POWER_DOWN', "reason='spot termination'"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
-    except subprocess.CalledProcessError as e:
+        subprocess.check_output([SCONTROL, 'update', f"nodename={hostname}", 'state=POWER_DOWN', "reason='spot termination'"], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
+    except CalledProcessError as e:
         logger.exception(f"Could not power down {hostname}\ncommand: {e.cmd}\noutput:\n{e.output}")
     logger.info(f"Powered down {hostname}")
 
