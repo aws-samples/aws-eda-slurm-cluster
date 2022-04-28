@@ -389,6 +389,7 @@ class CdkSlurmStack(Stack):
 
         self.slurm_node_ami_user_data_asset = s3_assets.Asset(self, "SlurmNodeAmiUserData", path="resources/user_data/slurm_node_ami_user_data.sh")
         self.slurm_node_ami_config_asset = s3_assets.Asset(self, "SlurmNodeAmiConfigScript", path="resources/user_data/slurm_node_ami_config.sh")
+        self.slurm_node_ami_wait_for_ami_asset = s3_assets.Asset(self, "SlurmNodeAmiWaitForAmiScript", path="resources/user_data/WaitForAmi.py")
 
         self.playbooks_asset = s3_assets.Asset(self, 'Playbooks',
             path = 'resources/playbooks',
@@ -412,30 +413,6 @@ class CdkSlurmStack(Stack):
             handler="UpdateDns.lambda_handler",
             code=aws_lambda.Code.from_bucket(updateDnsLambdaAsset.bucket, updateDnsLambdaAsset.s3_object_key)
         )
-
-        waitForAmiLambdaAsset = s3_assets.Asset(self, "WaitForAmiLambdaAsset", path="resources/lambdas/WaitForAmi")
-        self.wait_for_ami_lambda = aws_lambda.Function(
-            self, "WaitForAmiLambda",
-            function_name=f"{self.stack_name}-WaitForAmi",
-            description="Wait for AMI to be available and update ssm parameter",
-            memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_8,
-            timeout=Duration.minutes(15),
-            log_retention=logs.RetentionDays.INFINITE,
-            handler="WaitForAmi.lambda_handler",
-            code=aws_lambda.Code.from_bucket(waitForAmiLambdaAsset.bucket, waitForAmiLambdaAsset.s3_object_key)
-        )
-
-        self.wait_for_ami_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    "ec2:DescribeImages",
-                ],
-                # Does not support resource-level permissions and require you to choose All resources
-                resources = ["*"]
-            )
-            )
 
         deconfigureClusterLambdaAsset = s3_assets.Asset(self, "DeconfigureClusterLambdaAsset", path="resources/lambdas/DeconfigureCluster")
         self.deconfigure_cluster_lambda = aws_lambda.Function(
@@ -1851,6 +1828,7 @@ class CdkSlurmStack(Stack):
                     effect = iam.Effect.ALLOW,
                     actions = [
                         'ec2:DescribeVolumes',
+                        'ec2:DescribeImages'
                     ],
                     # Does not support resource-level permissions and require you to choose All resources
                     resources = ["*"]
@@ -1900,16 +1878,6 @@ class CdkSlurmStack(Stack):
                     # Does not support resource-level permissions and require you to choose All resources
                     resources = ["*"]
                 ),
-                # Permissions to invoke lambda to write ami id to ssm parameter when available
-                iam.PolicyStatement(
-                    effect = iam.Effect.ALLOW,
-                    actions = [
-                        'lambda:InvokeFunction',
-                    ],
-                    resources = [
-                        self.wait_for_ami_lambda.function_arn
-                    ]
-                    ),
                 # Decode error messages
                 iam.PolicyStatement(
                     effect = iam.Effect.ALLOW,
@@ -2038,36 +2006,12 @@ class CdkSlurmStack(Stack):
                     self.ami_ssm_parameters[distribution][distribution_major_version][architecture].grant_write(self.slurm_node_ami_instance)
                     ami_ssm_parameter = self.ami_ssm_parameters[distribution][distribution_major_version][architecture]
 
-                    self.wait_for_ami_lambda.add_to_role_policy(
-                        statement=iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ssm:PutParameter"
-                            ],
-                            resources=[ami_ssm_parameter.parameter_arn]
-                            )
-                        )
-
-                    stop_ami_instance_policy = iam.Policy(
-                        self, f"SlurmNodeAmi{distribution}{distribution_major_version}{architecture}StopInstancePolicy",
-                        statements = [
-                            iam.PolicyStatement(
-                                effect=iam.Effect.ALLOW,
-                                actions=[
-                                    "ec2:StopInstances",
-                                    ],
-                                resources = [f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:instance/{self.slurm_node_ami_instance.instance_id}"]
-                                )
-                            ]
-                        )
-                    stop_ami_instance_policy.attach_to_role(self.wait_for_ami_lambda.role)
-
                     instance_template_vars = self.get_instance_template_vars('SlurmNodeAmi')
                     instance_template_vars['CONFIG_SCRIPT_PATH'] = '/root/slurm_node_ami_config.sh'
+                    instance_template_vars['WAIT_FOR_AMI_SCRIPT_PATH'] = '/root/WaitForAmi.py'
                     instance_template_vars['PLAYBOOKS_ZIP_PATH'] = '/root/playbooks.zip'
                     instance_template_vars['SlurmNodeAmiSsmParameter'] = ami_ssm_parameter.parameter_name
                     instance_template_vars['SLURM_ROOT'] = f"{instance_template_vars['FileSystemMountPath']}/slurm-{self.config['slurm']['SlurmVersion']}/{distribution}/{distribution_major_version}/{architecture}"
-                    instance_template_vars['WaitForAmiLambda'] = self.wait_for_ami_lambda.function_name
 
                     # Add on_exit commands at top of user_data
                     self.slurm_node_ami_instance.user_data.add_signal_on_exit_command(self.slurm_node_ami_instance)
@@ -2092,6 +2036,14 @@ class CdkSlurmStack(Stack):
                         bucket = self.slurm_node_ami_config_asset.bucket,
                         bucket_key = self.slurm_node_ami_config_asset.s3_object_key,
                         local_file = instance_template_vars['CONFIG_SCRIPT_PATH']
+                    )
+
+                    # Download WaitForAmi.py script
+                    self.slurm_node_ami_wait_for_ami_asset.grant_read(self.slurm_node_ami_instance.role)
+                    self.slurm_node_ami_instance.user_data.add_s3_download_command(
+                        bucket = self.slurm_node_ami_wait_for_ami_asset.bucket,
+                        bucket_key = self.slurm_node_ami_wait_for_ami_asset.s3_object_key,
+                        local_file = instance_template_vars['WAIT_FOR_AMI_SCRIPT_PATH']
                     )
 
                     user_data_template = Template(open("resources/user_data/slurm_node_ami_user_data.sh", 'r').read())

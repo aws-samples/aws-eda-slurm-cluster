@@ -22,12 +22,14 @@ trap on_exit EXIT
 instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
 
 # Don't do anything after the reboot caused by AMI creation.
-# Just go ahead and stop the instance.
+# Wait for the AMI to be available and then stop the instance.
 if [ -e /var/lib/cloud/instance/sem/ami.txt ]; then
     ami=$(cat /var/lib/cloud/instance/sem/ami.txt)
     echo "First reboot after ami ($ami) created."
-    mv /var/lib/cloud/instance/sem/ami.txt /var/lib/cloud/instance/sem/$(ami).txt
-    aws ec2 stop-instances --instance-id $instance_id
+    chmod +x /root/WaitForAmi.py
+    /root/WaitForAmi.py --ami-id $ami --ssm-parameter $SlurmNodeAmiSsmParameter --instance-id $instance_id
+    # Delete the semaphore so that if the instance reboots because of template changes then a new AMI will be created
+    mv /var/lib/cloud/instance/sem/ami.txt /var/lib/cloud/instance/sem/$ami.txt
     exit 0
 fi
 
@@ -83,11 +85,3 @@ aws ec2 create-tags --resources $ami_id --tags Key=Name,Value="${STACK_NAME}-Slu
 aws ec2 create-tags --resources $ami_id --tags Key=Stack,Value="${STACK_NAME}"
 aws ec2 create-tags --resources $ami_id --tags Key=ClusterName,Value="${ClusterName}"
 echo $ami_id > /var/lib/cloud/instance/sem/ami.txt
-
-return_code='300'
-while [[ $return_code != '202' ]]; do
-    sleep 1
-    return_code=$(aws lambda invoke --cli-binary-format raw-in-base64-out --function-name $WaitForAmiLambda --payload "{\"ami-id\": \"$ami_id\", \"ssm-parameter\": \"$SlurmNodeAmiSsmParameter\", \"instance-id\": \"$instance_id\"}" --invocation-type Event foo.txt --output text)
-done
-
-aws ec2 stop-instances --instance-id $instance_id
