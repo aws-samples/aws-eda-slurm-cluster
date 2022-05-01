@@ -1630,7 +1630,7 @@ class SlurmPlugin:
                 # Note: This includes a heterogenous mix of nodes with different OSes and
                 # architectures
                 #
-                PartitionName=all Default=NO PriorityTier=10000 Nodes=ALL"""), file=fh)
+                PartitionName=all Default=NO Nodes=ALL"""), file=fh)
 
             if instance_config['AlwaysOnNodes']:
                 print(dedent(f"""\

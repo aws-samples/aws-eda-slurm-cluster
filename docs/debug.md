@@ -99,3 +99,12 @@ systemctl restart slurmctld
 ```
 
 Then reboot the node.
+
+Another cause of this is a hung process on the compute node.
+To clear this out, connect to the slurm controller and mark the node down, resume, and then idle.
+
+```
+scontrol update node NODENAME state=DOWN reason=hung
+scontrol update node NODENAME state=RESUME
+scontrol update node NODENAME state=IDLE
+```

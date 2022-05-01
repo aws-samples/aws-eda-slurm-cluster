@@ -146,7 +146,11 @@ config_schema = Schema(
                 Optional('AlwaysOnPartitions', default=[]): [
                     str # Partitionlist
                 ],
-                Optional('ComputeNodeConfigFile', default=''): str
+                Optional('OnPremComputeNodes', default={}): {
+                    'ConfigFile': str,
+                    'CIDR': str,
+                    Optional('Partition', default='onprem'): str,
+                }
             },
             Optional('ElasticSearch'): {
                 Optional('ebs_volume_size', default=20): int,
