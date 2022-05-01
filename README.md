@@ -1,6 +1,6 @@
 # AWS EDA Slurm Cluster
 
-[View on GitHub Pages](https://legendary-broccoli-ef5c4a8a.pages.github.io/)
+[View on GitHub Pages](https://aws-samples.github.io/aws-eda-slurm-cluster/)
 
 This repository contains an AWS Cloud Development Kit (CDK) application that creates a SLURM cluster that is suitable for running production EDA workloads on AWS.
 Key features are:
