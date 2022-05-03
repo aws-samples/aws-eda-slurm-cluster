@@ -53,10 +53,11 @@ from copy import copy, deepcopy
 from jinja2 import Template as Template
 import json
 import logging
-import os.path
+from os import path
 from os.path import dirname, realpath
 from pprint import PrettyPrinter
 import sys
+from sys import exit
 from tempfile import NamedTemporaryFile
 from textwrap import dedent
 from types import SimpleNamespace
@@ -107,7 +108,7 @@ class CdkSlurmStack(Stack):
         self.config['slurm']['InstanceTypes'] = plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'])
         if len(self.config['slurm']['InstanceTypes']) == 0:
             logger.error(f"No instance types found. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{self.config['slurm']['InstanceTypes']}")
-            sys.exit(1)
+            exit(1)
         logger.info(f"{len(self.config['slurm']['InstanceTypes'])} instance types configured:\n{pp.pformat(self.config['slurm']['InstanceTypes'])}")
 
         # Assets must be created before setting instance_template_vars so the playbooks URL exists
@@ -134,30 +135,30 @@ class CdkSlurmStack(Stack):
         config_file_path = self.node.try_get_context(context_var)
         if not config_file_path:
             config_file_path = f"{default_config_file_path}/{default_path}"
-        if os.path.isabs(config_file_path):
-            if not os.path.exists(config_file_path):
+        if path.isabs(config_file_path):
+            if not path.exists(config_file_path):
                 logger.error(f"{config_file_path} does not exist")
-                sys.exit(1)
+                exit(1)
         else:
             # Not an absolute path so check to see if it exists as a relative path
-            if os.path.exists(config_file_path):
+            if path.exists(config_file_path):
                 config_file_path = realpath(config_file_path)
-            elif os.path.exists(f"{default_config_file_path}/{config_file_path}"):
+            elif path.exists(f"{default_config_file_path}/{config_file_path}"):
                 # Check to see if in default config file path
                 config_file_path = realpath(f"{default_config_file_path}/{config_file_path}")
             else:
                 logger.error(f"Could not find {config_file_path}")
-                sys.exit(1)
+                exit(1)
         logger.info(f"Using config: {config_file_path}")
 
         try:
             config_parameters = yaml.load(open(config_file_path, 'r'), Loader=yaml.FullLoader) # nosec
         except ScannerError as err:
             logger.error(f"{config_file_path} is not a valid YAML file. Verify syntax, {err}")
-            sys.exit(1)
+            exit(1)
         except FileNotFoundError:
             logger.error(f"{config_file_path} not found")
-            sys.exit(1)
+            exit(1)
 
         if context_var == 'config_file':
             # Validate config against schema
@@ -168,12 +169,12 @@ class CdkSlurmStack(Stack):
                 config_parameters = check_schema(config_parameters, [region])
             except SchemaError:
                 logger.exception(f"Invalid config file: {config_file_path}")
-                sys.exit(1)
+                exit(1)
 
         if config_parameters:
             return config_parameters
         else:
-            sys.exit("No parameters were specified.")
+            exit("No parameters were specified.")
 
     def get_context(self):
         # Get context variables to override the config
@@ -188,7 +189,7 @@ class CdkSlurmStack(Stack):
             self.config[config_key] = region
         if config_key not in self.config:
             logger.error(f"Must set --region from the command line or {config_key} in the config files")
-            sys.exit(1)
+            exit(1)
 
         config_key = 'SshKeyPair'
         ssh_keypair = self.node.try_get_context(config_key)
@@ -200,7 +201,7 @@ class CdkSlurmStack(Stack):
             self.config[config_key] = ssh_keypair
         if config_key not in self.config:
             logger.error("You must provide --ssh-keypair on the command line or {config_key} in the config file.")
-            sys.exit(1)
+            exit(1)
 
         config_key = 'VpcId'
         vpc_id = self.node.try_get_context(config_key)
@@ -212,7 +213,7 @@ class CdkSlurmStack(Stack):
             self.config[config_key] = vpc_id
         if config_key not in self.config:
             logger.error("You must provide --vpc-id on the command line or {config_key} in the config file.")
-            sys.exit(1)
+            exit(1)
 
         config_key = 'SubnetId'
         subnet_id = self.node.try_get_context(config_key)
@@ -253,7 +254,7 @@ class CdkSlurmStack(Stack):
             self.config['StackName'] = self.stack_name
         if 'StackName' not in self.config:
             logger.error(f"You must provide --stack-name on the command line or StackName in the config file.")
-            sys.exit(1)
+            exit(1)
 
         error_sns_topic_arn = self.node.try_get_context('ErrorSnsTopicArn')
         if error_sns_topic_arn:
@@ -278,7 +279,7 @@ class CdkSlurmStack(Stack):
 
         if 'SlurmDbd' in self.config['slurm'] and 'ExistingSlurmDbd' in self.config['slurm']:
             logger.error(f"Cannot specify both slurm/SlurmDbd and slurm/ExistingSlurmDbd")
-            sys.exit(1)
+            exit(1)
 
         self.useSlurmDbd = False
         self.slurmDbdFQDN = ''
@@ -290,10 +291,10 @@ class CdkSlurmStack(Stack):
             if 'StackName' in self.config['slurm']['ExistingSlurmDbd']:
                 if 'SecurityGroup' in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Cannot specify slurm/ExistingSlurmDbd/SecurityGroup if slurm/ExistingSlurmDbd/StackName set")
-                    sys.exit(1)
+                    exit(1)
                 if 'HostnameFQDN' in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Cannot specify slurm/ExistingSlurmDbd/HostnameFQDN if slurm/ExistingSlurmDbd/StackName set")
-                    sys.exit(1)
+                    exit(1)
                 slurmdbd_stack_name = self.config['slurm']['ExistingSlurmDbd']['StackName']
                 slurmDbdSG = None
                 cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
@@ -305,7 +306,7 @@ class CdkSlurmStack(Stack):
                                 slurmDbdSG = resource['PhysicalResourceId']
                 if not slurmDbdSG:
                     logger.error(f"SlurmDbdSG resource not found in {slurmdbd_stack_name} stack")
-                    sys.exit(1)
+                    exit(1)
                 self.config['slurm']['ExistingSlurmDbd']['SecurityGroup'] = {f"{slurmdbd_stack_name}-SlurmDbdSG": slurmDbdSG}
                 # Find FQDN output
                 stack_outputs = cfn_client.describe_stacks(StackName=slurmdbd_stack_name)['Stacks'][0]['Outputs']
@@ -315,17 +316,17 @@ class CdkSlurmStack(Stack):
                         break
                 if not self.slurmDbdFQDN:
                     logger.error(f"SlurmDbdFQDN output not found in {slurmdbd_stack_name} stack")
-                    sys.exit(1)
+                    exit(1)
             else:
                 if 'SecurityGroup' not in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Must specify slurm/ExistingSlurmDbd/SecurityGroup if slurm/ExistingSlurmDbd/StackName is not set.")
-                    sys.exit(1)
+                    exit(1)
                 if len(self.config['slurm']['SlurmDbd']['ExistingSlurmDbd']['SecurityGroup']) != 1:
                     logger.error(f"slurm/ExistingSlurmDbd/SecurityGroup dictionary must have only 1 entry")
-                    sys.exit(1)
+                    exit(1)
                 if 'HostnameFQDN' not in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Must specify slurm/ExistingSlurmDbd/HostnameFQDN if slurm/ExistingSlurmDbd/StackName is not set.")
-                    sys.exit(1)
+                    exit(1)
                 self.slurmDbdFQDN = self.config['slurm']['ExistingSlurmDbd']['HostnameFQDN']
 
         if 'Federation' in self.config['slurm']:
@@ -339,7 +340,7 @@ class CdkSlurmStack(Stack):
                     stacks = cfn_client.describe_stacks(StackName=federated_stack_name)['Stacks']
                     if len(stacks) != 1:
                         logger.error(f"Federated cluseter {federated_stack_name} does not exist.")
-                        sys.exit(1)
+                        exit(1)
                     slurmCtlSG = None
                     slurmNodeSG = None
                     for page in cfn_client.get_paginator('list_stack_resources').paginate(StackName=federated_stack_name):
@@ -353,23 +354,23 @@ class CdkSlurmStack(Stack):
                                     slurmNodeSG = resource['PhysicalResourceId']
                     if not slurmCtlSG:
                         logger.error(f"SlurmCtlSG not found in {federated_stack_name} stack")
-                        sys.exit(1)
+                        exit(1)
                     if not slurmNodeSG:
                         logger.error(f"SlurmNodeSG not found in {federated_stack_name} stack")
-                        sys.exit(1)
+                        exit(1)
                     self.config['slurm']['Federation']['SlurmCtlSecurityGroups'][f"{federated_stack_name}-SlurmCtlSG"] = slurmCtlSG
                     self.config['slurm']['Federation']['SlurmNodeSecurityGroups'][f"{federated_stack_name}-SlurmNodeSG"] = slurmNodeSG
 
         if 'JobCompLoc' in self.config['slurm']:
             if self.config['slurm']['JobCompType'] == 'jobcomp/filetxt':
                 logger.error("Can't specify slurm/JobCompType==jobcomp/filetxt and slurm/JobCompLoc.")
-                sys.exit(1)
+                exit(1)
         else:
             self.config['slurm']['JobCompLoc'] = ''
             if self.config['slurm']['JobCompType'] == 'jobcomp/elasticsearch':
                 if not self.config['slurm']['ElasticSearch']:
                     logger.error(f"Must specify existing ElasticSearch domain in slurm/JobCompLoc when slurm/JobCompType == jobcomp/elasticsearch and slurm/ElasticSearch is not set.")
-                    sys.exit(1)
+                    exit(1)
 
         # Validate updated config against schema
         from config_schema import check_schema
@@ -378,7 +379,7 @@ class CdkSlurmStack(Stack):
             validated_config = check_schema(self.config, [self.config['Region']])
         except SchemaError:
             logger.exception(f"Invalid config")
-            sys.exit(1)
+            exit(1)
 
     def create_assets(self):
         self.slurmctl_user_data_asset = s3_assets.Asset(self, "SlurmCtlUserData", path="resources/user_data/slurmctl_user_data.sh")
@@ -399,6 +400,16 @@ class CdkSlurmStack(Stack):
         fh = NamedTemporaryFile()
         yaml.dump(self.config['slurm']['InstanceConfig'], fh, encoding='utf-8')
         self.instance_config_asset = s3_assets.Asset(self, "InstanceConfigAsset", path=fh.name)
+
+        if self.config['slurm']['InstanceConfig']['OnPremComputeNodes']:
+            if not path.exists(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']):
+                logger.error(f"On-premises compute nodes config file not found: {self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']}")
+                exit(1)
+            self.on_prem_compute_nodes_config_file_asset = s3_assets.Asset(self, "OnPremComputeNodesConfigFile", path=self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile'])
+            self.onprem_cidr = ec2.Peer.ipv4(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['CIDR'])
+        else:
+            self.on_prem_compute_nodes_config_file_asset = None
+            self.onprem_cidr = None
 
     def create_lambdas(self):
         updateDnsLambdaAsset = s3_assets.Asset(self, "UpdateDnsLambdaAsset", path="resources/lambdas/UpdateDns")
@@ -479,7 +490,7 @@ class CdkSlurmStack(Stack):
                     self.subnet = self.vpc.private_subnets[0]
                 else:
                     logger.error(f"SubnetId {self.config['SubnetId']} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(valid_subnet_ids)}")
-                    sys.exit(1)
+                    exit(1)
         else:
             self.subnet = self.vpc.private_subnets[0]
             self.config['SubnetId'] = self.subnet.subnet_id
@@ -560,6 +571,8 @@ class CdkSlurmStack(Stack):
                 )
                 self.federated_slurmctl_sgs[federated_slurmctl_sg_name] = federated_slurmctl_sg
                 federated_slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{federated_slurmctl_sg_name} to {self.slurmnode_sg_name}")
+                if self.onprem_cidr:
+                    federated_slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f"{federated_slurmctl_sg_name} to OnPremNodes")
 
         self.federated_slurmnode_sgs = {}
         if 'Federation' in self.config['slurm']:
@@ -585,6 +598,8 @@ class CdkSlurmStack(Stack):
                     allow_all_outbound = False,
                 )
 
+        # Security Group Rules
+
         # NFS Connections
         fs_client_sgs = {
             "SlurmCtl": self.slurmctl_sg,
@@ -595,6 +610,8 @@ class CdkSlurmStack(Stack):
             fs_client_sgs['SlurmDbd'] = self.slurmdbd_sg
         for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
             fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(2049), f"{fs_client_sg_name} to Nfs")
+        if self.onprem_cidr:
+            self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Nfs')
 
         # ZFS Connections
         for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
@@ -603,6 +620,9 @@ class CdkSlurmStack(Stack):
             self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for zfs: 32765-3276')
             self.suppress_cfn_nag(fs_client_sg, 'W29', 'Correct, restricted range for zfs: 32765-3276')
         self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 32765-3276')
+        if self.onprem_cidr:
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Zfs')
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(32765, 32769), 'OnPremNodes to Zfs')
 
         # Lustre Connections
         lustre_fs_client_sgs = copy(fs_client_sgs)
@@ -617,6 +637,11 @@ class CdkSlurmStack(Stack):
         self.lustre_sg.connections.allow_from(self.lustre_sg, ec2.Port.tcp(988), f"Lustre to Lustre")
         self.lustre_sg.connections.allow_from(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"Lustre to Lustre")
         self.suppress_cfn_nag(self.lustre_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
+        if self.onprem_cidr:
+            self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(988), 'OnPremNodes to Lustre')
+            self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), 'OnPremNodes to Lustre')
+            self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(988), f"Lustre to OnPremNodes")
+            self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), f"Lustre to OnPremNodes")
 
         # slurmctl connections
         # egress
@@ -639,6 +664,9 @@ class CdkSlurmStack(Stack):
             self.slurmctl_sg.connections.allow_to(federated_slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmctl_sg_name} to {federated_slurmctl_sg_name}")
         for federated_slurmnode_sg_name, federated_slurmnode_sg in self.federated_slurmnode_sgs.items():
             self.slurmctl_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmctl_sg_name} to {federated_slurmnode_sg_name}")
+        if self.onprem_cidr:
+            self.slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f'{self.slurmctl_sg_name} to OnPremNodes')
+            self.slurmctl_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6817), f'OnPremNodes to {self.slurmctl_sg_name}')
 
         # slurmdbd connections
         # egress
@@ -662,6 +690,10 @@ class CdkSlurmStack(Stack):
             # @todo Not sure if this is really initiated from the slurm node
             self.slurmnode_sg.connections.allow_to(slurm_submitter_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {slurm_submitter_sg_name} - ephemeral")
             self.suppress_cfn_nag(slurm_submitter_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to slurm submitters: 1024-65535')
+            if self.onprem_cidr:
+                self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(6000, 7024), f"OnPremNodes to {slurm_submitter_sg_name} - x11")
+                # @todo Not sure if this is really initiated from the slurm node
+                self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {slurm_submitter_sg_name} - ephemeral")
         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to slurm submitters: 1024-65535')
         self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(80), description="Internet")
         self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
@@ -670,6 +702,12 @@ class CdkSlurmStack(Stack):
             federated_slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{federated_slurmnode_sg_name} to {self.slurmctl_sg_name}")
             self.slurmnode_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmnode_sg_name} to {federated_slurmnode_sg_name}")
             self.slurmnode_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {federated_slurmnode_sg_name} - ephemeral")
+            if self.onprem_cidr:
+                federated_slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6818), f"OnPremNodes to {federated_slurmnode_sg_name}")
+                self.federated_slurmnode_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {federated_slurmnode_sg_name} - ephemeral")
+        if self.onprem_cidr:
+            self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6818), f"OnPremNodes to {self.slurmnode_sg_name}")
+            self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {self.slurmnode_sg_name}")
 
         # slurm submitter connections
         # egress
@@ -678,6 +716,8 @@ class CdkSlurmStack(Stack):
             slurm_submitter_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to {self.slurmnode_sg_name} - srun")
             if self.slurmdbd_sg:
                 slurm_submitter_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(6819), f"{slurm_submitter_sg_name} to {self.slurmdbd_sg_name} - sacct")
+            if self.onprem_cidr:
+                slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
 
         # Try to suppress cfn_nag warnings on ingress/egress rules
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
@@ -792,7 +832,7 @@ class CdkSlurmStack(Stack):
             if throughput_mode == efs.ThroughputMode.PROVISIONED:
                 if 'provisioned_throughput_per_second' not in self.config['slurm']['storage']['efs']:
                     logger.error(f"Must configure slurm/storage/efs/provisioned_throughput_per_second if slurm/storage/efs/throughput_mode == PROVISIONED")
-                    sys.exit(1)
+                    exit(1)
                 provisioned_throughput_per_second = Size.mebibytes(self.config['slurm']['storage']['efs']['provisioned_throughput_per_second'])
             else:
                 provisioned_throughput_per_second = None
@@ -1657,6 +1697,10 @@ class CdkSlurmStack(Stack):
             instance_template_vars['CONFIG_SCRIPT_PATH'] = '/root/slurmctl_config.sh'
             instance_template_vars['INSTANCE_CONFIG_LOCAL_PATH'] = f"/root/InstanceConfig.yml"
             instance_template_vars['INSTANCE_CONFIG_PATH'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}/config/InstanceConfig.yml"
+            if self.on_prem_compute_nodes_config_file_asset:
+                instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG'] = f"slurm_nodes_on_prem.conf"
+                instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG_LOCAL_PATH'] = f"/root/{instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG']}"
+                instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG_PATH'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}/etc/{instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG']}"
             instance_template_vars['PLAYBOOKS_ZIP_PATH'] = '/root/playbooks.zip'
 
             if self.munge_key_ssm_parameter:
@@ -1698,6 +1742,15 @@ class CdkSlurmStack(Stack):
                 bucket_key = self.instance_config_asset.s3_object_key,
                 local_file = instance_template_vars['INSTANCE_CONFIG_LOCAL_PATH']
             )
+
+            # Download On-premises Compute Nodes Config File
+            if self.on_prem_compute_nodes_config_file_asset:
+                self.on_prem_compute_nodes_config_file_asset.grant_read(slurmctl_instance.role)
+                slurmctl_instance.user_data.add_s3_download_command(
+                    bucket = self.on_prem_compute_nodes_config_file_asset.bucket,
+                    bucket_key = self.on_prem_compute_nodes_config_file_asset.s3_object_key,
+                    local_file = instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG_LOCAL_PATH']
+                )
 
             user_data_template = Template(open("resources/user_data/slurmctl_user_data.sh", 'r').read())
             user_data = user_data_template.render(**instance_template_vars)
@@ -2061,7 +2114,7 @@ class CdkSlurmStack(Stack):
                             ami_id = self.config['AmiMap'][self.region][distribution][distribution_major_version][architecture]['ImageId']
                         except KeyError:
                             logger.error(f"AmiMap doesn't have ImageId for {self.region}/{distribution}/{distribution_major_version}/{architecture}")
-                            sys.exit(1)
+                            exit(1)
                     ami_info = ec2_client.describe_images(ImageIds=[ami_id])['Images'][0]
                     block_devices = []
                     root_device = True
@@ -2076,7 +2129,7 @@ class CdkSlurmStack(Stack):
                                     volume_size = int(volume_size)
                                     if volume_size < ami_volume_size:
                                         logger.error(f"slurm/SlurmNodeAmis/BaseAmis/{self.region}/{distribution}/{distribution_major_version}/{architecture}/RootDeviceSize must be >= {ami_volume_size}")
-                                        sys.exit(1)
+                                        exit(1)
                             except KeyError:
                                 volume_size = ami_volume_size
                             root_device = False
