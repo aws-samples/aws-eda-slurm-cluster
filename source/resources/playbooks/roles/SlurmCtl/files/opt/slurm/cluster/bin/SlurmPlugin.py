@@ -268,8 +268,21 @@ class SlurmPlugin:
                 logger.setLevel(logging.DEBUG)
 
             self.hostlist = self.args.hostname_list
-            self.hostnames = hostlist.expand_hostlist(self.args.hostname_list)
-            logger.debug(f"hostnames: {self.hostnames}")
+            all_hostnames = hostlist.expand_hostlist(self.args.hostname_list)
+            logger.debug(f"hostnames: {all_hostnames}")
+            self.hostnames = []
+            # Ignore invalid hostnames. Could be on-prem hosts
+            for hostname in all_hostnames:
+                try:
+                    self.parse_hostname(hostname)
+                except ValueError:
+                    logger.warning(f"Ignoring invalid hostname: {hostname}")
+                    continue
+                self.hostnames.append(hostname)
+            if not self.hostnames:
+                logger.info(f"No valid hostnames")
+                return
+            logger.debug(f"valid hostnames: {self.hostnames}")
 
             self.get_instance_type_info()
 
@@ -390,10 +403,21 @@ class SlurmPlugin:
         return self.instance_type_info[instance_type]['full']
 
     def get_hostinfo(self, hostnames):
+        '''
+        Store information about all existing compute nodes and those hostnames to self.hostinfo
+
+        Args:
+            hostnames ([str]): List of hostnames that may or may not have instances.
+        '''
         logger.debug(f"get_hostinfo({hostnames})")
         self.hostinfo = {}
         for hostname in hostnames:
-            self.add_hostname_to_hostinfo(hostname)
+            # Ignore invalid hostnames
+            try:
+                self.add_hostname_to_hostinfo(hostname)
+            except ValueError:
+                logger.warning(f"Ignoring invalid hostname: {hostname}")
+                continue
 
         # Find existing unterminated instances
         # Collect the number of SlurmNodes in each state overall and by instance type
@@ -429,7 +453,12 @@ class SlurmPlugin:
                     if not hostname:
                         continue
                     if hostname not in self.hostinfo:
-                        self.add_hostname_to_hostinfo(hostname)
+                        # Ignore invalid hostnames
+                        try:
+                            self.add_hostname_to_hostinfo(hostname)
+                        except ValueError:
+                            logger.warning(f"Ignoring invalid hostname: {hostname}")
+                            continue
 
                     hostinfo = self.hostinfo[hostname]
 
@@ -454,21 +483,25 @@ class SlurmPlugin:
                 self.publish_cw_metrics('NodeCount', count, [{'Name': 'State', 'Value': state}, {'Name': 'InstanceType', 'Value': instanceType}])
 
     def add_hostname_to_hostinfo(self, hostname):
+        '''
+        Adds hostname to self.hostinfo[hostname]
+
+        Args:
+            hostname (str): Hostname to get info for
+        Raises:
+            ValueError: If hostname is an invalid name for an AWS node, for example, an on-prem node.
+        '''
         if hostname in self.hostinfo:
             return
 
-        hostinfo = {}
-
         try:
             distribution, distribution_major_version, architecture, instance_family, instance_size, spot = self.parse_hostname(hostname)[0:6]
-            bad_hostname = False
-        except:
-            logger.exception(f"Bad hostname: {hostname}")
-            bad_hostname = True
-        if bad_hostname:
-            logger.error(f"Marking {hostname} as down.")
-            self.mark_node_down(hostname, f'Invalid hostname={hostname}')
-            return
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"Invalid hostname: {e}")
+
+        hostinfo = {}
 
         hostinfo['distribution'] = distribution
         hostinfo['distribution_major_version'] = distribution_major_version
@@ -522,7 +555,11 @@ class SlurmPlugin:
                     logger.debug("Found %s(%s) state=%s" % (hostname, instanceId, state))
 
                     if hostname not in self.hostinfo:
-                        self.add_hostname_to_hostinfo(hostname)
+                        # Ignore invalid hostnames
+                        try:
+                            self.add_hostname_to_hostinfo(hostname)
+                        except ValueError:
+                            logger.warning(f"Ignoring invalid hostname: {hostname}")
                     self.hostinfo[hostname]['instanceId'] = instanceId
                     self.hostinfo[hostname]['ImageId'] = instance['ImageId']
                     self.hostinfo[hostname]['State'] = state
@@ -540,6 +577,8 @@ class SlurmPlugin:
             self.test_ice = False
 
             self.suspend_resume_setup()
+            if not self.hostnames:
+                return
 
             logger.info("Resuming {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_RESUME, len(self.hostnames), [])
@@ -822,6 +861,8 @@ class SlurmPlugin:
     def resume_fail(self):
         try:
             self.suspend_resume_setup()
+            if not self.hostnames:
+                return
 
             logger.error("Resume failed on {} hosts: {}".format(len(self.hostnames), self.hostlist))
             # They will already have been marked down my slurmctld
@@ -875,6 +916,8 @@ class SlurmPlugin:
     def stop(self):
         try:
             self.suspend_resume_setup()
+            if not self.hostnames:
+                return
 
             logger.info("Stopping  {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_STOP, len(self.hostnames), [])
@@ -954,6 +997,8 @@ class SlurmPlugin:
     def terminate(self):
         try:
             self.suspend_resume_setup()
+            if not self.hostnames:
+                return
 
             logger.info("Terminating {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_TERMINATE, len(self.hostnames), [])
@@ -1198,6 +1243,14 @@ class SlurmPlugin:
         return
 
     def parse_hostname(self, hostname):
+        '''
+        Args:
+            hostname (str): Hostname of compute node
+        Raises:
+            ValueError: If the hostname isn't a valid hostname for the plugin. Since this could be an on-prem node, invalid hostname should probably be ignored.
+        Returns:
+            (distribution, distribution_version, architecture, instance_family, instance_size, spot, index): Tuple with decoded hostname attributes
+        '''
         logger.debug(f"hostname={hostname}")
         fields = hostname.split('-')
         logger.debug(f"fields: {fields}")
