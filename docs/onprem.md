@@ -61,16 +61,31 @@ All that needs to be configured are the configuration file for the on-prem nodes
 # or a mirror of it.
 NodeName=Default State=DOWN
 
-NodeName=onprem-c7-x86-t3-2xl-0 nodeaddr=10.1.138.249       CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5                Weight=1
+NodeName=onprem-c7-x86-t3-2xl-0 NodeAddr=onprem-c7-x86-t3-2xl-0.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-1 NodeAddr=onprem-c7-x86-t3-2xl-1.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-2 NodeAddr=onprem-c7-x86-t3-2xl-2.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-3 NodeAddr=onprem-c7-x86-t3-2xl-3.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-4 NodeAddr=onprem-c7-x86-t3-2xl-4.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-5 NodeAddr=onprem-c7-x86-t3-2xl-5.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-6 NodeAddr=onprem-c7-x86-t3-2xl-6.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-7 NodeAddr=onprem-c7-x86-t3-2xl-7.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-8 NodeAddr=onprem-c7-x86-t3-2xl-8.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
+NodeName=onprem-c7-x86-t3-2xl-9 NodeAddr=onprem-c7-x86-t3-2xl-9.onprem.com  CPUs=4  RealMemory=30512   Feature=c7,CentOS_7_x86_64,x86_64,GHz:2.5 Weight=1
 
 #
 #
 # OnPrem Partition
 #
-# The is the default partition
+# The is the default partition and includes all nodes from the 1st OS.
 #
-PartitionName=onprem Default=YES Nodes=\
-onprem-c7-x86-t3-2xl-0
+PartitionName=onprem Default=YES PriorityTier=20000 Nodes=\
+onprem-c7-x86-t3-2xl-[0-9]
+
+#
+# Always on partitions
+#
+SuspendExcParts=onprem
+
 ```
 
 ## Simulating an On-Premises Network Using AWS
