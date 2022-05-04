@@ -92,7 +92,7 @@
   register: slurm_nodes_conf_result
 
 - name: Create {{ON_PREM_COMPUTE_NODES_CONFIG_PATH}}
-  when: PrimaryController|bool and ON_PREM_COMPUTE_NODES_CONFIG_LOCAL_PATH and ON_PREM_COMPUTE_NODES_CONFIG_PATH
+  when: PrimaryController|bool and ON_PREM_COMPUTE_NODES_CONFIG_LOCAL_PATH is defined and ON_PREM_COMPUTE_NODES_CONFIG_PATH is defined
   copy:
     dest: "{{ON_PREM_COMPUTE_NODES_CONFIG_PATH}}"
     remote_src: yes
