@@ -529,6 +529,7 @@ class CdkSlurmStack(Stack):
         Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
         self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
 
+	# Compute nodes may use lustre file systems to create a security group with the required ports.
         self.lustre_sg = ec2.SecurityGroup(self, "LustreSG", vpc=self.vpc, allow_all_outbound=False, description="Lustre Security Group")
         Tags.of(self.lustre_sg).add("Name", f"{self.stack_name}-LustreSG")
         self.suppress_cfn_nag(self.lustre_sg, 'W29', 'Egress port range used to block all egress')
@@ -886,51 +887,6 @@ class CdkSlurmStack(Stack):
                 self.file_system_options = 'nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport'
 
             self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo yum -y install nfs-utils && sudo mount -t {self.file_system_type} -o {self.file_system_options} {self.file_system_mount_src} {self.config['slurm']['storage']['mount_path']}"
-
-        elif self.config['slurm']['storage']['provider'] == "lustre":
-            deployment_types = {
-                'PERSISTENT_1': fsx.LustreDeploymentType.PERSISTENT_1,
-                'SCRATCH_1': fsx.LustreDeploymentType.SCRATCH_1,
-                'SCRATCH_2': fsx.LustreDeploymentType.SCRATCH_2,
-            }
-            deployment_type = deployment_types[self.config['slurm']['storage']['lustre']['deployment_type']]
-
-            if deployment_type == fsx.LustreDeploymentType.PERSISTENT_1:
-                per_unit_storage_throughput = self.config['slurm']['storage']['lustre']['per_unit_storage_throughput']
-                if per_unit_storage_throughput not in [50, 100, 200]:
-                    raise ValueError(f"Invalid per_unit_storage_throughput: {per_unit_storage_throughput}")
-            else:
-                per_unit_storage_throughput = None
-
-            lustre_configuration = fsx.LustreConfiguration(
-                deployment_type = deployment_type,
-                per_unit_storage_throughput = per_unit_storage_throughput,
-                )
-
-            self.file_system = fsx.LustreFileSystem(
-                self, "FSxLustre",
-                lustre_configuration = lustre_configuration,
-                vpc = self.vpc,
-                vpc_subnet = self.vpc.select_subnets(subnet_type=ec2.SubnetType.PRIVATE).subnets[0],
-                kms_key = kms_key,
-                removal_policy = removal_policies[self.config['slurm']['storage']['removal_policy']],
-                security_group = self.lustre_sg,
-                storage_capacity_gib = self.config['slurm']['storage']['lustre']['storage_capacity'],
-                )
-
-            self.file_system_dependency = self.file_system
-
-            self.file_system_port = 988
-
-            self.file_system_type = 'lustre'
-            self.file_system_dns = self.file_system.dns_name
-            self.file_system_mount_name = self.file_system.mount_name
-
-            self.file_system_mount_source = f"{self.file_system_dns}@tcp:/{self.file_system_mount_name}"
-
-            self.file_system_options = 'noatime,flock'
-
-            self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo mount -t lustre -o {self.file_system_options} {self.file_system_mount_source} {self.config['slurm']['storage']['mount_path']}"
 
         elif self.config['slurm']['storage']['provider'] == "ontap":
             if 'iops' in self.config['slurm']['storage']['ontap']:
