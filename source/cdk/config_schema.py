@@ -146,7 +146,7 @@ config_schema = Schema(
                 Optional('AlwaysOnPartitions', default=[]): [
                     str # Partitionlist
                 ],
-                Optional('OnPremComputeNodes', default={}): {
+                Optional('OnPremComputeNodes'): {
                     'ConfigFile': str,
                     'CIDR': str,
                     Optional('Partition', default='onprem'): str,

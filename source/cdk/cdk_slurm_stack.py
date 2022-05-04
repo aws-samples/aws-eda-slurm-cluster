@@ -401,7 +401,7 @@ class CdkSlurmStack(Stack):
         yaml.dump(self.config['slurm']['InstanceConfig'], fh, encoding='utf-8')
         self.instance_config_asset = s3_assets.Asset(self, "InstanceConfigAsset", path=fh.name)
 
-        if self.config['slurm']['InstanceConfig']['OnPremComputeNodes']:
+        if 'OnPremComputeNodes' in self.config['slurm']['InstanceConfig']:
             if not path.exists(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']):
                 logger.error(f"On-premises compute nodes config file not found: {self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']}")
                 exit(1)
