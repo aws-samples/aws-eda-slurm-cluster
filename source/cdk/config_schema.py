@@ -169,7 +169,7 @@ config_schema = Schema(
             Optional('SlurmUid', default=900): int,
             'storage': {
                 Optional('mount_path'): str,
-                Optional('provider', default='efs'): And(str, lambda s: s in ('efs', 'lustre', 'ontap')),
+                Optional('provider', default='efs'): And(str, lambda s: s in ('efs', 'lustre', 'ontap', 'zfs')),
                 Optional('removal_policy', default='RETAIN'): And(str, lambda s: s in ('DESTROY', 'RETAIN', 'SNAPSHOT')),
                 Optional('kms_key_arn'): str,
                 Optional('efs'): {
@@ -195,6 +195,12 @@ config_schema = Schema(
                     Optional('throughput_capacity', default=128): And(int, lambda s: s in [128, 256, 512, 1024, 2048]),
                     Optional('tiering_policy', default='AUTO'): And(str, lambda s: s in ('ALL', 'AUTO', 'NONE', 'SNAPSHOT_ONLY')),
                     Optional('cooling_period', default=31): And(int, lambda s: (s >= 2 and s <= 183)),
+                },
+                Optional('zfs'): {
+                    Optional('storage_capacity', default=64): And(int, lambda s: s >= 64 and s <= 524288),
+                    Optional('iops'): int,
+                    Optional('throughput_capacity', default=64): And(int, lambda s: s in [64, 128, 256, 512, 1024, 2048, 3072, 4096]),
+                    Optional('data_compression_type', default='ZSTD'): And(str, lambda s: s in ('NONE', 'ZSTD', 'LZ4')),
                 },
                 Optional('ExtraMounts', default=[]): [
                     {

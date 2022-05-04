@@ -522,7 +522,8 @@ class CdkSlurmStack(Stack):
         Tags.of(self.nfs_sg).add("Name", f"{self.stack_name}-NfsSG")
         self.suppress_cfn_nag(self.nfs_sg, 'W29', 'Egress port range used to block all egress')
 
-        self.zfs_sg = ec2.SecurityGroup(self, "ZfsSG", vpc=self.vpc, allow_all_outbound=False, description="Zfs Security Group")
+        # FSxZ requires all output access
+        self.zfs_sg = ec2.SecurityGroup(self, "ZfsSG", vpc=self.vpc, allow_all_outbound=True, description="Zfs Security Group")
         Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
         self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
 
@@ -614,15 +615,26 @@ class CdkSlurmStack(Stack):
             self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Nfs')
 
         # ZFS Connections
+        # https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html
         for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
+            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(111), f"{fs_client_sg_name} to Zfs")
+            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(111), f"{fs_client_sg_name} to Zfs")
             fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(2049), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp_range(32765, 32769), f"{fs_client_sg_name} to Zfs")
-            self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for zfs: 32765-3276')
-            self.suppress_cfn_nag(fs_client_sg, 'W29', 'Correct, restricted range for zfs: 32765-3276')
-        self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 32765-3276')
+            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(2049), f"{fs_client_sg_name} to Zfs")
+            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
+            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
+            self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
+            self.suppress_cfn_nag(fs_client_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
+        self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
         if self.onprem_cidr:
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(111), 'OnPremNodes to Zfs')
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(111), 'OnPremNodes to Zfs')
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(32765, 32769), 'OnPremNodes to Zfs')
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(2049), 'OnPremNodes to Zfs')
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(20001, 20003), 'OnPremNodes to Zfs')
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp_range(20001, 20003), 'OnPremNodes to Zfs')
+            self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
+            self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
 
         # Lustre Connections
         lustre_fs_client_sgs = copy(fs_client_sgs)
@@ -997,6 +1009,79 @@ class CdkSlurmStack(Stack):
             self.file_system_mount_name = ""
 
             self.file_system_mount_source = f"{self.file_system_dns}:/slurm"
+
+            self.file_system_options = 'nfsvers=4.1'
+
+            self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo mount -t nfs -o {self.file_system_options} {self.file_system_mount_source} {self.config['slurm']['storage']['mount_path']}"
+
+        elif self.config['slurm']['storage']['provider'] == "zfs":
+            if 'iops' in self.config['slurm']['storage']['zfs']:
+                disk_iops_configuration = fsx.CfnFileSystem.DiskIopsConfigurationProperty(
+                    iops = self.config['slurm']['storage']['zfs']['iops'],
+                    mode = 'USER_PROVISIONED'
+                )
+            else:
+                disk_iops_configuration = fsx.CfnFileSystem.DiskIopsConfigurationProperty(
+                    mode = 'AUTOMATIC'
+                )
+
+            zfs_configuration_kwargs = {
+                'deployment_type': 'SINGLE_AZ_1',
+                'disk_iops_configuration': disk_iops_configuration,
+                'root_volume_configuration': fsx.CfnFileSystem.RootVolumeConfigurationProperty(
+                    data_compression_type = 'ZSTD'
+                    ),
+                }
+            if 'throughput_capacity' in self.config['slurm']['storage']['zfs']:
+                zfs_configuration_kwargs['throughput_capacity'] = self.config['slurm']['storage']['zfs']['throughput_capacity']
+            zfs_configuration = fsx.CfnFileSystem.OpenZFSConfigurationProperty(**zfs_configuration_kwargs)
+
+            self.file_system = fsx.CfnFileSystem(
+                self, "ZFS",
+                file_system_type = 'OPENZFS',
+                subnet_ids = [self.subnet.subnet_id],
+                open_zfs_configuration = zfs_configuration,
+                security_group_ids = [self.zfs_sg.security_group_id],
+                storage_capacity = self.config['slurm']['storage']['zfs']['storage_capacity'],
+                )
+
+            # Add a volume
+            volume = fsx.CfnVolume(
+                self, 'ZfsVolume',
+                name = 'slurm',
+                open_zfs_configuration = fsx.CfnVolume.OpenZFSConfigurationProperty(
+                    parent_volume_id  = self.file_system.attr_root_volume_id,
+                    copy_tags_to_snapshots = True,
+                    data_compression_type = self.config['slurm']['storage']['zfs']['data_compression_type'],
+                    nfs_exports = [
+                        fsx.CfnVolume.NfsExportsProperty(
+                            client_configurations = [
+                                fsx.CfnVolume.ClientConfigurationsProperty(
+                                    clients = '*',
+                                    options = [
+                                        'crossmnt',
+                                        'rw',
+                                        'sync',
+                                        'no_root_squash' # Required for root to be able to create/modify zfs files
+                                    ]
+                                )
+                            ]
+                        ),
+                    ],
+                ),
+                volume_type = 'OPENZFS'
+            )
+
+            self.file_system_dependency = self.file_system
+
+            self.file_system_port = 2049
+
+            self.file_system_type = 'nfs'
+            self.file_system_dns = self.file_system.attr_dns_name
+
+            self.file_system_mount_name = ""
+
+            self.file_system_mount_source = f"{self.file_system_dns}:/fsx/slurm"
 
             self.file_system_options = 'nfsvers=4.1'
 
