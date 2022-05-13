@@ -1,5 +1,11 @@
 ---
+#====================================================================
 # Slurm cluster to test Alma Linux support
+#
+# Defaults and valid configuration options are in source/config_schema.py.
+# Command line values override values in the config file.
+#====================================================================
+
 
 StackName: slurmalma
 
@@ -26,4 +32,4 @@ slurm:
 
   # Use defaults from schema
   SlurmCtl: {}
-  storage: {'efs': {}}
+  storage: {'zfs': {}}

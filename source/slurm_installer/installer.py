@@ -452,7 +452,7 @@ class SlurmInstaller():
         from config_schema import check_schema
         from schema import SchemaError
         try:
-            validated_config = check_schema(config_parameters, self.accepted_regions)
+            validated_config = check_schema(config_parameters)
         except SchemaError:
             logger.exception(f"Invalid config file: {config_file_path}")
             sys.exit(1)

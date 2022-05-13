@@ -1,7 +1,13 @@
 ---
+#====================================================================
 # Slurm cluster that uses Lustre for storing the Slurm configuration and tool files
+#
 # EFS should be adequate and more cost effective for most uses.
 # You might consider Lustre for very large, dynamic clusters if they are putting a strain on EFS metadata.
+#
+# Defaults and valid configuration options are in source/config_schema.py.
+# Command line values override values in the config file.
+#====================================================================
 
 StackName: slurmlustre
 
@@ -11,13 +17,10 @@ slurm:
     provider: lustre
     lustre': {}
 
-  # InstanceConfig:
-  # Configure the instances used by the cluster
-  # A partition will be created for each combination of Base OS, Architecture, and Spot
   InstanceConfig:
     UseSpot: true
     DefaultPartition: CentOS_7_x86_64_spot
-    NodesPerInstanceType: 10
+    NodesPerInstanceType: 5
     BaseOsArchitecture:
       CentOS:
         7: [x86_64]
