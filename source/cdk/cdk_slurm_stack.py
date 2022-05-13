@@ -56,6 +56,8 @@ import logging
 from os import path
 from os.path import dirname, realpath
 from pprint import PrettyPrinter
+import subprocess
+from subprocess import check_output
 import sys
 from sys import exit
 from tempfile import NamedTemporaryFile
@@ -1608,13 +1610,33 @@ class CdkSlurmStack(Stack):
         return instance_template_vars
 
     def create_slurmctl(self):
-        if self.config['slurm']['MungeKeySsmParameter']:
+        ssm_client = boto3.client('ssm', region_name=self.config['Region'])
+        response = ssm_client.describe_parameters(
+            ParameterFilters = [
+                {
+                    'Key': 'Name',
+                    'Option': 'Equals',
+                    'Values': [self.config['slurm']['MungeKeySsmParameter']]
+                }
+            ]
+        )['Parameters']
+        if response:
+            logger.info(f"{self.config['slurm']['MungeKeySsmParameter']} SSM parameter exists and will be used.")
             self.munge_key_ssm_parameter = ssm.StringParameter.from_string_parameter_name(
                 self, f"MungeKeySsmParamter",
                 string_parameter_name  = f"{self.config['slurm']['MungeKeySsmParameter']}"
             )
         else:
-            self.munge_key_ssm_parameter = None
+            logger.info(f"{self.config['slurm']['MungeKeySsmParameter']} SSM parameter doesn't exist. Creating it so can give IAM permissions to it.")
+            output = check_output(['dd if=/dev/random bs=1 count=1024 | base64 -w 0'], shell=True, stderr=subprocess.DEVNULL, encoding='utf8', errors='ignore')
+            munge_key = output.split('\n')[0]
+            # print(f"output\n{output}")
+            # print(f"munge_key:\n{munge_key}")
+            self.munge_key_ssm_parameter = ssm.StringParameter(
+                self, f"MungeKeySsmParamter",
+                parameter_name  = f"{self.config['slurm']['MungeKeySsmParameter']}",
+                string_value = f"{munge_key}"
+            )
 
         self.slurmctl_role = iam.Role(self, "SlurmCtlRole",
             assumed_by=iam.CompositePrincipal(
