@@ -2268,7 +2268,7 @@ class CdkSlurmStack(Stack):
                         instance_type=ec2.InstanceType(self.config['slurm']['SlurmNodeAmis']['instance_type'][architecture]),
                         key_name=self.config['SshKeyPair'],
                         vpc=self.vpc,
-                        vpc_subnets = ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+                        vpc_subnets = ec2.SubnetSelection(subnets=[self.subnet]),
                         block_devices = block_devices,
                         role=self.slurm_node_ami_role,
                         security_group=self.slurmnode_sg,
