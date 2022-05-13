@@ -1698,6 +1698,15 @@ class CdkSlurmStack(Stack):
                 iam.PolicyStatement(
                     effect = iam.Effect.ALLOW,
                     actions = [
+                        'iam:CreateServiceLinkedRole',
+                    ],
+                    resources = [
+                        '*'
+                    ]
+                ),
+                iam.PolicyStatement(
+                    effect = iam.Effect.ALLOW,
+                    actions = [
                         'iam:PassRole'
                     ],
                     resources = [
