@@ -2,12 +2,10 @@
 #====================================================================
 # Sample configuraton that creates a minimal Slurm cluster
 #
-# Shows all available configuration options
-# Note that CentOS 8 has been discontinued and support has been removed.
-# Uses arm64 architecture for SlurmCtl and SlurmDbd by default.
 # No SlurmDbd in this configuration.
 #
 # Defaults and valid configuration options are in source/config_schema.py.
+# Command line values override values in the config file.
 #====================================================================
 
 StackName: slurmminimal

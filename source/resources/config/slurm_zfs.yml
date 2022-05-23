@@ -1,32 +1,26 @@
 ---
 #====================================================================
-# Slurm cluster with all supported OS distributions and versions.
-#
-# Note that CentOS 8 has been discontinued and support has been removed.
+# Slurm cluster that uses FSx for OpenZfs for storing the Slurm configuration and tool files
 #
 # Defaults and valid configuration options are in source/config_schema.py.
 # Command line values override values in the config file.
 #====================================================================
 
-StackName: slurmallos
+StackName: slurmzfs
 
 slurm:
-  # InstanceConfig:
-  # Configure the instances used by the cluster
-  # A partition will be created for each combination of Base OS, Architecture, and Spot
+  storage:
+    provider: zfs
+    zfs: {} # This causes the defaults from the schema to be applied.
+
   InstanceConfig:
     UseSpot: true
-    DefaultPartition: CentOS_7_x86_64_spot
+    DefaultPartition: AlmaLinux_8_arm64_spot
     NodesPerInstanceType: 10
     BaseOsArchitecture:
       AlmaLinux: {8: [x86_64, arm64]}
-      Amazon: {2: [x86_64, arm64]}
       CentOS:
         7: [x86_64]
-      RedHat:
-        7: [x86_64]
-        8: [x86_64, arm64]
-      Rocky: {8: [x86_64, arm64]}
     Include:
       MaxSizeOnly: false
       InstanceFamilies:
@@ -36,8 +30,8 @@ slurm:
     Exclude:
       InstanceFamilies: []
       InstanceTypes:
+        - '.+\.(micro|nano)'   # Not enough memory
         - '.*\.metal'
 
   # Use defaults from schema
   SlurmCtl: {}
-  storage: {'zfs': {}}

@@ -1,5 +1,10 @@
 ---
+#====================================================================
 # Create a minimal cluster with all instance types
+#
+# Defaults and valid configuration options are in source/config_schema.py.
+# Command line values override values in the config file.
+#====================================================================
 
 StackName: slurmalltypes
 
@@ -41,4 +46,4 @@ slurm:
 
   # Use defaults from schema
   SlurmCtl: {}
-  storage: {'efs': {}}
+  storage: {'zfs': {}}

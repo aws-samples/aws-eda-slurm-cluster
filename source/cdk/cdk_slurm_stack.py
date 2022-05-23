@@ -168,7 +168,7 @@ class CdkSlurmStack(Stack):
             from schema import SchemaError
             region = self.node.try_get_context('region')
             try:
-                config_parameters = check_schema(config_parameters, [region])
+                config_parameters = check_schema(config_parameters)
             except SchemaError:
                 logger.exception(f"Invalid config file: {config_file_path}")
                 exit(1)
@@ -378,7 +378,7 @@ class CdkSlurmStack(Stack):
         from config_schema import check_schema
         from schema import SchemaError
         try:
-            validated_config = check_schema(self.config, [self.config['Region']])
+            validated_config = check_schema(self.config)
         except SchemaError:
             logger.exception(f"Invalid config")
             exit(1)
