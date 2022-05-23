@@ -318,7 +318,7 @@ config_schema = Schema(
                 # mount_path:
                 # Default is /opt/slurm/{{cluster_name}}
                 Optional('mount_path'): str,
-                Optional('provider', default='efs'): And(str, lambda s: s in ('efs', 'lustre', 'ontap', 'zfs')),
+                Optional('provider', default='efs'): And(str, lambda s: s in ('efs', 'ontap', 'zfs')),
                 #
                 # removal_policy:
                 # RETAIN will preserve the EFS even if you delete the stack.
@@ -342,27 +342,6 @@ config_schema = Schema(
                     # encrypted
                     # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-encrypted
                     Optional('encrypted', default=True): bool,
-                },
-                Optional('lustre'): {
-                    # deployment_type
-                    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-deploymenttype
-                    Optional('deployment_type', default='SCRATCH_2'): And(str, lambda s: s in ('PERSISTENT_1', 'SCRATCH_1', 'SCRATCH_2')),
-                    #
-                    # drive_cache_type
-                    # Required when storage_type is HDD. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-drivecachetype
-                    Optional('drive_cache_type', default='NONE'): And(str, lambda s: s in ('NONE', 'READ')),
-                    #
-                    # per_unit_storage_throughput
-                    # Required for the PERSISTENT_1 deployment_type. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-fsx-filesystem-lustreconfiguration.html#cfn-fsx-filesystem-lustreconfiguration-perunitstoragethroughput
-                    Optional('per_unit_storage_throughput', default=50): int,
-                    #
-                    # storage_capacity
-                    # For SCRATCH_2 and PERSISTENT_1 types, valid values are 1,200, 2,400, then continuing in increments of 2,400 GiB. For SCRATCH_1 deployment types, valid values are 1,200, 2,400, 3,600, then continuing in increments of 3,600 GiB. https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagecapacity
-                    Optional('storage_capacity', default=1200): int,
-                    #
-                    # storage_type
-                    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-fsx-filesystem.html#cfn-fsx-filesystem-storagety
-                    Optional('storage_type'): And(str, lambda s: s in ('HDD', 'SSD')),
                 },
                 Optional('ontap'): {
                     Optional('deployment_type', default='SINGLE_AZ_1'): And(str, lambda s: s in ('SINGLE_AZ_1', 'MULTI_AZ_1')),
