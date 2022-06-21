@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Run Jobs - EDA SLURM Cluster on AWS</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/font-awesome.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css">
+
+        <script src="../js/jquery-1.10.2.min.js" defer></script>
+        <script src="../js/bootstrap.min.js" defer></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script>hljs.initHighlightingOnLoad();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-collapse">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="navitem">
+                                <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy/" class="nav-link">Deploy the Cluster</a>
+                            </li>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Run Jobs</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../federation/" class="nav-link">Federation</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../implementation/" class="nav-link">Implementation Details</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../debug/" class="nav-link">Debug</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../todo/" class="nav-link">To Do List</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../mkdocs/" class="nav-link">mkdocs</a>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-toggle="modal" data-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../deploy/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../onprem/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/run_jobs.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-light navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-level="1"><a href="#run-jobs" class="nav-link">Run Jobs</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#set-up" class="nav-link">Set Up</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#key-slurm-commands" class="nav-link">Key SLURM Commands</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#sbatch" class="nav-link">sbatch</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#srun" class="nav-link">srun</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#squeue" class="nav-link">squeue</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#sprio" class="nav-link">sprio</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#sacct" class="nav-link">sacct</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#sreport" class="nav-link">sreport</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#other-slurm-commands" class="nav-link">Other SLURM Commands</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="run-jobs">Run Jobs</h1>
+<p>This page is to give some basic instructions on how to run and monitor jobs on SLURM.
+SLURM provides excellent man pages for all of its commands, so if you have questions refer
+to the man pages.</p>
+<h2 id="set-up">Set Up</h2>
+<p>Load the environment module for slurm to configure your PATH and SLURM related environment
+variables.</p>
+<pre><code>module load {{ClusterName}}
+</code></pre>
+<p>The modulefile sets environment variables that control the defaults for Slurm commands.
+These are documented in the man pages for each command.
+If you don't like the defaults then you can set them in your environment (for example, your .bashrc) and
+the modulefile won't change any variables that are already set.
+The environment variables can always be overridden by the command line options.</p>
+<p>For example, the SQUEUE_FORMAT2 and SQUEUE_SORT environment variables are set so that
+the default output format is easier to read and contains useful information that isn't
+in the default format.</p>
+<h2 id="key-slurm-commands">Key SLURM Commands</h2>
+<p>The key SLURM commands are</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sbatch</td>
+<td>Submit a batch script</td>
+<td>sbatch -c 1 --mem 1G -C 'sport&amp;GHz:3.1' <em>script</em></td>
+</tr>
+<tr>
+<td>srun</td>
+<td>Run a job within an allocation.</td>
+<td>srun --pty bin/bash</td>
+</tr>
+<tr>
+<td>squeue</td>
+<td>Get job status</td>
+<td></td>
+</tr>
+<tr>
+<td>scancel</td>
+<td>Cancel a job</td>
+<td>scancel <em>jobid</em></td>
+</tr>
+<tr>
+<td>sinfo</td>
+<td>Get info about slurm node status</td>
+<td>sinfo -p all</td>
+</tr>
+<tr>
+<td>scontrol</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>sstat</td>
+<td>Display various status information about a running job/step</td>
+<td></td>
+</tr>
+<tr>
+<td>sshare</td>
+<td>Tool for listing fair share information</td>
+<td></td>
+</tr>
+<tr>
+<td>sprio</td>
+<td>View the factors that comprise a job's scheduling priority</td>
+<td></td>
+</tr>
+<tr>
+<td>sacct</td>
+<td>Display accounting data for jobs</td>
+<td></td>
+</tr>
+<tr>
+<td>sreport</td>
+<td>Generate reports from the Slurm accounting data.</td>
+<td></td>
+</tr>
+<tr>
+<td>sview</td>
+<td>Graphical tool for viewing cluster state</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="sbatch">sbatch</h2>
+<p>The most common options for sbatch are listed here.
+For more details run <code>man sbatch</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Options</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>-p, --partition=<em>partition-names</em></td>
+<td>Select the partition/partitions to run job on.</td>
+<td>Set by slurm.InstanceConfig.DefaultPartition in config file.</td>
+</tr>
+<tr>
+<td>-t, --time=<em>time</em></td>
+<td>Set a limit on total run time of the job.</td>
+<td>SBATCH_TIMELIMIT="1:0:0" (1 hour)</td>
+</tr>
+<tr>
+<td>-c, --cpus-per-task=<em>ncpus</em></td>
+<td>Number of cores.</td>
+<td>Default is 1.</td>
+</tr>
+<tr>
+<td>--mem=<em>size[units]</em></td>
+<td>Amount of memory. Default unit is M. Valid units are [K|M|G|T].</td>
+<td>SBATCH_MEM_PER_NODE=100M</td>
+</tr>
+<tr>
+<td>-L, --licenses=<em>license</em></td>
+<td>Licenses used by the job.</td>
+<td></td>
+</tr>
+<tr>
+<td>-a, --array=<em>indexes</em></td>
+<td>Submit job array</td>
+<td></td>
+</tr>
+<tr>
+<td>-C, --constraint=<em>list</em></td>
+<td>Features required by the job. Multiple constraints can be specified with AND(&amp;) and OR(</td>
+<td>).</td>
+</tr>
+<tr>
+<td>-d, --dependency=<em>dependency-list</em></td>
+<td>Don't start the job until the dependencies have been completed.</td>
+<td></td>
+</tr>
+<tr>
+<td>-D, --chdir=<em>directory</em></td>
+<td>Set the working directory of the job</td>
+<td></td>
+</tr>
+<tr>
+<td>--wait</td>
+<td>Do not exit until the job finishes, Exit code of sbatch will be the same as the exit code of the job.</td>
+<td></td>
+</tr>
+<tr>
+<td>--wrap</td>
+<td>Wrap shell commands in a batch script.</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="run-a-simulation-build-followed-by-a-regression">Run a simulation build followed by a regression</h3>
+<pre><code>build_jobid=$(sbatch -c 4 --mem 4G -L vcs_build -C 'GHz:4|GHz:4.5' -t 30:0 sim-build.sh)
+if sbatch -d &quot;afterok:$build_jobid&quot; -c 1 --mem 100M --wait submit-regression.sh; then
+    echo &quot;Regression Passed&quot;
+else
+    echo &quot;Regression Failed&quot;
+fi
+</code></pre>
+<h2 id="srun">srun</h2>
+<p>The srun is usually used to open a pseudo terminal on a compute node for you to run interactive jobs.
+It accepts most of the same options as sbatch to request cpus, memory, and node features.</p>
+<p>To open up a pseudo terminal in your shell on a compute node with 4 cores and 16G of memory, execute the following command.</p>
+<pre><code>srun -c 4 --mem 8G --pty /bin/bash
+</code></pre>
+<p>This will queue a job and when it is allocated to a node and the node runs the job control will be returned to
+your shell, but stdin and stdout will be on the compute node.
+If you set your DISPLAY environment variable and allow external X11 connections you can use this to
+run interactive GUI jobs on the compute node and have the windows on your instance.</p>
+<pre><code>xhost +
+export DISPLAY=$(hostname):$(echo $DISPLAY | cut -d ':' -f 2)
+srun -c 4 --mem 8G --pty /bin/bash
+emacs . # Or whatever gui application you want to run. Should open a window.
+</code></pre>
+<h2 id="squeue">squeue</h2>
+<p>The squeue command shows the status of jobs.</p>
+<p>The output format can be customized using the <strong>--format</strong> or <strong>--Format</strong> options and you can configure
+the default output format using the corresponding <strong>SQUEUE_FORMAT</strong> or <strong>SQUEUE_FORMAT2</strong> environment variables.</p>
+<pre><code>squeue
+</code></pre>
+<h2 id="sprio">sprio</h2>
+<p>Use <code>sprio</code> to get information about a job's priority.
+This can be useful to figure out why a job is scheduled before or after another job.</p>
+<pre><code>sprio -j10,11
+</code></pre>
+<h2 id="sacct">sacct</h2>
+<p>Display accounting information about jobs.
+For example, it can be used to get the requested CPU and memory and see the CPU time and memory actually used.</p>
+<pre><code>sacct -o JobID,User,JobName,AllocCPUS,State,ExitCode,Elapsed,CPUTime,MaxRSS,MaxVMSize,ReqCPUS,ReqMem,SystemCPU,TotalCPU,UserCPU -j 44
+</code></pre>
+<p>This shows more details.</p>
+<pre><code>sacct --allclusters --allusers --federation --starttime 1970-01-01 --format 'Submit,Start,End,jobid%15,State%15,user,account,cluster%15,AllocCPUS,AllocNodes,ExitCode,ReqMem,MaxRSS,MaxVMSize,MaxPages,Elapsed,CPUTime,UserCPU,SystemCPU,TotalCPU' | less
+</code></pre>
+<p>For more information:</p>
+<pre><code>man sacct
+</code></pre>
+<h2 id="sreport">sreport</h2>
+<p>The <code>sreport</code> command can be used to generate report from the Slurm database.</p>
+<h2 id="other-slurm-commands">Other SLURM Commands</h2>
+<p>Use <code>man command</code> to get information about these less commonly used SLURM commands.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sacctmgr</td>
+<td>View/modify Slurm account information</td>
+</tr>
+<tr>
+<td>salloc</td>
+<td>Obtain a slurm job allocation</td>
+</tr>
+<tr>
+<td>sattach</td>
+<td>Attach to a job step</td>
+</tr>
+<tr>
+<td>sbcast</td>
+<td>Transmit a file to the nodes allocated to a Slurm job.</td>
+</tr>
+<tr>
+<td>scrontab</td>
+<td>Manage slurm crontab files</td>
+</tr>
+<tr>
+<td>sdiag</td>
+<td>Diagnostic tool for Slurm. Shows information related to slurmctld execution.</td>
+</tr>
+<tr>
+<td>seff</td>
+<td></td>
+</tr>
+<tr>
+<td>sgather</td>
+<td>Transmit a file from the nodes allocated to a Slurm job.</td>
+</tr>
+<tr>
+<td>sh5util</td>
+<td>Tool for merging HDF5 files from the acct_gather_profile plugin that gathers detailed data for jobs.</td>
+</tr>
+<tr>
+<td>sjobexitmod</td>
+<td>Modify derived exit code of a job</td>
+</tr>
+<tr>
+<td>strigger</td>
+<td>Set, get, or clear Slurm trigger information</td>
+</tr>
+</tbody>
+</table></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js" defer></script>
+        <script src="../search/main.js" defer></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>

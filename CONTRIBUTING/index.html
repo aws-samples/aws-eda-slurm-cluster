@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Contributing Guidelines - EDA SLURM Cluster on AWS</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/font-awesome.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css">
+
+        <script src="../js/jquery-1.10.2.min.js" defer></script>
+        <script src="../js/bootstrap.min.js" defer></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script>hljs.initHighlightingOnLoad();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-collapse">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="navitem">
+                                <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy/" class="nav-link">Deploy the Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../run_jobs/" class="nav-link">Run Jobs</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../federation/" class="nav-link">Federation</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../implementation/" class="nav-link">Implementation Details</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../debug/" class="nav-link">Debug</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../todo/" class="nav-link">To Do List</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../mkdocs/" class="nav-link">mkdocs</a>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-toggle="modal" data-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/CONTRIBUTING.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-light navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-level="1"><a href="#contributing-guidelines" class="nav-link">Contributing Guidelines</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#reporting-bugsfeature-requests" class="nav-link">Reporting Bugs/Feature Requests</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#contributing-via-pull-requests" class="nav-link">Contributing via Pull Requests</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#finding-contributions-to-work-on" class="nav-link">Finding contributions to work on</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#code-of-conduct" class="nav-link">Code of Conduct</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#security-issue-notifications" class="nav-link">Security issue notifications</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#licensing" class="nav-link">Licensing</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="contributing-guidelines">Contributing Guidelines</h1>
+<p>Thank you for your interest in contributing to our project. Whether it's a bug report, new feature, correction, or additional
+documentation, we greatly value feedback and contributions from our community.</p>
+<p>Please read through this document before submitting any issues or pull requests to ensure we have all the necessary
+information to effectively respond to your bug report or contribution.</p>
+<h2 id="reporting-bugsfeature-requests">Reporting Bugs/Feature Requests</h2>
+<p>We welcome you to use the GitHub issue tracker to report bugs or suggest features.</p>
+<p>When filing an issue, please check existing open, or recently closed, issues to make sure somebody else hasn't already
+reported the issue. Please try to include as much information as you can. Details like these are incredibly useful:</p>
+<ul>
+<li>A reproducible test case or series of steps</li>
+<li>The version of our code being used</li>
+<li>Any modifications you've made relevant to the bug</li>
+<li>Anything unusual about your environment or deployment</li>
+</ul>
+<h2 id="contributing-via-pull-requests">Contributing via Pull Requests</h2>
+<p>Contributions via pull requests are much appreciated. Before sending us a pull request, please ensure that:</p>
+<ol>
+<li>You are working against the latest source on the <em>main</em> branch.</li>
+<li>You check existing open, and recently merged, pull requests to make sure someone else hasn't addressed the problem already.</li>
+<li>You open an issue to discuss any significant work - we would hate for your time to be wasted.</li>
+</ol>
+<p>To send us a pull request, please:</p>
+<ol>
+<li>Fork the repository.</li>
+<li>Modify the source; please focus on the specific change you are contributing. If you also reformat all the code, it will be hard for us to focus on your change.</li>
+<li>Ensure local tests pass.</li>
+<li>Commit to your fork using clear commit messages.</li>
+<li>Send us a pull request, answering any default questions in the pull request interface.</li>
+<li>Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation.</li>
+</ol>
+<p>GitHub provides additional document on <a href="https://help.github.com/articles/fork-a-repo/">forking a repository</a> and
+<a href="https://help.github.com/articles/creating-a-pull-request/">creating a pull request</a>.</p>
+<h2 id="finding-contributions-to-work-on">Finding contributions to work on</h2>
+<p>Looking at the existing issues is a great way to find something to contribute on. As our projects, by default, use the default GitHub issue labels (enhancement/bug/duplicate/help wanted/invalid/question/wontfix), looking at any 'help wanted' issues is a great place to start.</p>
+<h2 id="code-of-conduct">Code of Conduct</h2>
+<p>This project has adopted the <a href="https://aws.github.io/code-of-conduct">Amazon Open Source Code of Conduct</a>.
+For more information see the <a href="https://aws.github.io/code-of-conduct-faq">Code of Conduct FAQ</a> or contact
+opensource-codeofconduct@amazon.com with any additional questions or comments.</p>
+<h2 id="security-issue-notifications">Security issue notifications</h2>
+<p>If you discover a potential security issue in this project we ask that you notify AWS/Amazon Security via our <a href="http://aws.amazon.com/security/vulnerability-reporting/">vulnerability reporting page</a>. Please do <strong>not</strong> create a public github issue.</p>
+<h2 id="licensing">Licensing</h2>
+<p>See the <a href="LICENSE">LICENSE</a> file for our project's licensing. We will ask you to confirm the licensing of your contribution.</p></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js" defer></script>
+        <script src="../search/main.js" defer></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>
