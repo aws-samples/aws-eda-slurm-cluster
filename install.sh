@@ -12,17 +12,24 @@ deactivate &> /dev/null || true
 
 if ! yum list installed make &> /dev/null; then
     echo -e "\nInstalling make"
-    sudo yum -y install make
+    if ! sudo yum -y install make; then
+        echo -e "\nwarning: Couldn't install make"
+    fi
 fi
 
 if ! yum list installed wget &> /dev/null; then
     echo -e "\nInstalling wget"
-    sudo yum -y install wget
+    if ! sudo yum -y install wget; then
+        echo -e "\nwarning: Couldn't install wget"
+    fi
 fi
 
 if ! python3 --version &> /dev/null; then
     echo -e "\nInstalling python3"
-    sudo yum -y install python3
+    if ! sudo yum -y install python3; then
+        echo -e "\nerror: Couldn't find python3 in the path or install it. This is required."
+        exit 1
+    fi
 fi
 
 # Check python version
@@ -71,8 +78,8 @@ if ! cdk --version &> /dev/null; then
 fi
 version=$(cdk --version | awk '{print $1}')
 if [[ $version != $CDK_VERSION ]]; then
-    echo "Updating the local version of aws-cdk from version $version to $CDK_VERSION"
-    sudo npm update -g aws-cdk@$CDK_VERSION
+    echo "Updating the global version of aws-cdk from version $version to $CDK_VERSION"
+    sudo npm install -g aws-cdk@$CDK_VERSION
 fi
 
 # Create python virtual environment

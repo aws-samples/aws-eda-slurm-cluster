@@ -94,8 +94,18 @@
 
 # Selinux breaks ssh
 - name: Set Selinux mode to disabled
+  when: not(rhel8 or rhel8clone)
   selinux:
     state: disabled
+
+# Getting an error from ansible on AlmaLinux 8
+# Failed to import the required Python library (libselinux-python)
+# Can't figure out how to resolve
+- name: Set Selinux mode to disabled
+  when: rhel8 or rhel8clone
+  shell:
+    cmd: |
+      setenforce Permissive
 
 # Used by mount_ssds.bash
 - name: Install packages required by mount_ssds.bash

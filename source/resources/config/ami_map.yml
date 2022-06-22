@@ -3,18 +3,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0db4c0d6976a9253d # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-045af2dbb2a6105a0 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0c5d53e63e1c52d11 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-004daf3add9941dbf # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-007011f0cbed32bc5 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-07b3b0525cef50a4a # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0923d9a4d39b22a91 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-06ce6680729711877 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -38,35 +38,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-00318e934b6f56cdd # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0714b8093baa37021 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0c40556818e60c409 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0f903fb156f24adbf # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-05c1bc45f018fb811 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-047f0e532e430a6f1 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-053aa6621028efb95 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0c38a5fa7b9dbd96c # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   ap-northeast-2:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0647dd5c0dfa945c0 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-073e739d5c35a2668 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-035656c419b0b8282 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-09e6b7a3b88bc9889 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-017916362fa1cbe8c # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-0008c5e405a3b3013 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0781ede7661c6cd6e # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-0e1d09d8b7c751816 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -90,44 +90,44 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-03448acc1b474cc28 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0b49ffb901777ab9d # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0eb218869d3d2d7e7 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-06c568b08b5a431d5 # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-09423fe7194019562 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-086a0a4d7220e0d1c # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0d50a94a10ba87068 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-033a6df12b1633bca # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   ap-northeast-3:
     AlmaLinux:
       8:
         x86_64:
-          ImageId: ami-06542dce5738733d4 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-01184a80d649091d8 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-03eeefaba8c60a966 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-011fa3a3b2ec9941a # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-085322a66ec7b6645 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-0253beba286f3e848 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     RedHat:
       7:
         x86_64:
-          ImageId: ami-05003c288bb498f39 # RHEL-7.9_HVM-20211005-x86_64-0-Hourly2-GP2
+          ImageId: ami-0ea15419fc3544d6a # RHEL-7.9_HVM-20220512-x86_64-1-Hourly2-GP2
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0a41a71d59af47594 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0dfcd19188d3deed1 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-03ce024cc75b86996 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-044921b7897a7e0da # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
@@ -135,24 +135,24 @@ AmiMap:
           ImageId: ami-09f1a2a7782332251 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-00cfef70366017134 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0e83eaee18bd8aaf5 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   ap-south-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-094920d987a77f1bc # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0e2e72f3a693aebcf # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0bbc3b28478856d25 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-03d32b33fd993411b # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-02085663f89f6faa5 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-044ba583062cb113b # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-08181691f669ef7d2 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-09de362f44ba0a166 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -176,35 +176,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0eed23f062311d4d1 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-079fd9955144c3788 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-031711279ded7adf0 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-05c8ca4485f8b138a # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-08c7415746b53d9ba # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-09fcfd3c9e93862ad # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-05d989547daba1c34 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0ad4ffe216bbbc97a # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   ap-southeast-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-02b1ac5ab7f13f49b # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-003ea4f1745f43adc # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0e7b58f112f3eae18 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-03292af505f184a36 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-049f1d4d5acf4bad8 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-0b9800433ca2a0b20 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0a7587d725542cb4d # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-0adf622550366ea53 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -228,35 +228,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0d9690a74bf08b476 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0fb1ff50b2338a261 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0cebc9110ef246a50 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-051f0947e420652a9 # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0dc575f598f8627c3 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-036655fcacfb92ad2 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-022412c3f724942a1 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-07bb0e23413ec9f32 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   ap-southeast-2:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-032ccc813b869660b # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-00827942abed189f4 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0d6af43594155c6e2 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-04ce4552e468d870d # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-010337b01de905480 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-0eb411a778563ea89 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0c1d83d75982f9cc0 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-03b836d87d294e89e # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -280,35 +280,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0ef26d6024e6a182c # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-09eb03fabd4e48961 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-01e4b9dd23da1fa54 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0808460885ff81045 # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-03048a8a805f65df9 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0439c82fd8f9c3f8e # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-08ea3459205b54643 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-018dc058aae71cb86 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   ca-central-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0943fc1579f1b5875 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-088b1d9b34c4fe329 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-038e7ba51f446819d # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-03f9f1c20c7f168e3 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-08f839af396758d80 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-058c397e06e2c3b81 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-094d8d12ac8f29dc4 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-04c12937e87474def # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -332,35 +332,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-05e0d5d4cd8d6f81c # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-06ed17a7435c6f8d4 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0a82febc5032feccc # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0c3d3a230b9668c02 # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0ff96ab5df6667a1b # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0cd00545aa6aac10e # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0cd5be3a3a4c889f9 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0be8373b2d2d56b72 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   eu-central-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0f954bd6315ba165b # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0dd0df0d8fda81403 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0a0729878afb31258 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-09fb665bbc486902e # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0d323e204cce5a382 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-08600ae8f3553d244 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-095e0f8062e0e8216 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-094c442a8e9a67935 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -384,35 +384,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-07df59ed63f0ed4d4 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-071e5b360b185b300 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0f54a8b4f2be0a11e # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0e7e134863fac4946 # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0d78a8addb849b224 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0113ad83a378af551 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-09667abc30f39dbf5 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0e2bc7a3ca89f5d06 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   eu-north-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-038a162651ca76885 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-01e414da9ba8092a3 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-07c6f1f2138539768 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-01d058a3ef74c3366 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-02a0bd040f7784ef4 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-012b607981f0a40bd # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0a654623d21580ce0 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-04e8b0e36ed3403dc # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -436,35 +436,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-09428e2aa1a67845d # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-02ec7f0580a6f1c91 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0b564c79c2b0f8b15 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-06a2a41d455060f8b # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0234e237d7b61d7b1 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-082d4b316d96061ca # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-05a3c7d3dfbebf476 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0cb3fd8ed3880a8bb # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   eu-west-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-098ca92c6720660df # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-05f379012b69a05e8 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-020b40a8bc5b0f17a # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-02ab0126115dd05cf # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-07f6a82a338c4b198 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-06b4c3e5d2605128e # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-096f7a9ab885b50f4 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-0bba0a4cb75835f71 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -491,35 +491,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0aed72ab194f2ce53 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0b5c3f4fa254e17d0 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0f5f1e6dd6490385e # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0f0f1c02e5e4d9d9f # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-06dcb06b230af844b # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-08536eee0c579d7ad # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0b20105b2637c4063 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-026842e3469000168 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   eu-west-2:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-02428e2edbee637d6 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-060537915d4508a11 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0a338a615b4e4bc6e # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0ce15bfb496be9059 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0b1d66fd02b9d1c66 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-0f2913dd376f23830 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0cf5e24570c2b477b # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-030770b178fa9d374 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -543,35 +543,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0821eb346555e538b # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0cc5f7bbb9f95a2c9 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0e2f4eb17efb62d46 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-035c5dc086849b5de # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0806a9b7e294493cc # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-010fe465bc94a4a2a # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0273387657572a107 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0a60ec4cf115fa6cf # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   eu-west-3:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-09b6defdfeb33d4e0 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0d8fedb7071cdf4d3 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0fd561dcb9025ba8d # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0ffcfdfd70c0762ec # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0746d5947b836ea02 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-07a985aa4099754db # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0984c6fda63734a94 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-0614433a16ab15878 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -595,35 +595,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-07114636cac2915d1 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0c103ebd14276f8df # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-00c70bf4113ead0a2 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0460bf124812bebfa # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0425805c843077edf # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0f9c1bf4d9085e9bb # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-07ce4ead4ba640e23 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0ae69557c4c2b4bf1 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   sa-east-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-009376402852e1555 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-00e9419fa2ade1612 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0173e73d98e0cb7ce # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-012bb194cdf068648 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0d08f99f2f13b0426 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-0bacea481e0d399f9 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-050f2383ae3cd4bc2 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-0656df2cc0dfd150a # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -647,35 +647,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0e527c2515a6d3ba0 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-03e77683ba8a7e831 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-01384716b0c9ea74e # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0c1b8b886626f940c # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-07a3ef9aecd95abc7 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0cc85ec889f090bb3 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-02ef68d4a312fe6f3 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-098baa4a8cf0e91af # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   us-east-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0991be71702f37848 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0dd1ccd3f90119a82 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-003d8719443bc8563 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-00cf249161bc21a71 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0eb59cc9a08011df6 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-09f0bb50202ca06b0 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-083602cee93914c0c # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-065efef2c739d613b # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -702,35 +702,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0dcff282af898b064 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0238411fb452f8275 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-06644055bed38ebd9 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-06640050dc3f556bb # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-029a366d72457d508 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0fd5009dbd5fd64b6 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0e8fc9046c049e78b # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-004b161a1cceb1ceb # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   us-east-2:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0410ff7b853705426 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-034b3e2afab4de9e5 # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0dac8ade8debb62ba # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0c1fbef3b864e6e95 # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-088e1f338c3b87d1a # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-093dde316d91535f5 # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-066157edddaec5e49 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-07251f912d2a831a3 # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -757,35 +757,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0a917786bf54239d2 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0082f8c86a7132597 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0d871ca8a77af2948 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-092b43193629811af # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-00729c4a6ba6eee43 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0674981eadc1d71b1 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0da7178c570a4c152 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-0ce24f7d9f52a2d88 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   us-west-1:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-09ee7ad59452937a5 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-02d409b077709fb8b # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-02440b38a1406df17 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-022c799ffdedfc05b # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-00b392311130b4617 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-023670b6c7f24006a # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-08629b3250aa07841 # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-09b2f6d85764ec71b # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -809,35 +809,35 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-072567739d7283952 # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-01be8515d27094d60 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0032e6c1375c31695 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-0186e3fec9b0283ee # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0e8bb79a310676369 # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-0d7ed62dfbadbc7c1 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-07ec63d7092fc8715 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-016aa31966c96ec31 # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1
   us-west-2:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-06c55dc76715ce5e3 # AlmaLinux OS 8.5.20211116 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-00d576428396b000f # AlmaLinux OS 8.6.20220513 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0334a3530c40996b7 # AlmaLinux OS 8.5.20211116 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-05bb52bb5937accfe # AlmaLinux OS 8.6.20220513 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0bfea997624092f92 # amzn2-ami-hvm-2.0.20211223.0-arm64-gp2
+          ImageId: ami-0d3c51ccaa76cbe2b # amzn2-ami-hvm-2.0.20220606.1-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0ecf760d3d7e1fefa # amzn2-ami-hvm-2.0.20211223.0-x86_64-gp2
+          ImageId: ami-0d08ef957f0e4722b # amzn2-ami-hvm-2.0.20220606.1-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -864,16 +864,16 @@ AmiMap:
           RootDeviceName: /dev/sda1
       8:
         arm64:
-          ImageId: ami-0641a762d4b8e0bbd # RHEL-8.5.0_HVM-20211103-arm64-0-Hourly2-GP2
+          ImageId: ami-0bb199dd39edd7d71 # RHEL-8.6.0_HVM-20220503-arm64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-056b3ef335ef4f117 # RHEL-8.5.0_HVM-20211103-x86_64-0-Hourly2-GP2
+          ImageId: ami-08970fb2e5767e3b8 # RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2
           RootDeviceName: /dev/sda1
     Rocky:
       8:
         arm64:
-          ImageId: ami-0c40764372b92246a # Rocky Linux 8.5 aarch64 with CIQ Support-27374ca4-2984-4f5d-97ef-2165785cd4d7
+          ImageId: ami-02dcd060db36cb277 # Rocky Linux 8.4 aarch64-8442d1b8-f10f-46f6-8440-d8f7dc722e7d
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0007471c2b45688d0 # Rocky Linux 8.5 with CIQ Support-5b5312df-35a6-434c-8188-78ac58e473ad
+          ImageId: ami-02d80a604f6e66e3c # Rocky-8-ec2-8.6-20220515.0.x86_64-d6577ceb-8ea8-4e0e-84c6-f098fc302e82
           RootDeviceName: /dev/sda1

@@ -23,6 +23,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 '''
 import argparse
 import boto3
+import json
 import logging
 from pprint import PrettyPrinter
 
@@ -32,11 +33,13 @@ pp = PrettyPrinter()
 
 distributions_dict = {
     'AlmaLinux': {
-        # x86_64: https://aws.amazon.com/marketplace/pp/prodview-mku4y3g4sjrye
-        # arm_64: https://aws.amazon.com/marketplace/pp/prodview-zgsymdwitnxmm
         'owner': '679593333241',
         'major_versions': ['8'],
         'name_filter': 'AlmaLinux OS {distribution_major_version}*',
+        'product_codes': [
+            'be714bpjscoj5uvqz0of5mscl', # x86_64: https://aws.amazon.com/marketplace/pp/prodview-mku4y3g4sjrye
+            '6vto7uou7jjh4um1mwoy8ov0s', # arm_64: https://aws.amazon.com/marketplace/pp/prodview-zgsymdwitnxmm
+        ]
     },
     'Amazon': {
         'owner': '137112412989',
@@ -46,7 +49,7 @@ distributions_dict = {
     'CentOS': {
         'owner': '125523088429',
         'major_versions': ['7', '8'],
-        'name_filter': 'CentOS {distribution_major_version}*'
+        'name_filter': 'CentOS {distribution_major_version}*',
     },
     'RedHat': {
         'owner': '309956199498',
@@ -54,11 +57,12 @@ distributions_dict = {
         'name_filter': 'RHEL-{distribution_major_version}*'
     },
     'Rocky': {
-        # x86_64: https://aws.amazon.com/marketplace/pp/prodview-2otariyxb3mqu
-        # arm_64: https://aws.amazon.com/marketplace/pp/prodview-uzg6o44ep3ugw
         'owner': '679593333241',
         'major_versions': ['8'],
-        'name_filter': 'Rocky Linux {distribution_major_version}*'
+        'product_codes': [
+            'cotnnspjrsi38lfn8qo4ibnnm', # x86_64: https://aws.amazon.com/marketplace/pp/prodview-2otariyxb3mqu
+            '7tvwi95pv43herd5jg0bs6cu5', # arm_64: https://aws.amazon.com/marketplace/pp/prodview-uzg6o44ep3ugw
+        ]
     },
 }
 
@@ -90,17 +94,30 @@ def main(filename, region, distribution):
             for distribution_major_version in distributions_dict[distribution]['major_versions']:
                 logger.debug(f"distribution_major_version: {distribution_major_version}")
                 ami_map[region][distribution][distribution_major_version] = {}
-                name_filter = distributions_dict[distribution]['name_filter'].format(distribution_major_version=distribution_major_version)
-                logger.debug(f"name_filter: {name_filter}")
                 kwargs = {
                     'Owners': [distributions_dict[distribution]['owner']],
                     'Filters': [
-                        {'Name': 'name', 'Values': [name_filter]},
                         {'Name': 'state', 'Values': ['available']}
                     ]
                 }
+                if 'name_filter' in distributions_dict[distribution]:
+                    name_filter = distributions_dict[distribution]['name_filter'].format(distribution_major_version=distribution_major_version)
+                    logger.debug(f"name_filter: {name_filter}")
+                    filter = {
+                        'Name': 'name',
+                        'Values': [name_filter]
+                    }
+                    kwargs['Filters'].append(filter)
+                if 'product_codes' in distributions_dict[distribution]:
+                    product_codes = distributions_dict[distribution]['product_codes']
+                    logger.debug(f'product_codes: {product_codes}')
+                    filter = {
+                        'Name': 'product-code',
+                        'Values': product_codes
+                    }
+                    kwargs['Filters'].append(filter)
                 images = ec2_client.describe_images(**kwargs).get('Images', None)
-                logger.debug(f"Found {len(images)} images")
+                logger.debug(f"Found {len(images)} images:\n{json.dumps(images, indent=4)}")
                 for image in images:
                     if 'BETA' in image['Name']:
                         continue
@@ -117,7 +134,7 @@ def main(filename, region, distribution):
         if not ami_map[region]:
             del ami_map[region]
 
-    logger.debug(pp.pformat(ami_map))
+    logger.debug(f"ami_map:\n{json.dumps(ami_map, indent=4)}")
 
     fh = open(filename, 'w')
     print("AmiMap:", file=fh)

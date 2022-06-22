@@ -23,6 +23,8 @@ import re
 from schema import Schema, And, Use, Optional, Regex, SchemaError
 from sys import exit
 
+DEFAULT_SLURM_VERSION = '22.05.2'
+
 config = {}
 
 # Determine all AWS regions available on the account. We do not display opt-out region
@@ -127,7 +129,7 @@ config_schema = Schema(
             # SlurmVersion:
             #     Latest tested version
             #     Critical security fix released in 21.08.8. Must be later than that.
-            Optional('SlurmVersion', default='21.08.8'): str,
+            Optional('SlurmVersion', default=DEFAULT_SLURM_VERSION): str,
             #
             # ClusterName:
             #     Default to the StackName
