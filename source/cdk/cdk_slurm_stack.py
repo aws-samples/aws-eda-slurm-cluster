@@ -2188,10 +2188,13 @@ class CdkSlurmStack(Stack):
                             logger.error(f"AmiMap doesn't have ImageId for {self.region}/{distribution}/{distribution_major_version}/{architecture}")
                             exit(1)
                     ami_info = ec2_client.describe_images(ImageIds=[ami_id])['Images'][0]
+                    root_device_name = ami_info['RootDeviceName']
                     block_devices = []
-                    root_device = True
                     for block_device_info in ami_info['BlockDeviceMappings']:
-                        ami_volume_size = int(block_device_info['Ebs']['VolumeSize'])
+                        device_name = block_device_info['DeviceName']
+                        root_device = root_device_name == device_name
+                        # Add 5GB to the AMI's root device so that there is room for installing packages
+                        ami_volume_size = int(block_device_info['Ebs']['VolumeSize']) + 5
                         if root_device:
                             try:
                                 volume_size = str(self.config['slurm']['SlurmNodeAmis']['BaseAmis'][self.region][distribution][distribution_major_version][architecture]['RootDeviceSize'])
@@ -2204,7 +2207,6 @@ class CdkSlurmStack(Stack):
                                         exit(1)
                             except KeyError:
                                 volume_size = ami_volume_size
-                            root_device = False
                         else:
                             volume_size = block_device_info['Ebs']['VolumeSize']
                         block_devices.append(
