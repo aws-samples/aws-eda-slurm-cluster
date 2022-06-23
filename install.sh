@@ -74,12 +74,16 @@ fi
 CDK_VERSION=2.21.1 # If you change the CDK version here, make sure to also change it in source/requirements.txt
 if ! cdk --version &> /dev/null; then
     echo "CDK not installed. Installing global version of cdk@$CDK_VERSION."
-    sudo npm install -g aws-cdk@$CDK_VERSION
+    if ! npm install -g aws-cdk@$CDK_VERSION; then
+        sudo npm install -g aws-cdk@$CDK_VERSION
+    fi
 fi
 version=$(cdk --version | awk '{print $1}')
 if [[ $version != $CDK_VERSION ]]; then
     echo "Updating the global version of aws-cdk from version $version to $CDK_VERSION"
-    sudo npm install -g aws-cdk@$CDK_VERSION
+    if ! npm install -g aws-cdk@$CDK_VERSION; then
+        npm install -g aws-cdk@$CDK_VERSION
+    fi
 fi
 
 # Create python virtual environment
