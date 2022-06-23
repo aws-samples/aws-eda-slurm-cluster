@@ -106,6 +106,7 @@
   shell:
     cmd: |
       setenforce Permissive
+      sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/sysconfig/selinux
 
 # Used by mount_ssds.bash
 - name: Install packages required by mount_ssds.bash
