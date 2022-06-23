@@ -54,6 +54,9 @@
                             <li class="navitem">
                                 <a href="../federation/" class="nav-link">Federation</a>
                             </li>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                            </li>
                             <li class="navitem">
                                 <a href="../implementation/" class="nav-link">Implementation Details</a>
                             </li>
@@ -74,6 +77,16 @@
                                 <i class="fa fa-search"></i> Search
                             </a>
                         </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../federation/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../implementation/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
                             <li class="nav-item">
                                 <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/multi-region.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
                             </li>
@@ -97,7 +110,23 @@
             
             <li class="nav-item" data-level="1"><a href="#multi-az-and-multi-region-support" class="nav-link">Multi-AZ and Multi-Region Support</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="2"><a href="#computenodesecuritygroup" class="nav-link">ComputeNodeSecurityGroup</a>
+            <li class="nav-item" data-level="2"><a href="#requirements" class="nav-link">Requirements</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#configuration" class="nav-link">Configuration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#dns-route53-private-hosted-zone" class="nav-link">DNS: Route53 Private Hosted Zone</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#file-system-access" class="nav-link">File System Access</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#slurm-configuration" class="nav-link">Slurm Configuration</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -109,39 +138,286 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="multi-az-and-multi-region-support">Multi-AZ and Multi-Region Support</h1>
-<p>Set up Route53 private hosted zone.
-Create A records for all file systems that must be accessed by compute nodes.
-The Amazon DNS names will NOT be available in other VPCs so cannot use CNAME records; they must be A records with the IP address of the file system.
-Make sure that hosted zone is connected to all VPCs in all regions that are used by the slurm cluster.</p>
+<p>By default, the EDA Slurm Cluster deploys all resources in a single availability zone (AZ).
+This is done for performance and cost reasons to minimize network latency and network cross AZ charges.
+Very large clusters may hit capacity constraints in a single AZ and can benefit from being able to launch compute nodes in multiple AZs and even multiple
+regions to get the required capacity.
+For this reason, the cluster can support compute nodes in multiple AZ and regions.</p>
+<p>All compute nodes are managed by one Slurm controller and the compute nodes encode the region and AZ in their node names.
+When a job gets scheduled on a compute node, the Slurm plugin runs an instance in the region and AZ encoded in the node name.
+Compute nodes in each AZ are grouped in partitions that can be given priorities.
+This allows a job submission to specify multiple partitions and the scheduler will choose available compute nodes from the highest priority partition.</p>
+<p><strong>NOTE</strong>: This is an advanced topic with significant configuration complexity so it is recommended that you get guidance
+from and AWS specialist to help you set up your configuration.
+This page documents a simple setup which is unlikely to meet your file system performance goals without modification.</p>
+<h2 id="requirements">Requirements</h2>
+<p>There are three primary requirements for multi-AZ/region support: 1) networking, 2) file systems and 3) DNS.</p>
+<h3 id="networking">Networking</h3>
+<p>The main networking requirement is that each region must have a VPC with a subnet in each AZ.
+The CIDR ranges of the VPC must be non-overlapping.
+The VPCs must connected using VPC Peering Connections or Transit Gateways and the routes and ACLs must be configured to allow communication between all of the VPCs.
+The compute nodes use all the ephemeral ports so those ports must be routed between the VPCs.</p>
+<h3 id="file-systems">File Systems</h3>
+<p>The compute nodes must have the same logical view of the file systems.
+All paths used by the compute nodes must be available in each AZ and region.
+One way to accomplish this is to simply mount the exact same file systems on all compute nodes.
+This has the advantage of simplicity, however, it will incur performance penalties because of increased network latency and network charges
+because of cross-AZ and cross-Region network charges.</p>
+<p>The slurm file system is not performance critical and can be cross mounted.</p>
+<p>Performance critical file systems can be replicated across AZs and regions and and automatically synchronized using FSx for NetApp Ontap (FSxN) and FlexCache or SnapMirror.
+FlexCache is particularly efficient because it is a sparse cache that only synchronizes data when it it accessed.
+This means that not all of the data has to be replicated anywhere.
+If you replicate file systems then it means that your machine images will need to be configured to mount the closest file system.
+This could be done at boot time by using SSM parameters or by using location specific automount maps.
+Currently Route53 doesn't support a policy that allows you to choose an AZ dependent domain resolution.
+This is an advanced topic and we recommend that you consult with an AWS storage specialist to help you architect a storage solution
+that will meet your performance needs.</p>
+<h3 id="dns">DNS</h3>
+<p>The cluster creates a Route53 private hosted zone or can use an existing one to get the IP addresses for the Slurm controllers and slurmdbd instances.
+It uses the AWS provided DNS in the VPC to get the IP addresses of AWS managed file systems.
+All of the VPCs need access to all of the DNS entries used by the Slurm instances.</p>
+<h2 id="configuration">Configuration</h2>
+<p>This example is going to demonstrate how to configure a cluster that spans 3 AZs in 3 regions for a total of 9 AZs.
+It is going to use a very simple file system topology with all of the file systems located in the primary AZ.</p>
+<h3 id="create-vpcs">Create VPCs</h3>
+<p>In this example I deployed 3 Scale Out Computing on AWS (SOCA) clusters in eu-west-1, us-east-1, and us-west-2 with non-overlapping CIDRs.
+This created 3 VPCs each with 3 private subnets.</p>
+<table>
+<thead>
+<tr>
+<th>Region</th>
+<th>SOCA Cluster</th>
+<th>CIDR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>eu-west-1</td>
+<td>oktank-dub</td>
+<td>10.1.0.0/16</td>
+</tr>
+<tr>
+<td>us-east-1</td>
+<td>oktank-iad</td>
+<td>10.2.0.0/16</td>
+</tr>
+<tr>
+<td>us-west-2</td>
+<td>oktank-pdx</td>
+<td>10.3.0.0/16</td>
+</tr>
+</tbody>
+</table>
+<p>I am going to create a multi-region Slurm cluster in eu-west-1 that can run compute nodes in all 3 regions with the priority of the regions being</p>
+<ol>
+<li>eu-west-1 (dub)</li>
+<li>us-east-1 (iad)</li>
+<li>us-west-2 (pdx)</li>
+</ol>
+<p>If you have a globally distributed team you could modify the instructions to use regions close to your global team and deploy a cluster in the
+local region of each team that they can use that can run jobs in all of the regions.</p>
+<h3 id="connect-the-vpcs-using-vpc-peering-connections">Connect the VPCs using VPC Peering Connections</h3>
+<ol>
+<li>Go to the VPC console in eu-west-1 and select <strong>Peering connections</strong> on the left.</li>
+<li>Click on <strong>Create peering connection</strong> on the upper right</li>
+<li>Name the connection dub-to-iad</li>
+<li>For the local VPC select the SOCA VPC</li>
+<li>For the other VPC's region select <strong>Another Region</strong></li>
+<li>Select us-east-1</li>
+<li>Open the us-east-1 VPC console in another tab and copy the SOCA vpc id</li>
+<li>Go back to the eu-west-1 VPC console and paste the vpc id into the **VPC ID (Accepter) field</li>
+<li>Click <strong>Create peering connection</strong> to create the connection.</li>
+<li>Go back to the us-east-1 console and select <strong>Peering connections</strong> on the left.</li>
+<li>Select the connection you just created. It should be in <strong>Pending acceptance</strong> state.</li>
+<li>Select <strong>Actions</strong> and <strong>Accept request</strong></li>
+</ol>
+<p>Repeat the same steps to create VPC peering connections between eu-west-1 (dub) and us-west-2 (pdx) and between
+us-east-1 (iad) and us-west-2 (pdx).
+When you are complete all of the VPCs will have a connection to the others.</p>
+<p>The next step is to set up routing table entries to route the traffic between the VPCs over the peering connections.
+Do the following steps in each region.</p>
+<ol>
+<li>Open the VPC console</li>
+<li>Select <strong>Route tables</strong> on the left</li>
+<li>Select the route table for each of the 3 private subnets</li>
+<li>Click <strong>Edit routes</strong></li>
+<li>Click <strong>Add route</strong></li>
+<li>Enter the CIDR range for another VPC in the destination and the peering connection to that VPC (start typing pcx- and then select from the list)</li>
+<li>Click <strong>Save changes</strong></li>
+</ol>
+<p>When this is done packets from each VPC to any other will be routed across the appropriate VPC peering connection.</p>
+<h2 id="dns-route53-private-hosted-zone">DNS: Route53 Private Hosted Zone</h2>
+<p>The oktank-dub SOCA cluster has two EFS file systems mounted at /apps and /data that contain the home and tools directories for the user's desktops.
+We are enabling the SOCA users to submit jobs to Slurm so those volumes will need to be available on all compute nodes.
+However, the EFS DNS name will only able to be resolved by the AWS provided DNS server in the oktank-dub VPC.
+We could just use the IP address, but it is more maintainable to create a Route53 private hosted zone that is shared
+by all of the clusters so that we can refer the the EFS file systems with a friendly DNS name.</p>
+<p><strong>Note</strong> that Route53 is a global, not regional, service.</p>
+<ol>
+<li>Open the Route53 console</li>
+<li>Select Hosted zones on the left</li>
+<li>Click <strong>Create hosted zone</strong> in the upper right</li>
+<li>Enter a domain name like slurmdub.local</li>
+<li>For Type select <strong>Private hosted zone</strong></li>
+<li>Associate the oktank-dub VPC with the hosted zone.</li>
+<li>For Region select eu-west-1</li>
+<li>Click the VPC ID and select the SOCA VPC</li>
+<li>Associate the oktank-iad VPC with the hosted zone.</li>
+<li>Click <strong>Add VPC</strong></li>
+<li>For Region select eu-west-1</li>
+<li>Click the VPC ID and select the SOCA VPC</li>
+<li>Associate the oktank-pdx VPC with the hosted zone.</li>
+<li>Click <strong>Add VPC</strong></li>
+<li>For Region select eu-west-1</li>
+<li>Click the VPC ID and select the SOCA VPC</li>
+<li>Click <strong>Create hosted zone</strong></li>
+<li>Expand <strong>Hosted zone details</strong> and save the <strong>Hosted zone ID</strong> which will be used in the config file.</li>
+</ol>
+<p>Create DNS entries for the SOCA EFS file systems.</p>
+<ol>
+<li>Open the EFS console in eu-west-1</li>
+<li>Select the Apps file system</li>
+<li>Select the Network tab and note the IP addresses for all 3 availability zones.</li>
+<li>Repeat to get the IP addresses for the Data file system.</li>
+<li>Open the Route53 console and select the slurmdub.local hosted zone.</li>
+<li>Click <strong>Create record</strong></li>
+<li>Name it fs-apps</li>
+<li>For record type select <strong>A</strong></li>
+<li>For <strong>Value</strong> put the 3 IP addresses for the EFS file system on separate lines</li>
+<li>For <strong>Routing policy</strong> select <strong>latency</strong></li>
+<li>For <strong>Region</strong> select eu-west-1</li>
+<li>For <strong>Record ID</strong> enter <strong>fs-apps-dub</strong></li>
+<li>Create idential A records for fs-apps in the us-east-1 and us-west-2 regions with <strong>Record ID</strong> of fs-apps-iad and fs-apps-pdx.</li>
+<li>Repeat for the Data file system and create fs-data A records in all 3 regions.</li>
+</ol>
+<h2 id="file-system-access">File System Access</h2>
 <p>Make sure that file system security groups allow access from all slurm VPCs.</p>
-<p>Set up VPC peering connections between all VPCs.
-Create routes between the VPCs.</p>
-<p>All of the compute nodes in the cluster should share the same file directory structure and have network
-connectivity to all other nodes and to the slurm controller and slurmdbd instances.</p>
-<p>The slurm file system contains all of the configuration files and executables, so it must be accessible
-by all nodes.
-The easiest way to accomplish this is to simply mount the file system across the network.
-Initial file accesses may be slow, but subsequent accesses should be cached in the nfs clients so it shouldn't
-be an issue for performance.</p>
-<p>Working directories can also be mounted across AZs and regions, but the performance implications may be significant.
-File system performance issues related to network latency can be resolved by using NetApp FlexCache volumes in
-AZs and regions.
-Since the file system architecture can be very implementation specific, it is not handled automatically.</p>
-<p>What is done, is that the required structures are provided to allow you to easily configure the cluster to use whatever file systems
-and volumes you have created.
-The main mechanism is the creation of an Amazon Route53 hosted zone in each region with entries for the slurm controllers, the slurmdbd instance,
-and all file systems used by the cluster.
-This allows compute node AMIs to be created in the origin region and then copied to the other regions.
-The DNS entries can be updated after deployment to resolve to local FlexCache volumes if they are created.</p>
-<p>The other regional resources required to launch instances in other regions are ssh key pairs and security groups.
-IAM roles are not regional so they can be shared across regions.</p>
+<p>You may need to allow inbound access from 10.2.0.0/16 and 10.3.0.0/16.</p>
+<h2 id="slurm-configuration">Slurm Configuration</h2>
+<p>The following configuration file configures all three regions.
+Note that there are values for key pairs, VPC IDs, subnet IDs, etc. that you will have to update with the information from
+your SOCA clusters.</p>
 <p>Regional resources that must be provided:
+* VPC IDs
+* VPC CIDRs
 * Subnet IDs
-* EC2 Keypairs</p>
-<p>Regional resources that will be created:
-* Route53 private hosted zone
+* EC2 Keypairs
+* Security Group IDs</p>
+<p>Regional resources that will be created for you:
 * ComputeNodeSecurityGroup</p>
-<h2 id="computenodesecuritygroup">ComputeNodeSecurityGroup</h2></div>
+<p>Global resources that will be created for you:
+* IAM instance roles</p>
+<p>slurm_dub.yml:</p>
+<pre><code>---
+# Multi-region Slurm cluster with Netapp Ontap
+#
+# Origin of the cluster is in eu-west-1 and extends into us-east-1 and us-west-2
+
+StackName: slurmdub
+
+Region: eu-west-1
+
+SshKeyPair: admin-eu-west-1 # Or whatever Key Pair you've created
+
+VpcId: vpc-xxxxxxxxxxxxxxxxx # oktank-dub
+
+SubnetId: subnet-xxxxxxxxxxxxxxxxx # oktank-dub, PrivateSubnet1
+
+HostedZoneId: XXXXXXXXXXXXXXXXXXX # The hosted zone ID for the hosted zone you created above.
+
+ErrorSnsTopicArn: arn:aws:sns:eu-west-1:${AccountId}:SlurmError # ARN of your SNS topic.
+
+TimeZone: 'US/Central' # Or whatever you prefer
+
+slurm:
+  MungeKeySsmParameter: &quot;/slurm/munge_key&quot;
+
+  SlurmCtl:
+    NumberOfControllers: 2
+
+  SlurmDbd: {}
+
+  # External security groups that should be able to use the cluster
+  SubmitterSecurityGroupIds:
+    soca-oktank-dub-ComputeNodeSG: sg-xxxxxxxxxxxxxxxxx
+
+  SubmitterInstanceTags:
+    'soca:ClusterId': ['soca-oktank-dub']
+
+  # InstanceConfig:
+  # Configure the instances used by the cluster
+  # A partition will be created for each combination of Base OS, Architecture, and Spot
+  InstanceConfig:
+    UseSpot: true
+    DefaultPartition: eu-west-1a_AlmaLinux_8_arm64_spot
+    NodesPerInstanceType: 10
+    BaseOsArchitecture:
+      AlmaLinux: {8: [x86_64, arm64]}
+      CentOS:
+        7: [x86_64]
+    Include:
+      MaxSizeOnly: false
+      InstanceFamilies:
+        - t3
+        - t4g
+      InstanceTypes: []
+    Exclude:
+      InstanceFamilies: []
+      InstanceTypes:
+        - '.+\.(micro|nano)'   # Not enough memory
+        - '.*\.metal'
+    Regions:
+      - Region: eu-west-1
+        VpcId: vpc-xxxxxxxxxxxxxxxxx # oktank-dub
+        CIDR: 10.1.0.0/16
+        SshKeyPair: admin-eu-west-1
+        AZs:
+          - Priority: 10
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-dub - PrivateSubnet1
+          - Priority: 9
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-dub - PrivateSubnet2
+          - Priority: 8
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-dub - PrivateSubnet3
+      - Region: us-east-1
+        VpcId: vpc-xxxxxxxxxxxxxxxxx
+        CIDR: 10.2.0.0/16
+        SshKeyPair: admin-us-east-1
+        SecurityGroupId: sg-xxxxxxxxxxxxxxxxx
+        AZs:
+          - Priority: 7
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-iad - PrivateSubnet1
+          - Priority: 6
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-iad - PrivateSubnet2
+          - Priority: 5
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-iad - PrivateSubnet3
+      - Region: us-west-2
+        VpcId: vpc-xxxxxxxxxxxxxxxxx
+        CIDR: 10.3.0.0/16
+        SshKeyPair: admin-us-west-2
+        SecurityGroupId: sg-xxxxxxxxxxxxxxxxx
+        AZs:
+          - Priority: 4
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-pdx - PrivateSubnet1
+          - Priority: 3
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-pdx - PrivateSubnet2
+          - Priority: 2
+            Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-pdx - PrivateSubnet3
+
+  storage:
+    provider: ontap
+    removal_policy: DESTROY
+    ontap: {}
+
+    ExtraMounts:
+      - dest: /apps
+        src: fs-apps.slurmdub.local:/
+        type: nfs4
+        options: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport
+      - dest: /data
+        src: fs-data.slurmdub.local:/
+        type: nfs4
+        options: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport
+</code></pre></div>
             </div>
         </div>
 

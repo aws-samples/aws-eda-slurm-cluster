@@ -55,6 +55,9 @@
                                 <a href="./" class="nav-link">Federation</a>
                             </li>
                             <li class="navitem">
+                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../implementation/" class="nav-link">Implementation Details</a>
                             </li>
                             <li class="navitem">
@@ -80,7 +83,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../implementation/" class="nav-link">
+                                <a rel="next" href="../multi-region/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -119,9 +122,9 @@
 If you need to run jobs in more than one AZ then you can use the <a href="https://slurm.schedmd.com/federation.html">federation feature of Slurm</a> so that you can run jobs on multiple clusters.</p>
 <p>The config directory has example configuration files that demonstrate how deploy federated cluster into 3 AZs.</p>
 <ul>
-<li><a href="../source/config/slurm_eda_az1.yml">source/config/slurm_eda_az1.yml</a></li>
-<li><a href="../source/config/slurm_eda_az2.yml">source/config/slurm_eda_az2.yml</a></li>
-<li><a href="../source/config/slurm_eda_az3.yml">source/config/slurm_eda_az3.yml</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/config/slurm_eda_az1.yml">source/config/slurm_eda_az1.yml</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/config/slurm_eda_az2.yml">source/config/slurm_eda_az2.yml</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/config/slurm_eda_az3.yml">source/config/slurm_eda_az3.yml</a></li>
 </ul>
 <p>These clusters should be deployed sequentially.
 The first cluster creates a cluster and a slurmdbd instance.
