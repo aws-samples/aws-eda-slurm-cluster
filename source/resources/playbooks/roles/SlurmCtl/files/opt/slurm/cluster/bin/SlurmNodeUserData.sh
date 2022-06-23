@@ -100,6 +100,10 @@ if [[ -e /var/log/slurm ]]; then
 fi
 ln -s $logs_dir /var/log/slurm
 
+# Selinux must be disable for slurmd to run
+setenforce Permissive
+sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/sysconfig/selinux
+
 systemctl enable slurmd
 systemctl start slurmd
 # Restart so that log file goes to file system
