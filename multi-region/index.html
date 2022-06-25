@@ -349,7 +349,6 @@ slurm:
   # A partition will be created for each combination of Base OS, Architecture, and Spot
   InstanceConfig:
     UseSpot: true
-    DefaultPartition: eu-west-1a_AlmaLinux_8_arm64_spot
     NodesPerInstanceType: 10
     BaseOsArchitecture:
       AlmaLinux: {8: [x86_64, arm64]}
@@ -367,7 +366,7 @@ slurm:
         - '.+\.(micro|nano)'   # Not enough memory
         - '.*\.metal'
     Regions:
-      - Region: eu-west-1
+      eu-west-1:
         VpcId: vpc-xxxxxxxxxxxxxxxxx # oktank-dub
         CIDR: 10.1.0.0/16
         SshKeyPair: admin-eu-west-1
@@ -378,11 +377,10 @@ slurm:
             Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-dub - PrivateSubnet2
           - Priority: 8
             Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-dub - PrivateSubnet3
-      - Region: us-east-1
+      us-east-1:
         VpcId: vpc-xxxxxxxxxxxxxxxxx
         CIDR: 10.2.0.0/16
         SshKeyPair: admin-us-east-1
-        SecurityGroupId: sg-xxxxxxxxxxxxxxxxx
         AZs:
           - Priority: 7
             Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-iad - PrivateSubnet1
@@ -390,11 +388,10 @@ slurm:
             Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-iad - PrivateSubnet2
           - Priority: 5
             Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-iad - PrivateSubnet3
-      - Region: us-west-2
+      us-west-2:
         VpcId: vpc-xxxxxxxxxxxxxxxxx
         CIDR: 10.3.0.0/16
         SshKeyPair: admin-us-west-2
-        SecurityGroupId: sg-xxxxxxxxxxxxxxxxx
         AZs:
           - Priority: 4
             Subnet: subnet-xxxxxxxxxxxxxxxxx # oktank-pdx - PrivateSubnet1
