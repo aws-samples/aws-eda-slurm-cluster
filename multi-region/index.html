@@ -17,11 +17,13 @@
         <script src="../js/jquery-1.10.2.min.js" defer></script>
         <script src="../js/bootstrap.min.js" defer></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
         <script>hljs.initHighlightingOnLoad();</script> 
     </head>
 
     <body>
-        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
             <div class="container">
                 <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
                 <!-- Expander button -->
@@ -112,10 +114,30 @@
               <ul class="nav flex-column">
             <li class="nav-item" data-level="2"><a href="#requirements" class="nav-link">Requirements</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#networking" class="nav-link">Networking</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#file-systems" class="nav-link">File Systems</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#dns" class="nav-link">DNS</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
               </ul>
             </li>
             <li class="nav-item" data-level="2"><a href="#configuration" class="nav-link">Configuration</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#create-vpcs" class="nav-link">Create VPCs</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#connect-the-vpcs-using-vpc-peering-connections" class="nav-link">Connect the VPCs using VPC Peering Connections</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
               </ul>
             </li>
             <li class="nav-item" data-level="2"><a href="#dns-route53-private-hosted-zone" class="nav-link">DNS: Route53 Private Hosted Zone</a>

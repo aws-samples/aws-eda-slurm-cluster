@@ -17,11 +17,13 @@
         <script src="../js/jquery-1.10.2.min.js" defer></script>
         <script src="../js/bootstrap.min.js" defer></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
         <script>hljs.initHighlightingOnLoad();</script> 
     </head>
 
     <body>
-        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-primary">
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
             <div class="container">
                 <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
                 <!-- Expander button -->
@@ -164,6 +166,18 @@
             </li>
             <li class="nav-item" data-level="2"><a href="#use-the-cluster" class="nav-link">Use the Cluster</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#configure-slurm-users-and-groups" class="nav-link">Configure Slurm Users and Groups</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#configure-slurm-submitter-instances" class="nav-link">Configure Slurm Submitter Instances</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#run-your-first-job" class="nav-link">Run Your First Job</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
               </ul>
             </li>
             <li class="nav-item" data-level="2"><a href="#slurm-documentation" class="nav-link">Slurm Documentation</a>
