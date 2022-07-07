@@ -68,9 +68,6 @@
                             <li class="navitem active">
                                 <a href="./" class="nav-link">To Do List</a>
                             </li>
-                            <li class="navitem">
-                                <a href="../mkdocs/" class="nav-link">mkdocs</a>
-                            </li>
                         </ul>
 
                     <ul class="nav navbar-nav ml-auto">
@@ -85,7 +82,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../mkdocs/" class="nav-link">
+                                <a rel="next" class="nav-link disabled">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -123,30 +120,7 @@
 <p>List of tasks to be completed.</p>
 <ul>
 <li>
-<p>Create a configuration to emulate an on-prem cluster</p>
-<ul>
-<li>Use it to test burting from a static on-prem compute cluster to an AWS federation an multi-AZ/region.</li>
-</ul>
-</li>
-<li>
 <p>Configure always on instances for RIs or savings plans.</p>
-</li>
-<li>
-<p>Support multi-AZ/region for a single cluster.</p>
-<ul>
-<li>Instead of federating clusters, add support for compute nodes in multiple availability zones and regions</li>
-<li>Assumes that networking is configured between VPCs if multiple regions are used</li>
-<li>Assumes that the storage architecture supports a consistent file system view for all compute nodes.
-  This could be shared file systems that are mounted across the AZs and regions or AZ/region specific storage with some kind of data synchronization strategy.</li>
-</ul>
-</li>
-<li>
-<p>Support multiple clusters (federation)</p>
-<ul>
-<li>Implementation is complete and is mostly working but has issues.</li>
-<li>I see jobs running in other clusters when there are still resources in the primary cluster.</li>
-<li>Job stuck in pending state with FedJobLock. Can't cancel or requeue, lower priority jobs stuck behind it in PENDING state. This completely hung cluster 1 and 3.</li>
-</ul>
 </li>
 <li>
 <p>Configure Preemption</p>
@@ -169,9 +143,6 @@
 <li>I think that the ordering can be done by making the CustomResource dependent on the file systems.</li>
 <li>This has been added but not tested.</li>
 </ul>
-</li>
-<li>
-<p>Put slurm logs on the file system so that they persist and can be accessed from other instances.</p>
 </li>
 <li>
 <p>Turn deletion_protection on for database. Have it turned off during testing to ease deletion of test stacks.</p>
