@@ -25,6 +25,7 @@ import boto3
 import logging
 from logging import handlers
 from os import environ
+from sys import exit
 from time import sleep
 
 logger = logging.getLogger(__file__)
@@ -59,7 +60,11 @@ def main():
         ec2_client = boto3.client('ec2')
         logger.info(f"Waiting for {args.ami_id} to be available.")
         while True:
-            ami_info = ec2_client.describe_images(ImageIds=[args.ami_id])['Images'][0]
+            try:
+                ami_info = ec2_client.describe_images(ImageIds=[args.ami_id])['Images'][0]
+            except IndexError:
+                logger.error(f"{args.ami_id} not found")
+                exit(2)
             state = ami_info['State']
             ami_name = ami_info['Name']
             logger.info(f"state={state}")

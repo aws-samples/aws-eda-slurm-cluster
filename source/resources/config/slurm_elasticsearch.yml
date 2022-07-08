@@ -34,23 +34,16 @@ slurm:
 
   InstanceConfig:
     UseSpot: true
-    DefaultPartition: CentOS_7_x86_64_spot
     NodesPerInstanceType: 10
     BaseOsArchitecture:
       AlmaLinux: {8: [x86_64, arm64]}
       CentOS:
         7: [x86_64]
     Include:
-      MaxSizeOnly: false
       InstanceFamilies:
         - t3
         - t4g
       InstanceTypes: []
-    Exclude:
-      InstanceFamilies: []
-      InstanceTypes:
-        - '.+\.(micro|nano)'   # Not enough memory
-        - '.*\.metal'
 
   # Use defaults from schema
   SlurmCtl: {}

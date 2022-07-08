@@ -382,7 +382,9 @@ class CdkSlurmStack(Stack):
                     exit(1)
 
         if not self.config['slurm']['InstanceConfig']['Regions']:
-            default_region = {
+            self.config['slurm']['InstanceConfig']['Regions'] = {}
+            self.config['slurm']['InstanceConfig']['Regions'][self.config['Region']] = {
+                'VpcId': self.config['VpcId'],
                 'CIDR': self.config['CIDR'],
                 'SshKeyPair': self.config['SshKeyPair'],
                 'AZs': [
@@ -392,7 +394,6 @@ class CdkSlurmStack(Stack):
                     }
                 ]
             }
-            self.config['slurm']['InstanceConfig']['Regions'][self.config['Region']] = default_region
 
         self.compute_regions = {}
         self.remote_compute_regions = {}
@@ -648,7 +649,7 @@ class CdkSlurmStack(Stack):
         Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
         self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
 
-	    # Compute nodes may use lustre file systems to create a security group with the required ports.
+	    # Compute nodes may use lustre file systems so create a security group with the required ports.
         self.lustre_sg = ec2.SecurityGroup(self, "LustreSG", vpc=self.vpc, allow_all_outbound=False, description="Lustre Security Group")
         Tags.of(self.lustre_sg).add("Name", f"{self.stack_name}-LustreSG")
         self.suppress_cfn_nag(self.lustre_sg, 'W29', 'Egress port range used to block all egress')
@@ -735,6 +736,7 @@ class CdkSlurmStack(Stack):
             fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(2049), f"{fs_client_sg_name} to Nfs")
         if self.onprem_cidr:
             self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Nfs')
+        # Allow compute nodes in remote regions access to NFS
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
             self.nfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(2049), f"{compute_region} to Nfs")
 
@@ -759,6 +761,7 @@ class CdkSlurmStack(Stack):
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp_range(20001, 20003), 'OnPremNodes to Zfs')
             self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
             self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
+        # Allow compute nodes in remote regions access to ZFS
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
             self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(111), f"{compute_region} to Zfs")
             self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(111), f"{compute_region} to Zfs")
@@ -785,6 +788,7 @@ class CdkSlurmStack(Stack):
             self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), 'OnPremNodes to Lustre')
             self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(988), f"Lustre to OnPremNodes")
             self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), f"Lustre to OnPremNodes")
+        # Allow compute nodes in remote regions access to Lustre
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
             self.lustre_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(988), f"{compute_region} to Lustre")
             self.lustre_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1021, 1023), f"{compute_region} to Lustre")
@@ -988,6 +992,8 @@ class CdkSlurmStack(Stack):
         self.config['slurm']['JobCompLoc'] = f"http://{domain_endpoint}/slurm/_doc"
 
     def create_file_system(self):
+        self.slurmfs_fqdn = f"slurmfs.{self.config['Domain']}"
+
         if 'kms_key_arn' in self.config['slurm']['storage']:
             kms_key = kms.Key.from_key_arn(self.config['slurm']['storage']['kms_key_arn'])
         else:
@@ -1057,7 +1063,7 @@ class CdkSlurmStack(Stack):
 
             self.file_system_mount_name = ""
 
-            self.file_system_mount_source = f"{self.file_system_ip_address}:/"
+            self.file_system_mount_source = f"{self.slurmfs_fqdn}:/"
 
             if self.config['slurm']['storage']['efs']['use_efs_helper']:
                 self.file_system_type = 'efs'
@@ -1155,7 +1161,7 @@ class CdkSlurmStack(Stack):
 
             self.file_system_mount_name = ""
 
-            self.file_system_mount_source = f"{self.file_system_ip_address}:/slurm"
+            self.file_system_mount_source = f"{self.slurmfs_fqdn}:/slurm"
 
             self.file_system_options = 'nfsvers=4.1'
 
@@ -1237,7 +1243,7 @@ class CdkSlurmStack(Stack):
 
             self.file_system_mount_name = ""
 
-            self.file_system_mount_source = f"{self.file_system_ip_address}:/fsx/slurm"
+            self.file_system_mount_source = f"{self.slurmfs_fqdn}:/fsx/slurm"
 
             self.file_system_options = 'nfsvers=4.1'
 
@@ -1255,7 +1261,6 @@ class CdkSlurmStack(Stack):
             record_name = 'slurmfs',
             target = route53.RecordTarget.from_ip_addresses(self.file_system_ip_address)
         )
-
         CfnOutput(self, "FileSystemProvider",
             value = self.config['slurm']['storage']['provider']
         )
@@ -1725,7 +1730,6 @@ class CdkSlurmStack(Stack):
             "ERROR_SNS_TOPIC_ARN": self.config['ErrorSnsTopicArn'],
             "ExtraMounts": self.config['slurm']['storage']['ExtraMounts'],
             "FileSystemDns": self.file_system_dns,
-            "FileSystemIpAddress": self.file_system_ip_address,
             "FileSystemMountPath": self.config['slurm']['storage']['mount_path'],
             "FileSystemMountSrc": self.file_system_mount_source,
             "FileSystemOptions": self.file_system_options,
@@ -1748,7 +1752,6 @@ class CdkSlurmStack(Stack):
                 instance_template_vars["AccountingStorageHost"] = self.slurmDbdFQDN
             else:
                 instance_template_vars["AccountingStorageHost"] = ''
-            instance_template_vars["CloudWatchPeriod"] = self.config['slurm']['SlurmCtl']['CloudWatchPeriod']
             instance_template_vars["CloudWatchPeriod"] = self.config['slurm']['SlurmCtl']['CloudWatchPeriod']
             instance_template_vars["DefaultPartition"] = self.default_partition
             if 'Federation' in self.config['slurm']:

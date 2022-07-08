@@ -113,9 +113,9 @@ class EC2InstanceTypeInfo:
                     else:
                         instance_type_info[instanceType]['ThreadsPerCore'] = 1
                 if 'ValidCores' in instanceTypeDict['VCpuInfo']:
-                    instance_type_info[instanceType]['CoreCount'] = max(instanceTypeDict['VCpuInfo']['ValidCores'])
+                    instance_type_info[instanceType]['CoreCount'] = int(max(instanceTypeDict['VCpuInfo']['ValidCores']))
                 else:
-                    instance_type_info[instanceType]['CoreCount'] = instanceTypeDict['VCpuInfo']['DefaultVCpus']/instance_type_info[instanceType]['ThreadsPerCore']
+                    instance_type_info[instanceType]['CoreCount'] = int(instanceTypeDict['VCpuInfo']['DefaultVCpus']/instance_type_info[instanceType]['ThreadsPerCore'])
                 instance_type_info[instanceType]['MemoryInMiB'] = instanceTypeDict['MemoryInfo']['SizeInMiB']
                 instance_type_info[instanceType]['SSDCount'] = instanceTypeDict.get('InstanceStorageInfo', {'Disks': [{'Count': 0}]})['Disks'][0]['Count']
                 instance_type_info[instanceType]['SSDTotalSizeGB'] = instanceTypeDict.get('InstanceStorageInfo', {'TotalSizeInGB': 0})['TotalSizeInGB']

@@ -23,10 +23,6 @@ from cdk.cdk_slurm_stack import CdkSlurmStack
 
 app = App()
 
-# TODO: Create a stack for each additional region to create resources needed to create instances in those regions.
-#     * Instance profile
-#     * Security group
-
 cdk_env = Environment(
     account = app.node.try_get_context('account_id'),
     region = app.node.try_get_context('region')

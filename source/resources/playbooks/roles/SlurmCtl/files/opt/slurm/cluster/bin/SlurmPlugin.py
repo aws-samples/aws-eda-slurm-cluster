@@ -1498,7 +1498,7 @@ class SlurmPlugin:
             logger.propagate = False
 
             self.parser = argparse.ArgumentParser("Create SLURM node config from EC2 instance metadata")
-            self.parser.add_argument('--config-file', default=False, help="YAML file with instance families and types to include/exclude")
+            self.parser.add_argument('--config-file', required=True, help="YAML file with instance families and types to include/exclude")
             self.parser.add_argument('--output-file', '-o', required=True, help="Output file")
             self.parser.add_argument('--az-info-file', required=True, help="JSON file where AZ info will be saved")
             self.parser.add_argument('--instance-type-info-json', default=False, help="JSON file with cached instance type info.")
@@ -1509,72 +1509,8 @@ class SlurmPlugin:
                 logger.setLevel(logging.DEBUG)
                 logger.debug(f"Debugging level {self.args.debug}")
 
-            if self.args.config_file:
-                logger.info(f"Loading config from {self.args.config_file}")
-                instance_config = yaml.load(open(self.args.config_file, 'r').read(), Loader=yaml.SafeLoader)
-            else:
-                instance_config = {
-                    'UseSpot': True,
-                    'NodesPerInstanceType': 10,
-                    'BaseOsArchitecture': {
-                        'AlmaLinux': {8: ['x86_64', 'arm64']},
-                        'CentOS': {
-                            '7': ['x86_64'],
-                            '8': ['x86_64', 'arm64']
-                            },
-                        'Amazon': {'2': ['x86_64', 'arm64']},
-                        'RedHat': {
-                            '7': ['x86_64'],
-                            '8': ['x86_64', 'arm64']
-                            },
-                        'Rocky': {8: ['x86_64', 'arm64']},
-                    },
-                    'Include': {
-                        'MaxSizeOnly': False,
-                        'InstanceFamilies': [
-                            't3',
-                            't3a',
-                            't4g',
-                        ],
-                        'InstanceTypes': []
-                    },
-                    'Exclude': {
-                        'InstanceFamilies': [
-                            'a1',   # Graviton 1
-                            'c4',   # Replaced by c5
-                            'd2',   # SSD optimized
-                            'g3',   # Replaced by g4
-                            'g3s',  # Replaced by g4
-                            'h1',   # SSD optimized
-                            'i3',   # SSD optimized
-                            'i3en', # SSD optimized
-                            'm4',   # Replaced by m5
-                            'p2',   # Replaced by p3
-                            'p3',
-                            'p3dn',
-                            'r4',   # Replaced by r5
-                            't2',   # Replaced by t3
-                            'u',
-                            'x1',
-                            'x1e'
-                        ],
-                        'InstanceTypes': []
-                    },
-                    'Regions': [
-                        {
-                            'Region': environ['AWS_DEFAULT_REGION'],
-                            'AZs': [
-                                {
-                                    'Priority': 1,
-                                    'Region': environ['AWS_DEFAULT_REGION'],
-                                    'Subnet': environ['GridSubnet1']
-                                }
-                            ],
-                        },
-                    ],
-                    'AlwaysOnNodes': [],
-                    'AlwaysOnPartitions': []
-                }
+            logger.info(f"Loading config from {self.args.config_file}")
+            instance_config = yaml.load(open(self.args.config_file, 'r').read(), Loader=yaml.SafeLoader)
 
             # Check for required fields
             if 'BaseOsArchitecture' not in instance_config:
@@ -1582,13 +1518,15 @@ class SlurmPlugin:
 
             # Set defaults for missing fields
             if 'UseSpot' not in instance_config:
-                instance_config['UseSpot'] = True
+                raise ValueError(f"InstanceConfig missing UseSpot")
             if 'NodesPerInstanceType' not in instance_config:
-                instance_config['NodesPerInstanceType'] = 10
+                raise ValueError(f"InstanceConfig missing NodesPerInstanceType")
+            if 'Exclude' not in instance_config:
+                raise ValueError(f"InstanceConfig missing Exclude")
             if 'Include' not in instance_config:
-                instance_config['Include'] = {}
+                raise ValueError(f"InstanceConfig missing Include")
             if 'MaxSizeOnly' not in instance_config['Include']:
-                instance_config['Include']['MaxSizeOnly'] = 10
+                raise ValueError(f"InstanceConfig missing Include.MaxSizeOnly")
 
             compute_regions = sorted(instance_config['Regions'].keys())
             az_info = self.get_az_info_from_instance_config(instance_config)
@@ -1666,7 +1604,7 @@ class SlurmPlugin:
                                 ondemand_featureList = base_featureList + ',ondemand'
                                 price = instance_type_info[instanceType]['pricing']['OnDemand']
                                 weight = int(float(price) * 10000)
-                                node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:89s} Weight={}".format(
+                                node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
                                     node, str(coreCount), str(realMemory), ondemand_featureList, weight)
                                 node_sets[node_set]['node_names'].append(node_name)
 
@@ -1676,7 +1614,7 @@ class SlurmPlugin:
                                     spot_feature_list = f"{base_featureList},spot"
                                     spot_price = instance_type_info[instanceType]['pricing']['spot'][az]
                                     spot_weight = int(float(spot_price) * 10000)
-                                    spot_node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:89s} Weight={}".format(
+                                    spot_node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
                                         spot_node, str(coreCount), str(realMemory), spot_feature_list, spot_weight)
                                     node_sets[spot_node_set]['node_names'].append(spot_node_name)
 

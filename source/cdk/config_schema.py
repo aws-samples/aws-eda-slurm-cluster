@@ -45,17 +45,18 @@ filesystem_lifecycle_policies = [
     'AFTER_90_DAYS'
     ]
 
-eda_instance_families = [
+default_eda_instance_families = [
     #'c5',                # Mixed depending on size
-    'c5a',               # AMD EPYC 7R32 3.3 GHz
+    #'c5a',               # AMD EPYC 7R32 3.3 GHz
     #'c5ad',              # AMD EPYC 7R32 3.3 GHz
+    'c6a',
     'c6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
     'c6g',               # AWS Graviton2 Processor 2.5 GHz
     #'c6gd',              # AWS Graviton2 Processor 2.5 GHz
     #'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
     'm5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
     #'m5d',               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    'm5a',               # AMD EPYC 7571 2.5 GHz
+    #'m5a',               # AMD EPYC 7571 2.5 GHz
     #'m5ad',              # AMD EPYC 7571 2.5 GHz
     'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
     'm6a',               # AMD EPYC 7R13 Processor 3.6 GHz
@@ -82,11 +83,35 @@ eda_instance_families = [
     #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
 ]
 
-eda_instance_types = [
+default_eda_instance_types = [
     #'c5\.(l|x|2|4|9|18).*',  # Intel Xeon Platinum 8124M 3.4 GHz
-    'c5\.(12|24).*',         # Intel Xeon Platinum 8275L 3.6 GHz
+    #'c5\.(12|24).*',         # Intel Xeon Platinum 8275L 3.6 GHz
     #'c5d\.(l|x|2|4|9|18).*', # Intel Xeon Platinum 8124M 3.4 GHz
     #'c5d\.(12|24).*',        # Intel Xeon Platinum 8275L 3.6 GHz
+]
+
+default_excluded_instance_families = [
+    'a1',   # Graviton 1
+    'c4',   # Replaced by c5
+    'd2',   # SSD optimized
+    'g3',   # Replaced by g4
+    'g3s',  # Replaced by g4
+    'h1',   # SSD optimized
+    'i3',   # SSD optimized
+    'i3en', # SSD optimized
+    'm4',   # Replaced by m5
+    'p2',   # Replaced by p3
+    'p3',
+    'p3dn',
+    'r4',   # Replaced by r5
+    't2',   # Replaced by t3
+    'x1',
+    'x1e',
+]
+
+default_excluded_instance_types = [
+    '.+\.(micro|nano)', # Not enough memory
+    '.*\.metal'
 ]
 
 # The config file is used in the installer and the CDK app.
@@ -252,22 +277,22 @@ config_schema = Schema(
                 },
                 # Include*/Exclude*:
                 #     Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
-                #     Exclude patterns are processed first and take precedence over any includes.
+                #     Exclude patterns are processed first and take precesdence over any includes.
                 #     An empty list is the same as '.*'.
-                'Include': {
+                Optional('Exclude', default={'InstanceFamilies': default_excluded_instance_families, 'InstanceTypes': default_excluded_instance_types}): {
+                    Optional('InstanceFamilies', default=default_excluded_instance_families): [str],
+                    Optional('InstanceTypes', default=default_excluded_instance_types): [str]
+                },
+                Optional('Include', default={'MaxSizeOnly': False, 'InstanceFamilies': default_eda_instance_families, 'InstanceTypes': default_eda_instance_types}): {
                     # MaxSizeOnly:
                     #     If MaxSizeOnly is True then only the largest instance type in
                     #     a family will be included unless specific instance types are included.
                     #     Default: false
                     Optional('MaxSizeOnly', default=False): bool,
-                    'InstanceFamilies': [str],
-                    'InstanceTypes': [str]
+                    Optional('InstanceFamilies', default=default_eda_instance_families): [str],
+                    Optional('InstanceTypes', default=default_eda_instance_types): [str]
                 },
-                Optional('Exclude', default={'InstanceFamilies': [], 'InstanceTypes': []}): {
-                    'InstanceFamilies': [str],
-                    'InstanceTypes': [str]
-                },
-                Optional('Regions', default=[]): {
+                Optional('Regions', default={}): {
                     str: {
                         'VpcId': And(str, lambda s: re.match('vpc-', s)),
                         'CIDR': str,

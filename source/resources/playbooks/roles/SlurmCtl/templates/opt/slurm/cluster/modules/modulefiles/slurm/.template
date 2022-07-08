@@ -57,7 +57,7 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
         unsetenv SBATCH_TIMELIMIT
         unsetenv SBATCH_TIMELIMIT_SET
     }
-    if { [ info exists ::env(SBATCH_TIMELIMIT_SET) ] } {
+    if { [ info exists ::env(SBATCH_PARTITION_SET) ] } {
         unsetenv SBATCH_PARTITION
         unsetenv SBATCH_PARTITION_SET
     }
@@ -90,7 +90,7 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
         unsetenv SLURM_MEM_PER_NODE
         unsetenv SLURM_MEM_PER_NODE_SET
     }
-    if { ! [ info exists ::env(SLURM_PARTITION) ] } {
+    if { ! [ info exists ::env(SLURM_PARTITION_SET) ] } {
         unsetenv SLURM_PARTITION
         unsetenv SLURM_PARTITION_SET
     }

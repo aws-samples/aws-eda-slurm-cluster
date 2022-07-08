@@ -11,20 +11,14 @@ StackName: slurmrocky
 slurm:
   InstanceConfig:
     UseSpot: true
-    DefaultPartition: Rocky_8_x86_64_spot
     NodesPerInstanceType: 5
     BaseOsArchitecture:
       Rocky: {8: [x86_64, arm64]}
     Include:
-      MaxSizeOnly: false
       InstanceFamilies:
         - t3
         - t4g
       InstanceTypes: []
-    Exclude:
-      InstanceFamilies: []
-      InstanceTypes:
-        - '.*\.metal'
 
   # Use defaults from schema
   SlurmCtl: {}
