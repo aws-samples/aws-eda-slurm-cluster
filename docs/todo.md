@@ -2,21 +2,7 @@
 
 List of tasks to be completed.
 
-* Create a configuration to emulate an on-prem cluster
-    * Use it to test burting from a static on-prem compute cluster to an AWS federation an multi-AZ/region.
-
 * Configure always on instances for RIs or savings plans.
-
-* Support multi-AZ/region for a single cluster.
-    * Instead of federating clusters, add support for compute nodes in multiple availability zones and regions
-    * Assumes that networking is configured between VPCs if multiple regions are used
-    * Assumes that the storage architecture supports a consistent file system view for all compute nodes.
-      This could be shared file systems that are mounted across the AZs and regions or AZ/region specific storage with some kind of data synchronization strategy.
-
-* Support multiple clusters (federation)
-    * Implementation is complete and is mostly working but has issues.
-    * I see jobs running in other clusters when there are still resources in the primary cluster.
-    * Job stuck in pending state with FedJobLock. Can't cancel or requeue, lower priority jobs stuck behind it in PENDING state. This completely hung cluster 1 and 3.
 
 * Configure Preemption
     * https://slurm.schedmd.com/preempt.html
@@ -32,8 +18,6 @@ List of tasks to be completed.
       are deleted.
     * I think that the ordering can be done by making the CustomResource dependent on the file systems.
     * This has been added but not tested.
-
-* Put slurm logs on the file system so that they persist and can be accessed from other instances.
 
 * Turn deletion_protection on for database. Have it turned off during testing to ease deletion of test stacks.
 

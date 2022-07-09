@@ -72,7 +72,7 @@
       set -ex
       cp {{INSTANCE_CONFIG_LOCAL_PATH}} {{INSTANCE_CONFIG_PATH}}
       cd {{SlurmScriptsDir}}
-      if ! ./slurm_ec2_create_node_conf.py --config-file {{INSTANCE_CONFIG_LOCAL_PATH}} -o {{SlurmEtcDir}}/slurm_nodes.conf.new; then
+      if ! ./slurm_ec2_create_node_conf.py --config-file {{INSTANCE_CONFIG_LOCAL_PATH}} --az-info-file {{SlurmConfigDir}}/AZInfo.json -o {{SlurmEtcDir}}/slurm_nodes.conf.new --instance-type-info-json {{SlurmConfigDir}}/instance-type-info.json; then
           rm -f {{SlurmEtcDir}}/slurm_nodes.conf.new
           exit 1
       fi

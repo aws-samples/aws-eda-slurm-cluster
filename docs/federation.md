@@ -5,9 +5,9 @@ If you need to run jobs in more than one AZ then you can use the [federation fea
 
 The config directory has example configuration files that demonstrate how deploy federated cluster into 3 AZs.
 
-* [source/config/slurm_eda_az1.yml](source/config/slurm_eda_az1.yml)
-* [source/config/slurm_eda_az2.yml](source/config/slurm_eda_az2.yml)
-* [source/config/slurm_eda_az3.yml](source/config/slurm_eda_az3.yml)
+* [source/config/slurm_eda_az1.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/config/slurm_eda_az1.yml)
+* [source/config/slurm_eda_az2.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/config/slurm_eda_az2.yml)
+* [source/config/slurm_eda_az3.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/config/slurm_eda_az3.yml)
 
 These clusters should be deployed sequentially.
 The first cluster creates a cluster and a slurmdbd instance.

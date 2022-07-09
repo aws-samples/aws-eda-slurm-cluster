@@ -23,6 +23,7 @@ import boto3
 from botocore.exceptions import ClientError
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
+from EC2InstanceTypeInfoPkg.EC2InstanceTypeInfo import EC2InstanceTypeInfo
 from functools import wraps
 import hostlist
 from isodate import parse_duration
@@ -31,6 +32,7 @@ import json
 import logging
 from logging import error, info, warning, handlers
 import os
+from os import environ, path
 from os.path import dirname, realpath
 from pkg_resources import resource_filename
 import pprint
@@ -141,9 +143,10 @@ class LaunchInstanceThread(threading.Thread):
     This is required so that instances can be launched as quickly as possible so that slurm doesn't time out waiting
     for them to enter service.
     '''
-    def __init__(self, plugin, kwargs):
+    def __init__(self, plugin, region, kwargs):
         super(LaunchInstanceThread, self).__init__()
         self.plugin = plugin
+        self.region = region
         self.kwargs = kwargs
         self.result = None
         self.e = None
@@ -155,6 +158,15 @@ class LaunchInstanceThread(threading.Thread):
             self.e = e
             self.traceback = traceback.format_exc()
             self.exception_reason = e.response['Error']['Code']
+            if self.exception_reason == 'UnauthorizedOperation':
+                message = e.response['Error']['Message']
+                matches = re.match(r'You are not authorized to perform this operation. Encoded authorization failure message: (\S+)', message)
+                if matches:
+                    encoded_message = matches.group(1)
+                    logger.error(f"Encoded message:\n{encoded_message}")
+                    sts_client = boto3.client('sts', region_name=self.region)
+                    decoded_message = json.loads(sts_client.decode_authorization_message(EncodedMessage=encoded_message)['DecodedMessage'])
+                    logger.error(f"decoded_message:\n{json.dumps(decoded_message, indent=4)}")
         except Exception as e:
             self.e = e
             self.traceback = traceback.format_exc()
@@ -163,7 +175,7 @@ class LaunchInstanceThread(threading.Thread):
 
     @retry_ec2_throttling()
     def launch_instance(self):
-        self.result = self.plugin.ec2.run_instances(**self.kwargs)
+        self.result = self.plugin.ec2[self.region].run_instances(**self.kwargs)
         return
 
 class SlurmPlugin:
@@ -217,28 +229,53 @@ class SlurmPlugin:
     CW_UNHANDLED_SUSPEND_RESUME_EXCEPTION = 'UnhandledPluginSuspendResumeException'
     CW_UNHANDLED_TERMINATE_OLD_INSTANCES_EXCEPTION = 'UnhandledPluginTerminateOldInstancesException'
 
-    def __init__(self, slurm_config_file=f"/opt/slurm/config/slurm_config.json", slurm_version_file=f"/opt/slurm/config/SlurmVersion.json", region=None):
+    def __init__(self, slurm_config_file=f"/opt/slurm/config/slurm_config.json", region=None):
         if slurm_config_file:
             with open(slurm_config_file, 'r') as fh:
                 self.config = json.load(fh)
-            os.environ['AWS_DEFAULT_REGION'] = self.config['region']
+            environ['AWS_DEFAULT_REGION'] = self.config['region']
         else:
             self.config = {}
+
+        slurm_version_file = self.config.get('SlurmVersionFile', '')
         if slurm_version_file:
             with open(slurm_version_file, 'r') as fh:
                 self.config.update(json.load(fh))
+
+        az_info_file = self.config.get('AZInfoFile', '')
+        if az_info_file and path.exists(az_info_file):
+            with open(az_info_file, 'r') as fh:
+                self.az_info = json.load(fh)
+            logger.debug(f"self.az_info: {self.az_info}")
+            self.az_ids = {}
+            for az in self.az_info.keys():
+                self.az_ids[self.az_info[az]['id']] = az
+            logger.debug(f"self.az_ids: {self.az_ids}")
+        else:
+            self.az_info = {}
+            self.az_ids = {}
+
         if region:
             self.config['region'] = region
-            os.environ['AWS_DEFAULT_REGION'] = self.config['region']
+            environ['AWS_DEFAULT_REGION'] = self.config['region']
+
+        self.compute_regions = [self.config['region']]
+        for az_dict in self.az_info.values():
+            region = az_dict['region']
+            if region not in self.compute_regions:
+                self.compute_regions.append(region)
+        self.compute_regions.sort()
 
         # Create first so that can publish metrics for unhandled exceptions
         self.cw = boto3.client('cloudwatch')
         self.ssm = boto3.client('ssm')
 
         try:
-            self.ec2 = boto3.client('ec2')
-            self.ec2_describe_instances_paginator = self.ec2.get_paginator('describe_instances')
-            self.describe_instance_status_paginator = self.ec2.get_paginator('describe_instance_status')
+            self.ec2 = {}
+            self.ec2_describe_instances_paginator = {}
+            for region in self.compute_regions:
+                self.ec2[region] = boto3.client('ec2', region_name=region)
+                self.ec2_describe_instances_paginator[region] = self.ec2[region].get_paginator('describe_instances')
         except:
             logger.exception('Unhandled exception in SlurmPlugin constructor')
             self.publish_cw_metrics(self.CW_UNHANDLED_PLUGIN_CONSTRUCTOR_EXCEPTION, 1, [])
@@ -293,49 +330,31 @@ class SlurmPlugin:
             raise
 
     def get_instance_type_info(self):
-        logger.debug("get_instance_type_info")
-        self.instance_type_info = {}
-        self.instance_family_info = {}
-        describe_instance_types_paginator = self.ec2.get_paginator('describe_instance_types')
-        for result in self.paginate(describe_instance_types_paginator, {'Filters': [{'Name': 'current-generation', 'Values': ['true']}]}):
-            for instance_type_info in result['InstanceTypes']:
-                instanceType = instance_type_info['InstanceType']
-                #logger.debug("Found instance info for {}".format(instanceType))
-                self.instance_type_info[instanceType] = {}
-                self.instance_type_info[instanceType]['full'] = instance_type_info
-                architecture = instance_type_info['ProcessorInfo']['SupportedArchitectures'][0]
-                self.instance_type_info[instanceType]['architecture'] = architecture
-                self.instance_type_info[instanceType]['SustainedClockSpeedInGhz'] = instance_type_info['ProcessorInfo']['SustainedClockSpeedInGhz']
-                if 'ValidThreadsPerCore' in instance_type_info['VCpuInfo']:
-                    self.instance_type_info[instanceType]['ThreadsPerCore'] = max(instance_type_info['VCpuInfo']['ValidThreadsPerCore'])
-                else:
-                    if architecture == 'x86_64':
-                        self.instance_type_info[instanceType]['ThreadsPerCore'] = 2
-                    else:
-                        self.instance_type_info[instanceType]['ThreadsPerCore'] = 1
-                if 'ValidCores' in instance_type_info['VCpuInfo']:
-                    self.instance_type_info[instanceType]['CoreCount'] = max(instance_type_info['VCpuInfo']['ValidCores'])
-                else:
-                    self.instance_type_info[instanceType]['CoreCount'] = int(instance_type_info['VCpuInfo']['DefaultVCpus']/self.instance_type_info[instanceType]['ThreadsPerCore'])
-                self.instance_type_info[instanceType]['MemoryInMiB'] = instance_type_info['MemoryInfo']['SizeInMiB']
-                self.instance_type_info[instanceType]['SSDCount'] = instance_type_info.get('InstanceStorageInfo', {'Disks': [{'Count': 0}]})['Disks'][0]['Count']
-                self.instance_type_info[instanceType]['SSDTotalSizeGB'] = instance_type_info.get('InstanceStorageInfo', {'TotalSizeInGB': 0})['TotalSizeInGB']
-                #logger.debug(pp.pformat(self.instance_type_info[instanceType]))
+        logger.debug(f"get_instance_type_info")
+        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions, json_filename=self.config['InstanceTypeInfoFile'])
+        self.instance_type_info = eC2InstanceTypeInfo.instance_type_info
+        self.create_instance_family_info()
 
-                (instance_family, instance_size) = instanceType.split(r'.')
-                if instance_family not in self.instance_family_info:
-                    self.instance_family_info[instance_family] = {}
-                    self.instance_family_info[instance_family]['instance_types'] = [instanceType,]
-                    self.instance_family_info[instance_family]['MaxInstanceType'] = instanceType
-                    self.instance_family_info[instance_family]['MaxInstanceSize'] = instance_size
-                    self.instance_family_info[instance_family]['MaxCoreCount'] = self.instance_type_info[instanceType]['CoreCount']
-                    self.instance_family_info[instance_family]['architecture'] = architecture
+    def create_instance_family_info(self):
+        self.instance_family_info = {}
+        for region in self.instance_type_info.keys():
+            instance_type_info = self.instance_type_info[region]
+            self.instance_family_info[region] = {}
+            for instance_type in instance_type_info:
+                (instance_family, instance_size) = instance_type.split(r'.')
+                if instance_family not in self.instance_family_info[region]:
+                    self.instance_family_info[region][instance_family] = {}
+                    self.instance_family_info[region][instance_family]['instance_types'] = [instance_type,]
+                    self.instance_family_info[region][instance_family]['MaxInstanceType'] = instance_type
+                    self.instance_family_info[region][instance_family]['MaxInstanceSize'] = instance_size
+                    self.instance_family_info[region][instance_family]['MaxCoreCount'] = instance_type_info[instance_type]['CoreCount']
+                    self.instance_family_info[region][instance_family]['architecture'] = instance_type_info[instance_type]['architecture']
                 else:
-                    self.instance_family_info[instance_family]['instance_types'].append(instanceType)
-                    if self.instance_type_info[instanceType]['CoreCount'] > self.instance_family_info[instance_family]['MaxCoreCount']:
-                        self.instance_family_info[instance_family]['MaxInstanceType'] = instanceType
-                        self.instance_family_info[instance_family]['MaxInstanceSize'] = instance_size
-                        self.instance_family_info[instance_family]['MaxCoreCount'] = self.instance_type_info[instanceType]['CoreCount']
+                    self.instance_family_info[region][instance_family]['instance_types'].append(instance_type)
+                    if instance_type_info[instance_type]['CoreCount'] > self.instance_family_info[region][instance_family]['MaxCoreCount']:
+                        self.instance_family_info[region][instance_family]['MaxInstanceType'] = instance_type
+                        self.instance_family_info[region][instance_family]['MaxInstanceSize'] = instance_size
+                        self.instance_family_info[region][instance_family]['MaxCoreCount'] = instance_type_info[instance_type]['CoreCount']
 
     def get_instance_family(self, instanceType):
         instance_family = instanceType.split(r'.')[0]
@@ -369,42 +388,41 @@ class SlurmPlugin:
             instance_size = short_instance_size
         return instance_size
 
-    def get_instance_families(self):
-        return sorted(self.instance_type_info.keys())
+    def get_instance_families(self, region):
+        return sorted(self.instance_family_info[region].keys())
 
-    def get_max_instance_type(self, instance_family):
-        return self.instance_family_info[instance_family]['MaxInstanceType']
+    def get_max_instance_type(self, region, instance_family):
+        return self.instance_family_info[region][instance_family]['MaxInstanceType']
 
-    def get_instance_types(self):
-        return sorted(self.instance_type_info.keys())
+    def get_instance_types(self, region):
+        return sorted(self.instance_type_info[region].keys())
 
-    def get_architecture(self, instance_type):
-        return self.instance_type_info[instance_type]['architecture']
+    def get_architecture(self, region, instance_type):
+        return self.instance_type_info[region][instance_type]['architecture']
 
-    def get_SustainedClockSpeedInGhz(self, instance_type):
-        return self.instance_type_info[instance_type]['SustainedClockSpeedInGhz']
+    def get_SustainedClockSpeedInGhz(self, region, instance_type):
+        return self.instance_type_info[region][instance_type]['SustainedClockSpeedInGhz']
 
-    def get_CoreCount(self, instance_type):
-        return self.instance_type_info[instance_type]['CoreCount']
+    def get_CoreCount(self, region, instance_type):
+        return self.instance_type_info[region][instance_type]['CoreCount']
 
-    def get_ThreadsPerCore(self, instance_type):
-        return self.instance_type_info[instance_type]['ThreadsPerCore']
+    def get_ThreadsPerCore(self, region, instance_type):
+        return self.instance_type_info[region][instance_type]['ThreadsPerCore']
 
-    def get_MemoryInMiB(self, instance_type):
-        return self.instance_type_info[instance_type]['MemoryInMiB']
+    def get_MemoryInMiB(self, region, instance_type):
+        return self.instance_type_info[region][instance_type]['MemoryInMiB']
 
-    def get_SSDCount(self, instance_type):
-        return self.instance_type_info[instance_type]['SSDCount']
+    def get_SSDCount(self, region, instance_type):
+        return self.instance_type_info[region][instance_type]['SSDCount']
 
-    def get_SSDTotalSizeGB(self, instance_type):
-        return self.instance_type_info[instance_type]['SSDTotalSizeGB']
-
-    def get_full_info(self, instance_type):
-        return self.instance_type_info[instance_type]['full']
+    def get_SSDTotalSizeGB(self, region, instance_type):
+        return self.instance_type_info[region][instance_type]['SSDTotalSizeGB']
 
     def get_hostinfo(self, hostnames):
         '''
-        Store information about all existing compute nodes and those hostnames to self.hostinfo
+        Get information about all existing compute nodes and hostnames
+
+        The hostnames can span multiple AZs and regions.
 
         Args:
             hostnames ([str]): List of hostnames that may or may not have instances.
@@ -422,59 +440,61 @@ class SlurmPlugin:
         # Find existing unterminated instances
         # Collect the number of SlurmNodes in each state overall and by instance type
         slurmNodeStats = {}
-        for result in self.paginate(self.ec2_describe_instances_paginator, {}):
-            for reservation in result['Reservations']:
-                for instance in reservation['Instances']:
-                    # Ignore instances that aren't SlurmNodes
-                    role = self.getTag('role', instance)
-                    if not role or role != 'SlurmNode':
-                        continue
-
-                    # Ignore instances that aren't in this cluster
-                    cluster = self.getTag('ClusterName', instance)
-                    if not cluster or cluster != self.config['ClusterName']:
-                        continue
-
-                    # Ignore terminated or terminating instances
-                    state = instance['State']['Name']
-                    if state in ['shutting-down', 'terminated']:
-                        continue
-
-                    instanceType = instance['InstanceType']
-                    if state not in slurmNodeStats:
-                        slurmNodeStats[state] = {}
-                        slurmNodeStats[state]['all'] = 0
-                    if instanceType not in slurmNodeStats[state]:
-                        slurmNodeStats[state][instanceType] = 0
-                    slurmNodeStats[state][instanceType] += 1
-                    slurmNodeStats[state]['all'] += 1
-
-                    hostname = self.getTag('hostname', instance)
-                    if not hostname:
-                        continue
-                    if hostname not in self.hostinfo:
-                        # Ignore invalid hostnames
-                        try:
-                            self.add_hostname_to_hostinfo(hostname)
-                        except ValueError:
-                            logger.warning(f"Ignoring invalid hostname: {hostname}")
+        for region in self.compute_regions:
+            for result in self.paginate(self.ec2_describe_instances_paginator[region], {}):
+                for reservation in result['Reservations']:
+                    for instance in reservation['Instances']:
+                        # Ignore instances that aren't SlurmNodes
+                        role = self.getTag('role', instance)
+                        if not role or role != 'SlurmNode':
                             continue
 
-                    hostinfo = self.hostinfo[hostname]
+                        # Ignore instances that aren't in this cluster
+                        cluster = self.getTag('ClusterName', instance)
+                        if not cluster or cluster != self.config['ClusterName']:
+                            continue
 
-                    # Check for duplicate instances with the same hostname
-                    instanceId = instance['InstanceId']
-                    if hostinfo['instanceId']:
-                        reason = "Multiple instances of {}. Marking node as down. Instances: {} {}".format(hostname, hostinfo['instanceId'], instanceId)
-                        logger.error(reason)
-                        self.mark_node_down(hostname, reason)
-                        continue
+                        # Ignore terminated or terminating instances
+                        state = instance['State']['Name']
+                        if state in ['shutting-down', 'terminated']:
+                            continue
 
-                    hostinfo['instanceId'] = instanceId
-                    hostinfo['State'] = state
-                    hostinfo['ImageId'] = instance['ImageId']
-                    hostinfo['LaunchTime'] = instance.get('LaunchTime', None)
-                    logger.debug("Found %s(%s) state=%s" % (hostname, instanceId, state))
+                        instanceType = instance['InstanceType']
+                        if state not in slurmNodeStats:
+                            slurmNodeStats[state] = {}
+                            slurmNodeStats[state]['all'] = 0
+                        if instanceType not in slurmNodeStats[state]:
+                            slurmNodeStats[state][instanceType] = 0
+                        slurmNodeStats[state][instanceType] += 1
+                        slurmNodeStats[state]['all'] += 1
+
+                        hostname = self.getTag('hostname', instance)
+                        if not hostname:
+                            continue
+                        if hostname not in self.hostinfo:
+                            # Ignore invalid hostnames
+                            try:
+                                self.add_hostname_to_hostinfo(hostname)
+                            except ValueError:
+                                logger.warning(f"Ignoring invalid hostname: {hostname}")
+                                continue
+
+                        hostinfo = self.hostinfo[hostname]
+                        hostinfo['region'] = region
+
+                        # Check for duplicate instances with the same hostname
+                        instanceId = instance['InstanceId']
+                        if hostinfo['instanceId']:
+                            reason = "Multiple instances of {}. Marking node as down. Instances: {} {}".format(hostname, hostinfo['instanceId'], instanceId)
+                            logger.error(reason)
+                            self.mark_node_down(hostname, reason)
+                            continue
+
+                        hostinfo['instanceId'] = instanceId
+                        hostinfo['State'] = state
+                        hostinfo['ImageId'] = instance['ImageId']
+                        hostinfo['LaunchTime'] = instance.get('LaunchTime', None)
+                        logger.debug("Found %s(%s) state=%s" % (hostname, instanceId, state))
 
         # Save SlurmNode counts to CloudWatch
         for state in slurmNodeStats.keys():
@@ -495,7 +515,7 @@ class SlurmPlugin:
             return
 
         try:
-            distribution, distribution_major_version, architecture, instance_family, instance_size, spot = self.parse_hostname(hostname)[0:6]
+            az_id, distribution, distribution_major_version, architecture, instance_family, instance_size, spot = self.parse_hostname(hostname)[0:7]
         except ValueError:
             raise
         except Exception as e:
@@ -503,10 +523,14 @@ class SlurmPlugin:
 
         hostinfo = {}
 
+        hostinfo['az_id'] =  az_id
+        az = self.az_ids[az_id]
+        hostinfo['region'] = self.az_info[az]['region']
+
         hostinfo['distribution'] = distribution
         hostinfo['distribution_major_version'] = distribution_major_version
 
-        ssm_parameter_name = f"/{self.config['STACK_NAME']}/SlurmNodeAmis/{distribution}/{distribution_major_version}/{architecture}"
+        ssm_parameter_name = f"/{self.config['STACK_NAME']}/SlurmNodeAmis/{distribution}/{distribution_major_version}/{architecture}/{hostinfo['region']}"
         try:
             hostinfo['ami'] = self.ssm.get_parameter(Name=ssm_parameter_name)["Parameter"]["Value"]
         except Exception as e:
@@ -522,7 +546,7 @@ class SlurmPlugin:
 
         hostinfo['spot'] = spot
 
-        hostinfo['coreCount'] = self.instance_type_info[instance_type]['CoreCount']
+        hostinfo['coreCount'] = self.instance_type_info[hostinfo['region']][instance_type]['CoreCount']
 
         hostinfo['instanceId'] = None
 
@@ -530,39 +554,41 @@ class SlurmPlugin:
 
     def update_hostinfo(self, instanceIds=[]):
         logger.debug("Updating hostinfo")
-        for result in self.paginate(self.ec2_describe_instances_paginator, {'InstanceIds': instanceIds}):
-            for reservation in result['Reservations']:
-                for instance in reservation['Instances']:
-                    # Ignore instances that aren't SlurmNodes
-                    role = self.getTag('role', instance)
-                    if not role or role != 'SlurmNode':
-                        continue
+        for region in self.compute_regions:
+            for result in self.paginate(self.ec2_describe_instances_paginator[region], {'InstanceIds': instanceIds}):
+                for reservation in result['Reservations']:
+                    for instance in reservation['Instances']:
+                        # Ignore instances that aren't SlurmNodes
+                        role = self.getTag('role', instance)
+                        if not role or role != 'SlurmNode':
+                            continue
 
-                    # Ignore instances that aren't in this cluster
-                    cluster = self.getTag('SlurmCluster', instance)
-                    if not cluster or cluster != self.config['ClusterName']:
-                        continue
+                        # Ignore instances that aren't in this cluster
+                        cluster = self.getTag('SlurmCluster', instance)
+                        if not cluster or cluster != self.config['ClusterName']:
+                            continue
 
-                    # Ignore terminated or terminating instances
-                    state = instance['State']['Name']
-                    if state in ['shutting-down', 'terminated']:
-                        continue
+                        # Ignore terminated or terminating instances
+                        state = instance['State']['Name']
+                        if state in ['shutting-down', 'terminated']:
+                            continue
 
-                    hostname = self.getTag('hostname', instance)
-                    if not hostname:
-                        continue
-                    instanceId = instance['InstanceId']
-                    logger.debug("Found %s(%s) state=%s" % (hostname, instanceId, state))
+                        hostname = self.getTag('hostname', instance)
+                        if not hostname:
+                            continue
+                        instanceId = instance['InstanceId']
+                        logger.debug("Found %s(%s) state=%s" % (hostname, instanceId, state))
 
-                    if hostname not in self.hostinfo:
-                        # Ignore invalid hostnames
-                        try:
-                            self.add_hostname_to_hostinfo(hostname)
-                        except ValueError:
-                            logger.warning(f"Ignoring invalid hostname: {hostname}")
-                    self.hostinfo[hostname]['instanceId'] = instanceId
-                    self.hostinfo[hostname]['ImageId'] = instance['ImageId']
-                    self.hostinfo[hostname]['State'] = state
+                        if hostname not in self.hostinfo:
+                            # Ignore invalid hostnames
+                            try:
+                                self.add_hostname_to_hostinfo(hostname)
+                            except ValueError:
+                                logger.warning(f"Ignoring invalid hostname: {hostname}")
+                                continue
+                        self.hostinfo[hostname]['instanceId'] = instanceId
+                        self.hostinfo[hostname]['ImageId'] = instance['ImageId']
+                        self.hostinfo[hostname]['State'] = state
 
     def getTag(self, key, instance):
         value = None
@@ -583,6 +609,14 @@ class SlurmPlugin:
             logger.info("Resuming {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_RESUME, len(self.hostnames), [])
 
+            for region in self.compute_regions:
+                self.resume_region(region)
+        except:
+            logger.exception('Unhandled exception in SlurmPlugin.resume')
+            self.publish_cw_metrics(self.CW_UNHANDLED_RESUME_EXCEPTION, 1, [])
+            raise
+
+    def resume_region(self, region):
             # Decide what to do for each hostname
             # Possible states:
             # * none     - create
@@ -601,6 +635,8 @@ class SlurmPlugin:
             stopped_instanceIds = []
             for hostname in self.hostnames:
                 hostinfo = self.hostinfo[hostname]
+                if hostinfo['region'] != region:
+                    continue
 
                 # Create new instance if one doesn't exist
                 instanceId =  hostinfo['instanceId']
@@ -641,6 +677,7 @@ class SlurmPlugin:
 
             if instanceIds_to_terminate:
                 terminated_hostnames = self.terminate_instanceIds(
+                    region,
                     hostnames_to_terminate, instanceIds_to_terminate,
                     'terminating instances before resume',
                     self.CW_SLURM_TERMINATE_BEFORE_RESUME,
@@ -653,17 +690,17 @@ class SlurmPlugin:
                 start_instances_exception = None
                 start_instances_exception_reason = None
                 try:
-                    self.start_instances({'InstanceIds': stopped_instanceIds})
+                    self.start_instances(region, {'InstanceIds': stopped_instanceIds})
                 except ClientError as e:
                     # botocore.exceptions.ClientError: An error occurred (ResourceCountExceeded) when calling the StartInstances operation:
                     # You have exceeded the number of resources allowed in a single call of this type
                     start_instances_exception = e
                     start_instances_exception_reason = e.response['Error']['Code']
-                    logger.error("start_instances failed because {}".format(start_instances_exception_reason))
+                    logger.error(f"start_instances({region}) failed because {start_instances_exception_reason}")
                 except Exception as e:
                     start_instances_exception = e
                     start_instances_exception_reason = "Unknown"
-                    logger.exception("start_instances failed with unknown exception")
+                    logger.exception(f"start_instances({region}) failed with unknown exception")
                 if start_instances_exception:
                     # If there is more than one instance then some may have started so need to iterate through each instance
                     # to see which ones started and which ones didn't so we can mark the failed
@@ -708,6 +745,12 @@ class SlurmPlugin:
             userDataTemplate = Template(open(userDataFilename, 'r').read())
             for hostname in hostnames_to_create:
                 hostinfo = self.hostinfo[hostname]
+                az_id = hostinfo['az_id']
+                az = self.az_ids[az_id]
+                region = self.az_info[az]['region']
+                subnet = self.az_info[az]['subnet']
+                security_group_id = self.ssm.get_parameter(Name=f"/{self.config['STACK_NAME']}/SlurmNodeSecurityGroups/{region}")['Parameter']['Value']
+                key_name = self.ssm.get_parameter(Name=f"/{self.config['STACK_NAME']}/SlurmNodeEc2KeyPairs/{region}")['Parameter']['Value']
                 ami = hostinfo['ami']
                 userData = userDataTemplate.render({
                         'DOMAIN': self.config['DOMAIN'],
@@ -722,9 +765,9 @@ class SlurmPlugin:
                     'InstanceType': hostinfo['instance_type'],
                     'MaxCount': 1,
                     'MinCount': 1,
-                    'KeyName': self.config['EC2_KEY_PAIR'],
-                    'SecurityGroupIds': [self.config['SLURMNODE_SECURITY_GROUP']],
-                    'SubnetId': self.config['SLURMNODE_SUBNET'],
+                    'KeyName': key_name,
+                    'SecurityGroupIds': [security_group_id],
+                    'SubnetId': subnet,
                     'IamInstanceProfile': {'Arn': self.config['SLURMNODE_PROFILE_ARN']},
                     'UserData': userData,
                     'TagSpecifications': [
@@ -743,7 +786,7 @@ class SlurmPlugin:
                     ],
                     'BlockDeviceMappings': [],
                 }
-                if self.get_ThreadsPerCore(hostinfo['instance_type']) > 1:
+                if self.get_ThreadsPerCore(region, hostinfo['instance_type']) > 1:
                     kwargs['CpuOptions'] = {'CoreCount': hostinfo['coreCount'], 'ThreadsPerCore': 1}
                 if hostinfo['spot']:
                     kwargs['InstanceMarketOptions'] = {
@@ -754,11 +797,11 @@ class SlurmPlugin:
                         }
                     }
                 drive_letter = 'c'
-                for ephemeral_index in range(0, self.instance_type_info[hostinfo['instance_type']]['SSDCount']):
+                for ephemeral_index in range(0, self.instance_type_info[region][hostinfo['instance_type']]['SSDCount']):
                     kwargs['BlockDeviceMappings'].append({'DeviceName': '/dev/sd'+drive_letter, 'VirtualName': 'ephemeral'+str(ephemeral_index)})
                     drive_letter = chr(ord(drive_letter) + 1)
                 logger.debug(f"run_instances kwargs:\n{pp.pformat(kwargs)}")
-                hostinfo['launch_thread'] = LaunchInstanceThread(self, kwargs)
+                hostinfo['launch_thread'] = LaunchInstanceThread(self, region, kwargs)
                 hostinfo['launch_thread'].start()
             # Wait for instances to be launched
             launch_failures = 0
@@ -813,11 +856,11 @@ class SlurmPlugin:
                     except ClientError as e:
                         start_instances_exception = e
                         start_instances_exception_reason = e.response['Error']['Code']
-                        logger.exception("start_instances failed because {}".format(start_instances_exception_reason))
+                        logger.exception(f"start_instances({region}) failed because {start_instances_exception_reason}")
                     except Exception as e:
                         start_instances_exception = e
                         start_instances_exception_reason = "Unknown"
-                        logger.exception("start_instances failed with unknown exception")
+                        logger.exception(f"start_instances({region}) failed with unknown exception")
                     if start_instances_exception:
                         # If there is more than one instance then some may have started so need to iterate through each instance
                         # to see which ones started and which ones didn't so we can mark the failed
@@ -852,23 +895,28 @@ class SlurmPlugin:
                         stopping_instanceIds.remove(instanceId)
 
             self.update_hostinfo()
-            self.terminate_old_instances()
-        except:
-            logger.exception('Unhandled exception in SlurmPlugin.resume')
-            self.publish_cw_metrics(self.CW_UNHANDLED_RESUME_EXCEPTION, 1, [])
-            raise
+            self.terminate_old_instances_region(region)
 
-    def resume_fail(self):
+    def resume_fail(self, region):
         try:
             self.suspend_resume_setup()
             if not self.hostnames:
                 return
 
-            logger.error("Resume failed on {} hosts: {}".format(len(self.hostnames), self.hostlist))
+            logger.error(f"Resume failed on {len(self.hostnames)} hosts: {self.hostlist}")
             # They will already have been marked down my slurmctld
             # Just log it to CloudWatch
             self.publish_cw_metrics(self.CW_SLURM_RESUME_TIMEOUT, len(self.hostnames), [])
 
+            for region in self.compute_regions:
+                self.resume_fail_region(region)
+
+        except:
+            logger.exception('Unhandled exception in SlurmPlugin.resume_fail')
+            self.publish_cw_metrics(self.CW_UNHANDLED_RESUME_FAIL_EXCEPTION, 1, [])
+            raise
+
+    def resume_fail_region(self, region):
             # Now stop them so that they stop consuming resources until they can be debugged.
             hostnames_to_terminate = []
             instanceIds_to_terminate = []
@@ -876,6 +924,8 @@ class SlurmPlugin:
             instanceIds_to_stop = []
             for hostname in self.hostnames:
                 hostinfo = self.hostinfo[hostname]
+                if hostinfo['region'] != region:
+                    continue
                 instanceId = hostinfo['instanceId']
                 if not instanceId:
                     logger.info("Not stopping {}({}) because no instance found".format(hostname, instanceId))
@@ -898,20 +948,17 @@ class SlurmPlugin:
 
             if instanceIds_to_terminate:
                 self.terminate_instanceIds(
+                    region,
                     hostnames_to_terminate, instanceIds_to_terminate,
                     'terminating instances during resume_fail',
                     self.CW_SLURM_RESUME_FAIL_TERMINATE, self.CW_SLURM_RESUME_FAIL_TERMINATE_ERROR)
 
             if instanceIds_to_stop:
                 self.stop_instanceIds(
+                    region,
                     hostnames_to_stop, instanceIds_to_stop,
                     'stopping instances during resume_fail',
                     self.CW_SLURM_RESUME_FAIL_STOP, self.CW_SLURM_RESUME_FAIL_STOP_ERROR)
-
-        except:
-            logger.exception('Unhandled exception in SlurmPlugin.resume_fail')
-            self.publish_cw_metrics(self.CW_UNHANDLED_RESUME_FAIL_EXCEPTION, 1, [])
-            raise
 
     def stop(self):
         try:
@@ -922,6 +969,14 @@ class SlurmPlugin:
             logger.info("Stopping  {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_STOP, len(self.hostnames), [])
 
+            for region in self.compute_regions:
+                self.stop_region(region)
+        except:
+            logger.exception('Unhandled exception in SlurmPlugin.stop')
+            self.publish_cw_metrics(self.CW_UNHANDLED_STOP_EXCEPTION, 1, [])
+            raise
+
+    def stop_region(self, region):
             # Decide what to do for each hostname
             # Possible states:
             # * none     - no action
@@ -937,6 +992,8 @@ class SlurmPlugin:
             instanceIds_to_stop = []
             for hostname in self.hostnames:
                 hostinfo = self.hostinfo[hostname]
+                if hostinfo['region'] != region:
+                    continue
                 instanceId = hostinfo['instanceId']
                 if not instanceId:
                     logger.info("Not stopping {}({}) because no instance found".format(hostname, instanceId))
@@ -978,6 +1035,7 @@ class SlurmPlugin:
 
             if instanceIds_to_terminate:
                 self.terminate_instanceIds(
+                    region,
                     hostnames_to_terminate, instanceIds_to_terminate,
                     'terminating instance during stop',
                     self.CW_SLURM_STOP_TERMINATE,
@@ -985,14 +1043,10 @@ class SlurmPlugin:
                 )
 
             if instanceIds_to_stop:
-                self.stop_instanceIds(hostnames_to_stop, instanceIds_to_stop, 'stopping instance during stop', self.CW_SLURM_STOP_STOP, self.CW_SLURM_STOP_STOP_ERROR)
+                self.stop_instanceIds(region, hostnames_to_stop, instanceIds_to_stop, 'stopping instance during stop', self.CW_SLURM_STOP_STOP, self.CW_SLURM_STOP_STOP_ERROR)
 
             self.update_hostinfo()
-            self.terminate_old_instances()
-        except:
-            logger.exception('Unhandled exception in SlurmPlugin.stop')
-            self.publish_cw_metrics(self.CW_UNHANDLED_STOP_EXCEPTION, 1, [])
-            raise
+            self.terminate_old_instances_region(region)
 
     def terminate(self):
         try:
@@ -1003,6 +1057,14 @@ class SlurmPlugin:
             logger.info("Terminating {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_TERMINATE, len(self.hostnames), [])
 
+            for region in self.compute_regions:
+                self.terminate_region(region)
+        except:
+            logger.exception('Unhandled exception in SlurmPlugin.terminate')
+            self.publish_cw_metrics(self.CW_UNHANDLED_TERMINATE_EXCEPTION, 1, [])
+            raise
+
+    def terminate_region(self, region):
             # Find instances that need to be terminated
             # Decide what to do for each hostname
             # Possible states:
@@ -1017,6 +1079,9 @@ class SlurmPlugin:
             instanceIds_to_terminate = []
             for hostname in self.hostnames:
                 hostinfo = self.hostinfo[hostname]
+                if hostinfo['region'] != region:
+                    continue
+
                 instanceId = hostinfo['instanceId']
                 if not instanceId:
                     continue
@@ -1026,6 +1091,7 @@ class SlurmPlugin:
                 logger.info("Terminating {}({})".format(hostname, instanceId))
             if instanceIds_to_terminate:
                 self.terminate_instanceIds(
+                    region,
                     hostnames_to_terminate, instanceIds_to_terminate,
                     'terminating instances',
                     self.CW_SLURM_TERMINATE,
@@ -1033,11 +1099,7 @@ class SlurmPlugin:
                 )
 
             self.update_hostinfo()
-            self.terminate_old_instances()
-        except:
-            logger.exception('Unhandled exception in SlurmPlugin.terminate')
-            self.publish_cw_metrics(self.CW_UNHANDLED_TERMINATE_EXCEPTION, 1, [])
-            raise
+            self.terminate_old_instances_region(region)
 
     def terminate_old_instances_main(self):
         global logger
@@ -1090,6 +1152,10 @@ class SlurmPlugin:
         return False
 
     def terminate_old_instances(self):
+        for region in self.compute_regions:
+            self.terminate_old_instances_region(region)
+
+    def terminate_old_instances_region(self, region):
         # Find stopped instances that have an old AMI
         logger.debug("Checking for stopped instances with old AMIs to terminate")
         hostnames_to_terminate = []
@@ -1114,6 +1180,7 @@ class SlurmPlugin:
 
         if instanceIds_to_terminate:
             self.terminate_instanceIds(
+                region,
                 hostnames_to_terminate, instanceIds_to_terminate,
                 'terminating because of old ami',
                 self.CW_SLURM_TERMINATE_OLD_AMI,
@@ -1144,24 +1211,36 @@ class SlurmPlugin:
 
         if instanceIds_to_terminate:
             self.terminate_instanceIds(
+                region,
                 hostnames_to_terminate, instanceIds_to_terminate,
                 'terminating because older than {deadline}',
                 self.CW_SLURM_TERMINATE_OLD_AMI,
                 self.CW_SLURM_TERMINATE_ERROR
             )
 
-    def stop_instanceIds(self, hostnames_to_stop, instanceIds_to_stop,
+    def stop_instanceIds(self, region, hostnames_to_stop, instanceIds_to_stop,
         action, metric, error_metric):
         if not instanceIds_to_stop:
             return
         self.publish_cw_metrics(self.CW_SLURM_STOP_STOP, len(instanceIds_to_stop), [])
         retry = False
         try:
-            self.stop_instances({'InstanceIds': instanceIds_to_stop})
+            self.stop_instances(region, {'InstanceIds': instanceIds_to_stop})
         except ClientError as e:
+            exception_reason = e.response['Error']['Code']
             retry = True
-            if e.response['Error']['Code'] == 'ResourceCountExceeded':
+            if exception_reason == 'ResourceCountExceeded':
                 logger.info("Caught {} while stopping {} instances".format(e.response['Error']['Code'], len(instanceIds_to_stop)))
+            elif exception_reason == 'UnauthorizedOperation':
+                retry = False
+                message = e.response['Error']['Message']
+                matches = re.match(r'You are not authorized to perform this operation. Encoded authorization failure message: (\S+)', message)
+                if matches:
+                    encoded_message = matches.group(1)
+                    logger.error(f"Encoded message:\n{encoded_message}")
+                    sts_client = boto3.client('sts', region_name=region)
+                    decoded_message = json.loads(sts_client.decode_authorization_message(EncodedMessage=encoded_message)['DecodedMessage'])
+                    logger.error(f"decoded_message:\n{json.dumps(decoded_message, indent=4)}")
             else:
                 logger.exception("Error {}".format(action))
                 self.publish_cw_metrics(error_metric, 1, [])
@@ -1177,27 +1256,38 @@ class SlurmPlugin:
                 hostinfo = self.hostinfo[hostname]
                 instanceId = hostinfo['instanceId']
                 try:
-                    self.stop_instances({'InstanceIds': [instanceId]})
+                    self.stop_instances(region, {'InstanceIds': [instanceId]})
                 except:
                     logger.exception("Error while stopping {}({})".format(hostname, instanceId))
                     self.publish_cw_metrics(self.CW_SLURM_STOP_STOP_ERROR, 1)
 
-    def terminate_instanceIds(self, hostnames_to_terminate, instanceIds_to_terminate,
+    def terminate_instanceIds(self, region, hostnames_to_terminate, instanceIds_to_terminate,
         action, metric, error_metric):
         if not instanceIds_to_terminate:
             return
         self.publish_cw_metrics(metric, len(instanceIds_to_terminate), [])
         retry = False
         try:
-            self.terminate_instances({'InstanceIds': instanceIds_to_terminate})
+            self.terminate_instances(region, {'InstanceIds': instanceIds_to_terminate})
             terminated_hostnames = hostnames_to_terminate
             terminated_instanceIds = instanceIds_to_terminate
             for hostname in hostnames_to_terminate:
                 self.hostinfo[hostname]['instanceId'] = None
         except ClientError as e:
+            exception_reason = e.response['Error']['Code']
             retry = True
-            if e.response['Error']['Code'] == 'ResourceCountExceeded':
+            if exception_reason == 'ResourceCountExceeded':
                 logger.info("Caught {} while terminating {} instances".format(e.response['Error']['Code'], len(instanceIds_to_terminate)))
+            elif exception_reason == 'UnauthorizedOperation':
+                retry = False
+                message = e.response['Error']['Message']
+                matches = re.match(r'You are not authorized to perform this operation. Encoded authorization failure message: (\S+)', message)
+                if matches:
+                    encoded_message = matches.group(1)
+                    logger.error(f"Encoded message:\n{encoded_message}")
+                    sts_client = boto3.client('sts', region_name=region)
+                    decoded_message = json.loads(sts_client.decode_authorization_message(EncodedMessage=encoded_message)['DecodedMessage'])
+                    logger.error(f"decoded_message:\n{json.dumps(decoded_message, indent=4)}")
             else:
                 logger.exception("Error {}".format(action))
                 self.publish_cw_metrics(error_metric, 1, [])
@@ -1214,7 +1304,7 @@ class SlurmPlugin:
             for hostname in hostnames_to_terminate:
                 instanceId = self.hostinfo[hostname]['instanceId']
                 try:
-                    self.terminate_instances({'InstanceIds': [instanceId]})
+                    self.terminate_instances(region, {'InstanceIds': [instanceId]})
                     terminated_hostnames.append(hostname)
                     terminated_instanceIds.append(instanceId)
                 except:
@@ -1244,6 +1334,10 @@ class SlurmPlugin:
 
     def parse_hostname(self, hostname):
         '''
+        Parse hostname to get instance attributes
+
+        The format is {az_id}-{distribution-code}-{architecture}-{instance-family}-{instance-size}[-sp]-index
+
         Args:
             hostname (str): Hostname of compute node
         Raises:
@@ -1254,12 +1348,15 @@ class SlurmPlugin:
         logger.debug(f"hostname={hostname}")
         fields = hostname.split('-')
         logger.debug(f"fields: {fields}")
-        if len(fields) < 5:
-            raise ValueError(f"{hostname} has less than 5 fields: {fields}")
-        elif len(fields) > 6:
-            raise ValueError(f"{hostname} has more than 6 fields: {fields}")
-        (os, short_architecture, instance_family, short_instance_size) = fields[0:4]
-        spot = fields[4] == 'sp'
+        if len(fields) < 7:
+            raise ValueError(f"{hostname} has less than 7 fields: {fields}")
+        elif len(fields) > 8:
+            raise ValueError(f"{hostname} has more than 8 fields: {fields}")
+        (az_id1, az_id2, os, short_architecture, instance_family, short_instance_size) = fields[0:6]
+        az_id = f"{az_id1}-{az_id2}"
+        logger.debug(f"az_id={az_id}")
+        spot = fields[6] == 'sp'
+        logger.debug(f"spot={spot}")
         index = fields[-1]
         if len(os) != 2:
             raise ValueError(f"{hostname} has invalid os: {os}. Must be 2 characters.")
@@ -1283,7 +1380,7 @@ class SlurmPlugin:
         logger.debug(f"instance_size={instance_size}")
         logger.debug(f"spot={spot}")
         logger.debug(f"index={index}")
-        return (distribution, distribution_version, architecture, instance_family, instance_size, spot, index)
+        return (az_id, distribution, distribution_version, architecture, instance_family, instance_size, spot, index)
 
     def drain(self, hostname, reason):
         logger.info(f"Setting {hostname} to drain so new jobs do not run on it.")
@@ -1398,10 +1495,13 @@ class SlurmPlugin:
             logger_streamHandler.setFormatter(logger_formatter)
             logger.addHandler(logger_streamHandler)
             logger.setLevel(logging.INFO)
+            logger.propagate = False
 
             self.parser = argparse.ArgumentParser("Create SLURM node config from EC2 instance metadata")
-            self.parser.add_argument('--config-file', default=False, help="YAML file with instance families and types to include/exclude")
+            self.parser.add_argument('--config-file', required=True, help="YAML file with instance families and types to include/exclude")
             self.parser.add_argument('--output-file', '-o', required=True, help="Output file")
+            self.parser.add_argument('--az-info-file', required=True, help="JSON file where AZ info will be saved")
+            self.parser.add_argument('--instance-type-info-json', default=False, help="JSON file with cached instance type info.")
             self.parser.add_argument('--debug', '-d', action='count', default=False, help="Enable debug messages")
             self.args = self.parser.parse_args()
 
@@ -1409,185 +1509,114 @@ class SlurmPlugin:
                 logger.setLevel(logging.DEBUG)
                 logger.debug(f"Debugging level {self.args.debug}")
 
-            if self.args.config_file:
-                instance_config = yaml.load(open(self.args.config_file, 'r').read(), Loader=yaml.SafeLoader)
-            else:
-                instance_config = {
-                    'UseSpot': True,
-                    'DefaultPartition': 'CentOS_7_x86_64',
-                    'NodesPerInstanceType': 10,
-                    'BaseOsArchitecture': {
-                        'AlmaLinux': {8: ['x86_64', 'arm64']},
-                        'CentOS': {
-                            '7': ['x86_64'],
-                            '8': ['x86_64', 'arm64']
-                            },
-                        'Amazon': {'2': ['x86_64', 'arm64']},
-                        'RedHat': {
-                            '7': ['x86_64'],
-                            '8': ['x86_64', 'arm64']
-                            },
-                        'Rocky': {8: ['x86_64', 'arm64']},
-                    },
-                    'Include': {
-                        'MaxSizeOnly': False,
-                        'InstanceFamilies': [
-                            't3',
-                            't3a',
-                            't4g',
-                        ],
-                        'InstanceTypes': []
-                    },
-                    'Exclude': {
-                        'InstanceFamilies': [
-                            'a1',   # Graviton 1
-                            'c4',   # Replaced by c5
-                            'd2',   # SSD optimized
-                            'g3',   # Replaced by g4
-                            'g3s',  # Replaced by g4
-                            'h1',   # SSD optimized
-                            'i3',   # SSD optimized
-                            'i3en', # SSD optimized
-                            'm4',   # Replaced by m5
-                            'p2',   # Replaced by p3
-                            'p3',
-                            'p3dn',
-                            'r4',   # Replaced by r5
-                            't2',   # Replaced by t3
-                            'u',
-                            'x1',
-                            'x1e'
-                        ],
-                        'InstanceTypes': []
-                    },
-                    'AlwaysOnNodes': [],
-                    'AlwaysOnPartitions': []
-                }
+            logger.info(f"Loading config from {self.args.config_file}")
+            instance_config = yaml.load(open(self.args.config_file, 'r').read(), Loader=yaml.SafeLoader)
 
             # Check for required fields
-            if 'DefaultPartition' not in instance_config:
-                raise ValueError(f"InstanceConfig missing DefaultPartition")
             if 'BaseOsArchitecture' not in instance_config:
                 raise ValueError(f"InstanceConfig missing BaseOsArchitecture")
 
             # Set defaults for missing fields
             if 'UseSpot' not in instance_config:
-                instance_config['UseSpot'] = True
+                raise ValueError(f"InstanceConfig missing UseSpot")
             if 'NodesPerInstanceType' not in instance_config:
-                instance_config['NodesPerInstanceType'] = 10
+                raise ValueError(f"InstanceConfig missing NodesPerInstanceType")
+            if 'Exclude' not in instance_config:
+                raise ValueError(f"InstanceConfig missing Exclude")
             if 'Include' not in instance_config:
-                instance_config['Include'] = {}
+                raise ValueError(f"InstanceConfig missing Include")
             if 'MaxSizeOnly' not in instance_config['Include']:
-                instance_config['Include']['MaxSizeOnly'] = 10
+                raise ValueError(f"InstanceConfig missing Include.MaxSizeOnly")
 
-            instance_types = self.get_instance_types_from_instance_config(instance_config)
+            compute_regions = sorted(instance_config['Regions'].keys())
+            az_info = self.get_az_info_from_instance_config(instance_config)
+            logger.info(f"{len(az_info.keys())} AZs configured: {sorted(az_info.keys())}")
+            logger.debug(f"{pp.pformat(az_info)}")
+            with open(self.args.az_info_file, 'w') as fh:
+                fh.write(json.dumps(az_info, indent=4))
+
+            eC2InstanceTypeInfo = EC2InstanceTypeInfo(compute_regions, json_filename=self.args.instance_type_info_json, debug=self.args.debug > 1)
+            self.instance_type_info = eC2InstanceTypeInfo.instance_type_info
+            self.create_instance_family_info()
+
+            instance_types = self.get_instance_types_from_instance_config(instance_config, compute_regions, eC2InstanceTypeInfo)
             logger.debug(f"instance_types:\n{pp.pformat(instance_types)}")
-
-            region_name = self.get_region_name(self.config['region'])
-
-            self.pricing_client = boto3.client('pricing')
-            for instanceType in sorted(instance_types):
-                logger.debug("instanceType: {}".format(instanceType))
-                os = 'Linux'
-                pricing_filter = [
-                    {'Field': 'ServiceCode', 'Value': 'AmazonEC2', 'Type': 'TERM_MATCH'},
-                    {'Field': 'instanceType', 'Value': instanceType, 'Type': 'TERM_MATCH'},
-                    {'Field': 'tenancy', 'Value': 'shared', 'Type': 'TERM_MATCH'},
-                    {'Field': 'preInstalledSw', 'Value': 'NA', 'Type': 'TERM_MATCH'},
-                    {'Field': 'location', 'Value': region_name, 'Type': 'TERM_MATCH'},
-                    {'Field': 'operatingSystem', 'Value': os, 'Type': 'TERM_MATCH'},
-                    {'Field': 'capacitystatus', 'Value': 'Used', 'Type': 'TERM_MATCH'},
-                ]
-                kwargs = {
-                    'ServiceCode': 'AmazonEC2',
-                    'Filters': pricing_filter
-                }
-                priceLists = self.pricing_get_products(ServiceCode='AmazonEC2', Filters=pricing_filter)['PriceList']
-                if self.args.debug > 2:
-                    logger.debug("{} priceLists".format(len(priceLists)))
-                if len(priceLists) != 1:
-                    raise RuntimeError("Number of PriceLists != 1 for {}".format(instanceType))
-                priceList = json.loads(priceLists[0])
-                if self.args.debug > 2:
-                    logger.debug("pricelist:\n{}".format(pp.pformat(priceList)))
-                onDemandTerms = priceList['terms']['OnDemand']
-                if self.args.debug > 2:
-                    logger.debug("onDemandTerms:\n{}".format(pp.pformat(onDemandTerms)))
-                id1 = list(onDemandTerms)[0]
-                if self.args.debug > 2:
-                    logger.debug("id1:{}".format(pp.pformat(id1)))
-                id2 = list(onDemandTerms[id1]['priceDimensions'])[0]
-                if self.args.debug > 2:
-                    logger.debug("id2:{}".format(pp.pformat(id2)))
-                unit = onDemandTerms[id1]['priceDimensions'][id2]['unit']
-                if unit != 'Hrs':
-                    raise RuntimeError("Unknown pricing unit: {}".format(unit))
-                if self.args.debug > 2:
-                    logger.debug("unit: {}".format(unit))
-                currency = list(onDemandTerms[id1]['priceDimensions'][id2]['pricePerUnit'])[0]
-                if currency != 'USD':
-                    raise RuntimeError("Unknown currency: {}".format(currency))
-                price = onDemandTerms[id1]['priceDimensions'][id2]['pricePerUnit']['USD']
-                if self.args.debug > 2:
-                    logger.debug("price: {}".format(price))
-
-                self.instance_type_info[instanceType]['price'] = price
-                if self.args.debug > 2:
-                    logger.debug(f"{instanceType} info:\n{pp.pformat(self.instance_type_info[instanceType])}")
 
             architecture_prefix_map = {
                 'x86_64': 'x86',
                 'arm64':  'arm',
             }
+
             node_sets = {}
-            for distribution, distribution_dict in instance_config['BaseOsArchitecture'].items():
-                logger.debug(distribution)
-                logger.debug(f"distribution_dict:\n{pp.pformat(distribution_dict)}")
-                os_prefix = distribution_to_prefix_map[distribution]
-                for distribution_major_version, architectures in distribution_dict.items():
-                    for architecture in architectures:
-                        node_set = f"{distribution}_{distribution_major_version}_{architecture}"
-                        node_sets[node_set] = {'nodes': [], 'node_names': []}
-                        if instance_config['UseSpot']:
-                            spot_node_set = f"{node_set}_spot"
-                            node_sets[spot_node_set] = {'nodes': [], 'node_names': []}
-                        architecture_prefix = architecture_prefix_map[architecture]
-                        partitionName = f"{distribution}_{distribution_major_version}_{architecture}"
-                        for instanceType in sorted(instance_types):
-                            if self.instance_type_info[instanceType]['architecture'] != architecture:
-                                continue
-                            logger.debug(f"{pp.pformat(self.instance_type_info[instanceType])}")
-                            instance_family = self.get_instance_family(instanceType)
-                            short_instance_size = self.get_short_instance_size(instanceType)
-                            max_node_index = instance_config['NodesPerInstanceType'] - 1
 
-                            node = f"{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}-[0-{max_node_index}]"
-                            node_sets[node_set]['nodes'].append(node)
+            max_priority = 0
+            max_priority_az = None
+            for az in sorted(az_info.keys()):
+                region = az_info[az]['region']
+                priority = az_info[az]['priority']
+                if priority > max_priority:
+                    max_priority = priority
+                    max_priority_az = az
+                az_id = az_info[az]['id']
+                instance_type_info = eC2InstanceTypeInfo.instance_type_info[region]
+
+                for distribution, distribution_dict in instance_config['BaseOsArchitecture'].items():
+                    logger.debug(distribution)
+                    logger.debug(f"distribution_dict:\n{pp.pformat(distribution_dict)}")
+                    os_prefix = distribution_to_prefix_map[distribution]
+                    for distribution_major_version, architectures in distribution_dict.items():
+                        for architecture in architectures:
+                            node_set = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
+                            node_sets[node_set] = {
+                                'nodes': [],
+                                'node_names': [],
+                                'priority': priority
+                                }
                             if instance_config['UseSpot']:
-                                spot_node = f"{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}-sp-[0-{max_node_index}]"
-                                node_sets[spot_node_set]['nodes'].append(spot_node)
+                                spot_node_set = f"{node_set}_spot"
+                                node_sets[spot_node_set] = {
+                                    'nodes': [],
+                                    'node_names': [],
+                                    'priority': priority
+                                    }
+                            architecture_prefix = architecture_prefix_map[architecture]
+                            partitionName = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
+                            for instanceType in sorted(instance_types[region]):
+                                if instance_type_info[instanceType]['architecture'] != architecture:
+                                    continue
+                                logger.debug(f"{pp.pformat(instance_type_info[instanceType])}")
+                                instance_family = self.get_instance_family(instanceType)
+                                short_instance_size = self.get_short_instance_size(instanceType)
+                                max_node_index = instance_config['NodesPerInstanceType'] - 1
 
-                            coreCount = self.instance_type_info[instanceType]['CoreCount']
-                            realMemory = self.instance_type_info[instanceType]['MemoryInMiB']
-                            if realMemory > 650:
-                                realMemory -= 650
-                            realMemory = int(realMemory * 0.95)
-                            clockSpeedInGHz = self.instance_type_info[instanceType]['SustainedClockSpeedInGhz']
-                            featureList = f"{os_prefix}{distribution_major_version},{partitionName},{instance_family},{instanceType},{architecture},GHz:{clockSpeedInGHz}"
-                            if self.instance_type_info[instanceType]['SSDCount']:
-                                featureList += ",ssd"
-                            price = self.instance_type_info[instanceType]['price']
-                            weight = int(float(price) * 10000)
-                            node_name = "NodeName={:30s} CPUs={:2s} RealMemory={:7s} Feature={:65s} Weight={}".format(
-                                node, str(coreCount), str(realMemory), featureList, weight)
-                            node_sets[node_set]['node_names'].append(node_name)
+                                node = f"{az_id}-{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}-[0-{max_node_index}]"
+                                node_sets[node_set]['nodes'].append(node)
 
-                            if instance_config['UseSpot']:
-                                spot_feature_list = f"{featureList},spot"
-                                weight = int(weight / 10)
-                                spot_node_name = "NodeName={:30s} CPUs={:2s} RealMemory={:7s} Feature={:65s} Weight={}".format(
-                                    spot_node, str(coreCount), str(realMemory), spot_feature_list, weight)
-                                node_sets[spot_node_set]['node_names'].append(spot_node_name)
+                                coreCount = instance_type_info[instanceType]['CoreCount']
+                                realMemory = instance_type_info[instanceType]['MemoryInMiB']
+                                if realMemory > 650:
+                                    realMemory -= 650
+                                realMemory = int(realMemory * 0.95)
+                                clockSpeedInGHz = instance_type_info[instanceType]['SustainedClockSpeedInGhz']
+                                base_featureList = f"{az},{az_id},{os_prefix}{distribution_major_version},{partitionName},{instance_family},{instanceType},{architecture},GHz:{clockSpeedInGHz}"
+                                if instance_type_info[instanceType]['SSDCount']:
+                                    base_featureList += ",ssd"
+                                ondemand_featureList = base_featureList + ',ondemand'
+                                price = instance_type_info[instanceType]['pricing']['OnDemand']
+                                weight = int(float(price) * 10000)
+                                node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
+                                    node, str(coreCount), str(realMemory), ondemand_featureList, weight)
+                                node_sets[node_set]['node_names'].append(node_name)
+
+                                if instance_config['UseSpot']:
+                                    spot_node = f"{az_id}-{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}-sp-[0-{max_node_index}]"
+                                    node_sets[spot_node_set]['nodes'].append(spot_node)
+                                    spot_feature_list = f"{base_featureList},spot"
+                                    spot_price = instance_type_info[instanceType]['pricing']['spot'][az]
+                                    spot_weight = int(float(spot_price) * 10000)
+                                    spot_node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
+                                        spot_node, str(coreCount), str(realMemory), spot_feature_list, spot_weight)
+                                    node_sets[spot_node_set]['node_names'].append(spot_node_name)
 
             fh = open(self.args.output_file, 'w')
             print(dedent('''\
@@ -1618,6 +1647,7 @@ class SlurmPlugin:
                     print(node_name, file=fh)
 
             print(dedent('''\
+
                 #
                 # NodeSets:
                 # Used to group nodes to simplify partition definition.
@@ -1632,49 +1662,77 @@ class SlurmPlugin:
                 print(',\\\n'.join(node_sets[node_set]['nodes']), file=fh)
 
             print(dedent('''\
+
                 #
                 # Partitions: Slurm's version of queues
                 # Selected by -p option
+                #
+                # Create a partition for every AZ in the cluster
                 #
                 # Set defaults for partitions
                 #
                 PartitionName=Default MaxTime=INFINITE State=UP Default=NO PriorityTier=1
                 '''), file=fh)
 
-            node_set_name = f"{instance_config['DefaultPartition']}_nodes"
-            print(dedent(f"""\
-                #
-                # Batch Partition
-                #
-                # The is the default partition and includes all nodes from the 1st OS.
-                #
-                PartitionName=batch Default=YES Nodes=\\"""), file=fh)
-            print(f"{node_set_name}", file=fh)
-
-            print(dedent(f"""\
-                #
-                # Interactive Partition
-                #
-                # The interative partition has a high weight so that jobs in its queue will
-                # have the highest scheduling priority so that they should start before
-                # jobs in lower priority partitions.
-                #
-                # This is to allow interactive users to run small numbers of jobs that
-                # require immediate results.
-                #
-                PartitionName=interactive Default=NO PriorityTier=10000 Nodes=\\"""), file=fh)
-            print(f"{node_set_name}", file=fh)
-
             for node_set in node_sets:
                 node_set_name = f"{node_set}_nodes"
                 partitionName = node_set
                 print(dedent(f"""\
+
                     #
                     # {partitionName} Partition
                     #
-                    PartitionName={partitionName} Default=NO Nodes={node_set_name}"""), file=fh)
+                    PartitionName={partitionName} Default=NO PriorityTier={node_sets[node_set]['priority']} Nodes={node_set_name}"""), file=fh)
+
+            # Create partitions for each AZ
+            print(dedent(f"""\
+
+                #
+                # AZ Partitions
+                #
+                # Group all of the node sets by AZ
+                #"""), file=fh)
+            for az in sorted(az_info.keys()):
+                if az == max_priority_az:
+                    default_partition = 'YES'
+                else:
+                    default_partition = 'NO'
+                priority = az_info[az]['priority']
+                az_nodesets = []
+                for distribution, distribution_dict in instance_config['BaseOsArchitecture'].items():
+                    for distribution_major_version, architectures in distribution_dict.items():
+                        for architecture in architectures:
+                            node_set = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
+                            az_nodesets.append(f"{node_set}_nodes")
+                            if instance_config['UseSpot']:
+                                az_nodesets.append(f"{node_set}_spot_nodes")
+                for node_set in az_nodesets:
+                    node_set_name = f"{node_set}_nodes"
+                node_list = ',\\\n'.join(az_nodesets)
+                print(dedent(f"""\
+
+                    #
+                    # {az}_all Partition
+                    #
+                    PartitionName={az}_all Default={default_partition} PriorityTier={priority} Nodes=\\"""), file=fh)
+                print(f"{node_list}", file=fh)
+                print(dedent(f"""\
+
+                    #
+                    # {az}_all Interactive Partition
+                    #
+                    # The interative partition has a high weight so that jobs in its queue will
+                    # have the highest scheduling priority so that they should start before
+                    # jobs in lower priority partitions.
+                    #
+                    # This is to allow interactive users to run small numbers of jobs that
+                    # require immediate results.
+                    #
+                    PartitionName={az}_all_interactive Default=NO PriorityTier={priority+10000} Nodes=\\"""), file=fh)
+                print(f"{node_list}", file=fh)
 
             print(dedent(f"""\
+
                 #
                 # All Partition
                 #
@@ -1707,82 +1765,107 @@ class SlurmPlugin:
             self.publish_cw_metrics(self.CW_UNHANDLED_CREATE_NODE_CONF_EXCEPTION, 1, [])
             raise
 
-    def get_instance_types_from_instance_config(self, instance_config):
-        # Compile strings into regular expressions
-        instance_config_re = {}
-        for include_exclude in ['Include', 'Exclude']:
-            instance_config_re[include_exclude] = {}
-            for filter_type in ['InstanceFamilies', 'InstanceTypes']:
-                instance_config_re[include_exclude][filter_type] = []
-                for index, re_string in enumerate(instance_config.get(include_exclude, {}).get(filter_type, {})):
-                    try:
-                        instance_config_re[include_exclude][filter_type].append(re.compile(f"^{re_string}$"))
-                    except:
-                        logging.exception(f"Invalid regular expression for instance_config['{include_exclude}']['{filter_type}'] {re_string}")
-                        exit(1)
+    def get_az_info_from_instance_config(self, instance_config: dict) -> dict:
+        '''
+        Get AZ info selected by the config file.
+        '''
+        az_info = {}
+        for region, region_dict in instance_config['Regions'].items():
+            logger.debug(f"region: {region}")
+            ec2_client = boto3.client('ec2', region_name=region)
+            for az_dict in region_dict['AZs']:
+                subnet = az_dict['Subnet']
+                subnet_info = ec2_client.describe_subnets(SubnetIds=[subnet])['Subnets'][0]
+                az = subnet_info['AvailabilityZone']
+                az_id = subnet_info['AvailabilityZoneId']
+                az_info[az] = {
+                    'id': az_id,
+                    'priority': az_dict['Priority'],
+                    'region': region,
+                    'subnet': subnet
+                }
+        return az_info
 
-        self.get_instance_type_info()
+    def get_instance_types_from_instance_config(self, instance_config: dict, regions: [str], instance_type_info: EC2InstanceTypeInfo) -> dict:
+        '''
+        Get instance types selected by the config file.
+        '''
+        instance_types = {}
+        for region in regions:
+            # Compile strings into regular expressions
+            instance_config_re = {}
+            for include_exclude in ['Include', 'Exclude']:
+                instance_config_re[include_exclude] = {}
+                for filter_type in ['InstanceFamilies', 'InstanceTypes']:
+                    instance_config_re[include_exclude][filter_type] = []
+                    for index, re_string in enumerate(instance_config.get(include_exclude, {}).get(filter_type, {})):
+                        try:
+                            instance_config_re[include_exclude][filter_type].append(re.compile(f"^{re_string}$"))
+                        except:
+                            logging.exception(f"Invalid regular expression for instance_config['{include_exclude}']['{filter_type}'] {re_string}")
+                            exit(1)
 
-        instance_types = []
+            region_instance_types = []
 
-        for instance_family in sorted(self.instance_family_info.keys()):
-            logger.debug(f"Considering {instance_family} family exclusions")
-            exclude = False
-            for instance_family_re in instance_config_re.get('Exclude', {}).get('InstanceFamilies', {}):
-                if instance_family_re.match(instance_family):
-                    logger.debug(f"Excluding {instance_family} family")
-                    exclude = True
-                    break
-            if exclude:
-                # Exclusions have precedence over inclusions so don't check instance type inclusions.
-                continue
-            logger.debug(f"{instance_family} family not excluded")
-
-            # Check to see if instance family is explicitly included
-            include_family = False
-            if instance_config_re['Include']['InstanceFamilies']:
-                logger.debug(f"Considering {instance_family} family inclusions")
-                for instance_family_re in instance_config_re['Include']['InstanceFamilies']:
-                    if instance_family_re.match(instance_family):
-                        logger.debug(f"Including {instance_family} family")
-                        include_family = True
-                        break
-                if not include_family:
-                    logger.debug(f"{instance_family} family not included. Will check for instance type inclusions.")
-
-            # Check the family's instance types for exclusion and inclusion. MaxSizeOnly is a type of exclusion.
-            instance_family_info = self.instance_family_info[instance_family]
-            for instance_type in instance_family_info['instance_types']:
-                logger.debug(f"Checking {instance_type} for instance type exclusions")
-                if instance_config.get('Include', {}).get('MaxSizeOnly', False) and instance_type != instance_family_info['MaxInstanceType']:
-                    logger.debug(f"Excluding {instance_type} because not MaxInstanceType.")
-                    continue
+            for instance_family in sorted(self.instance_family_info[region].keys()):
+                logger.debug(f"Considering {instance_family} family exclusions")
                 exclude = False
-                for instance_type_re in instance_config_re['Exclude']['InstanceTypes']:
-                    if instance_type_re.match(instance_type):
-                        logger.debug(f"Excluding {instance_type} because excluded")
+                for instance_family_re in instance_config_re.get('Exclude', {}).get('InstanceFamilies', {}):
+                    if instance_family_re.match(instance_family):
+                        logger.debug(f"Excluding {instance_family} family")
                         exclude = True
                         break
                 if exclude:
+                    # Exclusions have precedence over inclusions so don't check instance type inclusions.
                     continue
-                logger.debug(f"{instance_type} not excluded by instance type exclusions")
+                logger.debug(f"{instance_family} family not excluded")
 
-                # The instance type isn't explicitly excluded so check if it is included
-                if include_family:
-                    logger.debug(f"Including {instance_type} because {instance_family} family is included.")
-                    instance_types.append(instance_type)
-                    continue
-                include = False
-                for instance_type_re in instance_config_re['Include']['InstanceTypes']:
-                    if instance_type_re.match(instance_type):
-                        logger.debug(f"Including {instance_type}")
-                        include = True
-                        instance_types.append(instance_type)
-                        break
-                if not include:
-                    logger.debug(f"Excluding {instance_type} because not included")
-                    continue
-        return sorted(instance_types)
+                # Check to see if instance family is explicitly included
+                include_family = False
+                if instance_config_re['Include']['InstanceFamilies']:
+                    logger.debug(f"Considering {instance_family} family inclusions")
+                    for instance_family_re in instance_config_re['Include']['InstanceFamilies']:
+                        if instance_family_re.match(instance_family):
+                            logger.debug(f"Including {instance_family} family")
+                            include_family = True
+                            break
+                    if not include_family:
+                        logger.debug(f"{instance_family} family not included. Will check for instance type inclusions.")
+
+                # Check the family's instance types for exclusion and inclusion. MaxSizeOnly is a type of exclusion.
+                instance_family_info = self.instance_family_info[region][instance_family]
+                for instance_type in instance_family_info['instance_types']:
+                    logger.debug(f"Checking {instance_type} for instance type exclusions")
+                    if instance_config.get('Include', {}).get('MaxSizeOnly', False) and instance_type != instance_family_info['MaxInstanceType']:
+                        logger.debug(f"Excluding {instance_type} because not MaxInstanceType.")
+                        continue
+                    exclude = False
+                    for instance_type_re in instance_config_re['Exclude']['InstanceTypes']:
+                        if instance_type_re.match(instance_type):
+                            logger.debug(f"Excluding {instance_type} because excluded")
+                            exclude = True
+                            break
+                    if exclude:
+                        continue
+                    logger.debug(f"{instance_type} not excluded by instance type exclusions")
+
+                    # The instance type isn't explicitly excluded so check if it is included
+                    if include_family:
+                        logger.debug(f"Including {instance_type} because {instance_family} family is included.")
+                        region_instance_types.append(instance_type)
+                        continue
+                    include = False
+                    for instance_type_re in instance_config_re['Include']['InstanceTypes']:
+                        if instance_type_re.match(instance_type):
+                            logger.debug(f"Including {instance_type}")
+                            include = True
+                            region_instance_types.append(instance_type)
+                            break
+                    if not include:
+                        logger.debug(f"Excluding {instance_type} because not included")
+                        continue
+            instance_types[region] = sorted(region_instance_types)
+        return instance_types
 
     # Translate region code to region name
     def get_region_name(self, region_code):
@@ -1898,21 +1981,16 @@ class SlurmPlugin:
         return result
 
     @retry_ec2_throttling()
-    def start_instances(self, kwargs):
-        result = self.ec2.start_instances(**kwargs)
+    def start_instances(self, region, kwargs):
+        result = self.ec2[region].start_instances(**kwargs)
         return result
 
     @retry_ec2_throttling()
-    def stop_instances(self, kwargs):
-        result = self.ec2.stop_instances(**kwargs)
+    def stop_instances(self, region, kwargs):
+        result = self.ec2[region].stop_instances(**kwargs)
         return result
 
     @retry_ec2_throttling()
-    def terminate_instances(self, kwargs):
-        result = self.ec2.terminate_instances(**kwargs)
-        return result
-
-    @retry_ec2_throttling()
-    def pricing_get_products(self, ServiceCode, Filters):
-        result = self.pricing_client.get_products(ServiceCode=ServiceCode, Filters=Filters)
+    def terminate_instances(self, region, kwargs):
+        result = self.ec2[region].terminate_instances(**kwargs)
         return result

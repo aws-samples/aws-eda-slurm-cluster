@@ -221,6 +221,14 @@ class SlurmInstaller():
         self.install_parameters[config_key] = self.config[config_key]
         logger.info(f"{config_key:30}: {self.install_parameters[config_key]}")
 
+        # Get the CIDR block for the VPC. Used in multi-region deployments
+        config_key = 'CIDR'
+        if config_key not in self.config:
+            cidr = ec2.describe_vpcs(VpcIds=[self.config['VpcId']])['Vpcs'][0]['CidrBlock']
+            self.config[config_key] = cidr
+        self.install_parameters[config_key] = cidr
+        logger.info(f"{config_key:30}: {self.install_parameters[config_key]}")
+
         # Optional
         config_key = 'SubnetId'
         if config_key in self.config or args.SubnetId or args.prompt:

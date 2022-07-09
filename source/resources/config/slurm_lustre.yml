@@ -19,20 +19,14 @@ slurm:
 
   InstanceConfig:
     UseSpot: true
-    DefaultPartition: CentOS_7_x86_64_spot
     NodesPerInstanceType: 5
     BaseOsArchitecture:
       CentOS:
         7: [x86_64]
     Include:
-      MaxSizeOnly: false
       InstanceFamilies:
         - t3
       InstanceTypes: []
-    Exclude:
-      InstanceFamilies: []
-      InstanceTypes:
-        - '.*\.metal'
 
   # Use defaults from schema
   SlurmCtl: {}

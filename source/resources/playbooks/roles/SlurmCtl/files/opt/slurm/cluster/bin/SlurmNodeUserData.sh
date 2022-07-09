@@ -101,7 +101,9 @@ fi
 ln -s $logs_dir /var/log/slurm
 
 # Selinux must be disable for slurmd to run
-setenforce Permissive
+if sestatus | grep -i enforcing &> /dev/null; then
+    setenforce Permissive
+fi
 sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/sysconfig/selinux
 
 systemctl enable slurmd

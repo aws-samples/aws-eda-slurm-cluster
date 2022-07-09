@@ -17,18 +17,20 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 '''
-Create/delete DNS entry
+Create/delete route53 zone in another region.
 '''
-import cfnresponse
+
 import boto3
+import cfnresponse
 import logging
+
 logging.getLogger().setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     try:
-        logging.info("event: {}".format(event))
+        logging.info(f"event:\n{json.dumps(event, indent=4)}")
         properties = event['ResourceProperties']
-        required_properties = ['Hostname', 'Domain', 'HostedZoneId', 'Type', 'Value']
+        required_properties = ['HostedZoneId', 'VpcId', 'VpcRegion']
         error_message = ""
         for property in required_properties:
             try:
@@ -37,38 +39,37 @@ def lambda_handler(event, context):
                 error_message += "Missing {} property. ".format(property)
         if error_message:
             raise KeyError(error_message)
-        route53_client = boto3.client('route53')
+
         requestType = event['RequestType']
+
+        route53_client = boto3.client('route53')
+
+        if requestType in ['Update', 'Delete']:
+            try:
+                route53_client.disassociate_vpc_from_hosted_zone(
+                    HostedZoneId = properties['HostedZoneId'],
+                    VPC = {
+                        'VPCRegion': properties['VpcRegion'],
+                        'VPCId': properties['VpcId'],
+                    },
+                    HostedZoneConfig = {'PrivateZone': True}
+                )
+            except:
+                pass
+
         if requestType in ['Create', 'Update']:
-            action = 'UPSERT'
-        elif requestType == 'Delete':
-            action = 'DELETE'
-        else:
-            raise ValueError('Invalid RequestType: {}'.format(event['RequestType']))
-        hostname = properties['Hostname']
-        domain = properties['Domain']
-        type = properties['Type']
-        value = properties['Value']
-        logging.info("{} {}.{} {} record, value=".format(action, hostname, type, value))
-        route53_client.change_resource_record_sets(
-            HostedZoneId=properties['HostedZoneId'],
-            ChangeBatch={
-                'Comment': '{} {} DNS record'.format(action, hostname),
-                'Changes': [
-                    {
-                        'Action': action,
-                        'ResourceRecordSet': {
-                            'Name': "{}.{}".format(hostname, domain),
-                            'Type': type,
-                            'TTL': 60,
-                            'ResourceRecords': [{'Value': value}]
-                        }
-                    }
-                ]
-            }
-        )
+            route53_client.associate_vpc_with_hosted_zone(
+                HostedZoneId = properties['HostedZoneId'],
+                VPC = {
+                    'VPCRegion': properties['VpcRegion'],
+                    'VPCId': properties['VpcId'],
+                },
+                HostedZoneConfig = {'PrivateZone': True}
+            )
+
     except Exception as e:
         logging.exception(str(e))
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, str(e))
+        raise
 
-    cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "{} {}.{} {}".format(properties['Type'], properties['Hostname'], properties['Domain'], properties['Value']))
+    cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "")

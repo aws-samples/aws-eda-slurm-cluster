@@ -67,6 +67,7 @@ import yaml
 from yaml.scanner import ScannerError
 
 sys.path.append(f"{dirname(__file__)}/../resources/playbooks/roles/SlurmCtl/files/opt/slurm/cluster/bin")
+from EC2InstanceTypeInfoPkg.EC2InstanceTypeInfo import EC2InstanceTypeInfo
 from SlurmPlugin import SlurmPlugin
 
 pp = PrettyPrinter()
@@ -102,22 +103,16 @@ class CdkSlurmStack(Stack):
         self.config.update(self.ami_map)
 
         # Get context variables to override the config
-        self.get_context()
+        self.override_config_with_context()
 
         self.check_config()
-
-        plugin = SlurmPlugin(slurm_config_file=None, slurm_version_file=None, region=self.config['Region'])
-        self.config['slurm']['InstanceTypes'] = plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'])
-        if len(self.config['slurm']['InstanceTypes']) == 0:
-            logger.error(f"No instance types found. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{self.config['slurm']['InstanceTypes']}")
-            exit(1)
-        logger.info(f"{len(self.config['slurm']['InstanceTypes'])} instance types configured:\n{pp.pformat(self.config['slurm']['InstanceTypes'])}")
 
         # Assets must be created before setting instance_template_vars so the playbooks URL exists
         self.create_assets()
 
-        self.create_lambdas()
+        # Create VPC before lambdas so that lambdas can access the VPC.
         self.create_vpc()
+        self.create_lambdas()
         self.create_security_groups()
         if 'ElasticSearch' not in self.config['slurm']:
             self.create_elasticsearch()
@@ -178,9 +173,10 @@ class CdkSlurmStack(Stack):
         else:
             exit("No parameters were specified.")
 
-    def get_context(self):
-        # Get context variables to override the config
-
+    def override_config_with_context(self):
+        '''
+        Override the config using context variables
+        '''
         region = self.node.try_get_context('region')
         config_key = 'Region'
         if region:
@@ -217,6 +213,18 @@ class CdkSlurmStack(Stack):
             logger.error("You must provide --vpc-id on the command line or {config_key} in the config file.")
             exit(1)
 
+        config_key = 'CIDR'
+        cidr = self.node.try_get_context(config_key)
+        if cidr:
+            if config_key not in self.config:
+                logger.info(f"{config_key:20} set from command line: {vpc_id}")
+            elif cidr != self.config[config_key]:
+                logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {cidr}")
+            self.config[config_key] = cidr
+        if config_key not in self.config:
+            logger.error("You must provide --cidr on the command line or {config_key} in the config file.")
+            exit(1)
+
         config_key = 'SubnetId'
         subnet_id = self.node.try_get_context(config_key)
         if subnet_id:
@@ -246,8 +254,9 @@ class CdkSlurmStack(Stack):
             self.config['slurm'][config_key] = submitterSecurityGroupIds
 
     def check_config(self):
-        # Check config, set defaults, and sanity check the configuration
-
+        '''
+        Check config, set defaults, and sanity check the configuration
+        '''
         if self.stack_name:
             if 'StackName' not in self.config:
                 logger.info(f"config/StackName set from command line: {self.stack_name}")
@@ -266,11 +275,9 @@ class CdkSlurmStack(Stack):
                 logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
                 self.config['ErrorSnsTopicArn'] = ''
 
-        if 'Domain' not in self.config and 'HostedZoneId' not in self.config:
+        if 'Domain' not in self.config:
             self.config['Domain'] = f"{self.stack_name}.local"
-        if 'Domain' in self.config and 'HostedZoneId' in self.config:
-            logger.error(f"Cannot specify both Domain({self.config['Domain']}) and HostedZoneId{self.config['HostedZoneId']}")
-            sys.exist(1)
+            logger.info(f"Domain defaulted to {self.config['Domain']}")
 
         if 'ClusterName' not in self.config['slurm']:
             self.config['slurm']['ClusterName'] = self.stack_name
@@ -374,6 +381,58 @@ class CdkSlurmStack(Stack):
                     logger.error(f"Must specify existing ElasticSearch domain in slurm/JobCompLoc when slurm/JobCompType == jobcomp/elasticsearch and slurm/ElasticSearch is not set.")
                     exit(1)
 
+        if not self.config['slurm']['InstanceConfig']['Regions']:
+            self.config['slurm']['InstanceConfig']['Regions'] = {}
+            self.config['slurm']['InstanceConfig']['Regions'][self.config['Region']] = {
+                'VpcId': self.config['VpcId'],
+                'CIDR': self.config['CIDR'],
+                'SshKeyPair': self.config['SshKeyPair'],
+                'AZs': [
+                    {
+                        'Priority': 1,
+                        'Subnet': self.config['SubnetId']
+                    }
+                ]
+            }
+
+        self.compute_regions = {}
+        self.remote_compute_regions = {}
+        self.compute_region_cidrs_dict = {}
+        local_region = self.config['Region']
+        for compute_region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
+            compute_region_cidr = region_dict['CIDR']
+            if compute_region not in self.compute_regions:
+                self.compute_regions[compute_region] = compute_region_cidr
+                if compute_region != local_region:
+                    self.remote_compute_regions[compute_region] = compute_region_cidr
+            if compute_region_cidr not in self.compute_region_cidrs_dict:
+                self.compute_region_cidrs_dict[compute_region] = compute_region_cidr
+        logger.info(f"{len(self.compute_regions.keys())} regions configured: {sorted(self.compute_regions.keys())}")
+
+        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), json_filename='/tmp/instance_type_info.json', debug=False)
+
+        plugin = SlurmPlugin(slurm_config_file=None, region=self.region)
+        plugin.instance_type_info = eC2InstanceTypeInfo.instance_type_info
+        plugin.create_instance_family_info()
+        self.az_info = plugin.get_az_info_from_instance_config(self.config['slurm']['InstanceConfig'])
+        logger.info(f"{len(self.az_info.keys())} AZs configured: {sorted(self.az_info.keys())}")
+
+        az_partitions = []
+        for az, az_info in self.az_info.items():
+            az_partitions.append(f"{az}_all")
+        self.default_partition = ','.join(az_partitions)
+
+        self.instance_types = plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], self.compute_regions, eC2InstanceTypeInfo)
+        for compute_region in self.compute_regions:
+            region_instance_types = self.instance_types[compute_region]
+            if len(region_instance_types) == 0:
+                logger.error(f"No instance types found in region {compute_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{region_instance_types}")
+                sys.exit(1)
+            logger.info(f"{len(region_instance_types)} instance types configured in {compute_region}:\n{pp.pformat(region_instance_types)}")
+            for instance_type in region_instance_types:
+                self.instance_types[instance_type] = 1
+        self.instance_types = sorted(self.instance_types.keys())
+
         # Validate updated config against schema
         from config_schema import check_schema
         from schema import SchemaError
@@ -413,19 +472,126 @@ class CdkSlurmStack(Stack):
             self.on_prem_compute_nodes_config_file_asset = None
             self.onprem_cidr = None
 
+    def create_vpc(self):
+        self.vpc = ec2.Vpc.from_lookup(self, "Vpc", vpc_id = self.config['VpcId'])
+
+        self.subnets = self.vpc.private_subnets
+        valid_subnet_ids = []
+        if 'SubnetId' in self.config:
+            self.subnet = None
+            for subnet in self.subnets:
+                valid_subnet_ids.append(subnet.subnet_id)
+                if subnet.subnet_id == self.config['SubnetId']:
+                    self.subnet = subnet
+                    break
+            if not self.subnet:
+                # If this is a new VPC then the cdk.context.json will not have the VPC and will be refreshed after the bootstrap phase. Until then the subnet ids will be placeholders so just pick the first subnet. After the bootstrap finishes the vpc lookup will be done and then the info will be correct.
+                if valid_subnet_ids[0] == 'p-12345':
+                    logger.warning(f"VPC {self.config['VpcId']} not in cdk.context.json and will be refresshed before synth.")
+                    self.subnet = self.vpc.private_subnets[0]
+                else:
+                    logger.error(f"SubnetId {self.config['SubnetId']} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(valid_subnet_ids)}")
+                    exit(1)
+        else:
+            self.subnet = self.vpc.private_subnets[0]
+            self.config['SubnetId'] = self.subnet.subnet_id
+        logger.info(f"Subnet set to {self.config['SubnetId']}")
+        logger.info(f"availability zone: {self.subnet.availability_zone}")
+
+        remote_vpcs = {}
+        for region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
+            if region == self.config['Region']:
+                continue
+            remote_vpcs[region] = ec2.Vpc.from_lookup(
+                self, f"Vpc{region}",
+                region = region,
+                vpc_id = region_dict['VpcId'])
+
+        # Can't create query logging for private hosted zone.
+        if 'HostedZoneId' in self.config:
+            self.hosted_zone = route53.HostedZone.from_hosted_zone_attributes(
+                self, "PrivateDns",
+                hosted_zone_id = self.config['HostedZoneId'],
+                zone_name = self.config['Domain']
+            )
+        else:
+            self.hosted_zone = route53.HostedZone(self, "PrivateDns",
+                vpcs = [self.vpc],
+                zone_name = self.config['Domain']
+            )
+            # BUG: CDK isn't creating the correct region for the vpcs even though cdk_context.json has it right.
+            # for remote_region, remote_vpc in remote_vpcs.items():
+            #     self.hosted_zone.add_vpc(remote_vpc)
+
     def create_lambdas(self):
-        updateDnsLambdaAsset = s3_assets.Asset(self, "UpdateDnsLambdaAsset", path="resources/lambdas/UpdateDns")
-        self.update_dns_lambda = aws_lambda.Function(
-            self, "UpdateDnsLambda",
-            function_name=f"{self.stack_name}-UpdateDns",
-            description="Update DNS record",
+        dnsLookupLambdaAsset = s3_assets.Asset(self, "DnsLookupLambdaAsset", path="resources/lambdas/DnsLookup")
+        self.dns_lookup_lambda = aws_lambda.Function(
+            self, "DnsLookupLambda",
+            function_name=f"{self.stack_name}-DnsLookup",
+            description="Lookup up FQDN in DNS",
             memory_size=128,
             runtime=aws_lambda.Runtime.PYTHON_3_7,
             timeout=Duration.minutes(3),
             log_retention=logs.RetentionDays.INFINITE,
-            handler="UpdateDns.lambda_handler",
-            code=aws_lambda.Code.from_bucket(updateDnsLambdaAsset.bucket, updateDnsLambdaAsset.s3_object_key)
+            handler="DnsLookup.lambda_handler",
+            code=aws_lambda.Code.from_bucket(dnsLookupLambdaAsset.bucket, dnsLookupLambdaAsset.s3_object_key),
+            vpc = self.vpc,
+            allow_all_outbound = True
         )
+
+        createComputeNodeSGLambdaAsset = s3_assets.Asset(self, "CreateComputeNodeSGLambdaAsset", path="resources/lambdas/CreateComputeNodeSG")
+        self.create_compute_node_sg_lambda = aws_lambda.Function(
+            self, "CreateComputeNodeSGLambda",
+            function_name=f"{self.stack_name}-CreateComputeNodeSG",
+            description="Create ComputeNodeSG in other region",
+            memory_size=128,
+            runtime=aws_lambda.Runtime.PYTHON_3_7,
+            timeout=Duration.minutes(3),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CreateComputeNodeSG.lambda_handler",
+            code=aws_lambda.Code.from_bucket(createComputeNodeSGLambdaAsset.bucket, createComputeNodeSGLambdaAsset.s3_object_key)
+        )
+        self.create_compute_node_sg_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'ec2:AuthorizeSecurityGroupEgress',
+                    'ec2:AuthorizeSecurityGroupIngress',
+                    'ec2:CreateSecurityGroup',
+                    'ec2:CreateTags',
+                    'ec2:DeleteSecurityGroup',
+                    'ec2:DescribeSecurityGroupRules',
+                    'ec2:DescribeSecurityGroups',
+                    'ec2:RevokeSecurityGroupEgress',
+                    'ec2:RevokeSecurityGroupIngress',
+                ],
+                resources=['*']
+                )
+            )
+
+        routeRoute53ZoneAddVpcLambdaAsset = s3_assets.Asset(self, "Route53HostedZoneAddVpcLambdaAsset", path="resources/lambdas/Route53HostedZoneAddVpc")
+        self.route53_hosted_zone_add_vpc_lambda = aws_lambda.Function(
+            self, "Route53HostedZoneAddVpcLambda",
+            function_name=f"{self.stack_name}-Route53HostedZoneAddVpc",
+            description="Associated VPC with Route53 hosted zone",
+            memory_size=128,
+            runtime=aws_lambda.Runtime.PYTHON_3_7,
+            timeout=Duration.minutes(3),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="Route53HostedZoneAddVpc.lambda_handler",
+            code=aws_lambda.Code.from_bucket(routeRoute53ZoneAddVpcLambdaAsset.bucket, routeRoute53ZoneAddVpcLambdaAsset.s3_object_key)
+        )
+
+        self.route53_hosted_zone_add_vpc_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "route53:AssociateVpcWithHostedZone",
+                    "route53:DissociateVpcFromHostedZone",
+                    ],
+                resources=['*']
+                )
+            )
 
         getOntapSvmDNSNameLambdaAsset = s3_assets.Asset(self, "GetOntapSvmDNSNameLambdaAsset", path="resources/lambdas/GetOntapSvmDNSName")
         self.get_ontap_svm_dnsname_lambda = aws_lambda.Function(
@@ -473,52 +639,6 @@ class CdkSlurmStack(Stack):
                 )
             )
 
-    def create_vpc(self):
-        self.vpc = ec2.Vpc.from_lookup(self, "Vpc", vpc_id = self.config['VpcId'])
-
-        self.subnets = self.vpc.private_subnets
-        valid_subnet_ids = []
-        if 'SubnetId' in self.config:
-            self.subnet = None
-            for subnet in self.subnets:
-                valid_subnet_ids.append(subnet.subnet_id)
-                if subnet.subnet_id == self.config['SubnetId']:
-                    self.subnet = subnet
-                    break
-            if not self.subnet:
-                # If this is a new VPC then the cdk.context.json will not have the VPC and will be refreshed after the bootstrap phase. Until then the subnet ids will be placeholders so just pick the first subnet. After the bootstrap finishes the vpc lookup will be done and then the info will be correct.
-                if valid_subnet_ids[0] == 'p-12345':
-                    logger.warning(f"VPC {self.config['VpcId']} not in cdk.context.json and will be refresshed before synth.")
-                    self.subnet = self.vpc.private_subnets[0]
-                else:
-                    logger.error(f"SubnetId {self.config['SubnetId']} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(valid_subnet_ids)}")
-                    exit(1)
-        else:
-            self.subnet = self.vpc.private_subnets[0]
-            self.config['SubnetId'] = self.subnet.subnet_id
-        logger.info(f"Subnet set to {self.config['SubnetId']}")
-        logger.info(f"availability zone: {self.subnet.availability_zone}")
-
-        # Can't create query logging for private hosted zone.
-        if 'HostedZoneId' in self.config:
-            self.hosted_zone = route53.HostedZone.from_hosted_zone_id(self, "PrivateDns", hosted_zone_id=self.config['HostedZoneId'])
-            self.config['Domain'] = self.hosted_zone.zone_name
-        else:
-            self.hosted_zone = route53.HostedZone(self, "PrivateDns",
-                vpcs = [self.vpc],
-                zone_name = self.config['Domain']
-            )
-
-        self.update_dns_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    "route53:ChangeResourceRecordSets"
-                ],
-                resources=[self.hosted_zone.hosted_zone_arn]
-                )
-            )
-
     def create_security_groups(self):
         self.nfs_sg = ec2.SecurityGroup(self, "NfsSG", vpc=self.vpc, allow_all_outbound=False, description="Nfs Security Group")
         Tags.of(self.nfs_sg).add("Name", f"{self.stack_name}-NfsSG")
@@ -529,7 +649,7 @@ class CdkSlurmStack(Stack):
         Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
         self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
 
-	# Compute nodes may use lustre file systems to create a security group with the required ports.
+	    # Compute nodes may use lustre file systems so create a security group with the required ports.
         self.lustre_sg = ec2.SecurityGroup(self, "LustreSG", vpc=self.vpc, allow_all_outbound=False, description="Lustre Security Group")
         Tags.of(self.lustre_sg).add("Name", f"{self.stack_name}-LustreSG")
         self.suppress_cfn_nag(self.lustre_sg, 'W29', 'Egress port range used to block all egress')
@@ -616,6 +736,9 @@ class CdkSlurmStack(Stack):
             fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(2049), f"{fs_client_sg_name} to Nfs")
         if self.onprem_cidr:
             self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Nfs')
+        # Allow compute nodes in remote regions access to NFS
+        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
+            self.nfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(2049), f"{compute_region} to Nfs")
 
         # ZFS Connections
         # https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html
@@ -638,6 +761,14 @@ class CdkSlurmStack(Stack):
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp_range(20001, 20003), 'OnPremNodes to Zfs')
             self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
             self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
+        # Allow compute nodes in remote regions access to ZFS
+        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(111), f"{compute_region} to Zfs")
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(111), f"{compute_region} to Zfs")
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(2049), f"{compute_region} to Zfs")
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(2049), f"{compute_region} to Zfs")
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(20001, 20003), f"{compute_region} to Zfs")
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp_range(20001, 20003), f"{compute_region} to Zfs")
 
         # Lustre Connections
         lustre_fs_client_sgs = copy(fs_client_sgs)
@@ -657,6 +788,12 @@ class CdkSlurmStack(Stack):
             self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), 'OnPremNodes to Lustre')
             self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(988), f"Lustre to OnPremNodes")
             self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), f"Lustre to OnPremNodes")
+        # Allow compute nodes in remote regions access to Lustre
+        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
+            self.lustre_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(988), f"{compute_region} to Lustre")
+            self.lustre_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1021, 1023), f"{compute_region} to Lustre")
+            self.lustre_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(988), f"Lustre to {compute_region}")
+            self.lustre_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1021, 1023), f"Lustre to {compute_region}")
 
         # slurmctl connections
         # egress
@@ -682,6 +819,8 @@ class CdkSlurmStack(Stack):
         if self.onprem_cidr:
             self.slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f'{self.slurmctl_sg_name} to OnPremNodes')
             self.slurmctl_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6817), f'OnPremNodes to {self.slurmctl_sg_name}')
+        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
+            self.slurmctl_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{self.slurmctl_sg_name} to {compute_region}")
 
         # slurmdbd connections
         # egress
@@ -706,9 +845,13 @@ class CdkSlurmStack(Stack):
             self.slurmnode_sg.connections.allow_to(slurm_submitter_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {slurm_submitter_sg_name} - ephemeral")
             self.suppress_cfn_nag(slurm_submitter_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to slurm submitters: 1024-65535')
             if self.onprem_cidr:
-                self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(6000, 7024), f"OnPremNodes to {slurm_submitter_sg_name} - x11")
+                slurm_submitter_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(6000, 7024), f"OnPremNodes to {slurm_submitter_sg_name} - x11")
                 # @todo Not sure if this is really initiated from the slurm node
                 self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {slurm_submitter_sg_name} - ephemeral")
+            for compute_region, compute_region_cidr in self.remote_compute_regions.items():
+                slurm_submitter_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(6000, 7024), f"{compute_region} to {slurm_submitter_sg_name} - x11")
+                # @todo Not sure if this is really initiated from the slurm node
+                slurm_submitter_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{compute_region} to {slurm_submitter_sg_name} - ephemeral")
         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to slurm submitters: 1024-65535')
         self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(80), description="Internet")
         self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
@@ -723,6 +866,12 @@ class CdkSlurmStack(Stack):
         if self.onprem_cidr:
             self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6818), f"OnPremNodes to {self.slurmnode_sg_name}")
             self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {self.slurmnode_sg_name}")
+        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
+            self.slurmctl_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6817), f"{compute_region} to {self.slurmctl_sg_name}")
+            self.slurmnode_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{compute_region} to {self.slurmnode_sg_name}")
+            self.slurmnode_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{self.slurmnode_sg_name} to {compute_region}")
+            self.slurmnode_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{compute_region} to {self.slurmnode_sg_name}")
+            self.slurmnode_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {compute_region}")
 
         # slurm submitter connections
         # egress
@@ -733,10 +882,38 @@ class CdkSlurmStack(Stack):
                 slurm_submitter_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(6819), f"{slurm_submitter_sg_name} to {self.slurmdbd_sg_name} - sacct")
             if self.onprem_cidr:
                 slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
+            for compute_region, compute_region_cidr in self.remote_compute_regions.items():
+                slurm_submitter_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to {compute_region} - srun")
 
         # Try to suppress cfn_nag warnings on ingress/egress rules
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
             self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmsubmitter requires ephemeral ports for several reasons: 1024-65535')
+
+        self.slurmnode_security_group_ssm_parameters = {}
+        for compute_region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
+            if compute_region == self.config['Region']:
+                slurmnode_security_group_id = self.slurmnode_sg.security_group_id
+            else:
+                slurmnode_security_group_id = CustomResource(
+                    self, f"ComputeNodeSecurityGroup{compute_region}",
+                    service_token = self.create_compute_node_sg_lambda.function_arn,
+                    properties = {
+                        'Region': compute_region,
+                        'VpcId': region_dict['VpcId'],
+                        'SecurityGroupName': f"{self.config['slurm']['ClusterName']}-SlurmNodeSG",
+                        'Description': f"{self.config['slurm']['ClusterName']}-SlurmNodeSG",
+                        'ControllerCIDR': self.config['CIDR'],
+                        'CIDRs': self.compute_region_cidrs_dict,
+                        'StackName': self.config['StackName']
+                    }
+                ).get_att_string('GroupId')
+            # SSM Parameters to store the security group ids
+            # The SlurmPlugin reads these parameters when running an instance.
+            self.slurmnode_security_group_ssm_parameters[compute_region] = ssm.StringParameter(
+                self, f"SlurmNodeSecurityGroupSsmParameter{compute_region}",
+                parameter_name = f"/{self.stack_name}/SlurmNodeSecurityGroups/{compute_region}",
+                string_value = slurmnode_security_group_id
+            )
 
     def create_elasticsearch(self):
         if 'ElasticSearch' not in self.config['slurm']:
@@ -815,6 +992,8 @@ class CdkSlurmStack(Stack):
         self.config['slurm']['JobCompLoc'] = f"http://{domain_endpoint}/slurm/_doc"
 
     def create_file_system(self):
+        self.slurmfs_fqdn = f"slurmfs.{self.config['Domain']}"
+
         if 'kms_key_arn' in self.config['slurm']['storage']:
             kms_key = kms.Key.from_key_arn(self.config['slurm']['storage']['kms_key_arn'])
         else:
@@ -870,14 +1049,21 @@ class CdkSlurmStack(Stack):
             self.file_system_dependency = self.file_system
 
             self.file_system_dns = f"{self.file_system.file_system_id}.efs.{self.region}.amazonaws.com"
-            self.file_system_dns = self.file_system_dns
+
+            # Get IpAddress of file system
+            self.file_system_ip_address = CustomResource(
+                self, f"ZfsIpAddress",
+                service_token = self.dns_lookup_lambda.function_arn,
+                properties={
+                    "FQDN": self.file_system_dns
+                }
+            ).get_att_string('IpAddress')
 
             self.file_system_port = 2049
 
             self.file_system_mount_name = ""
 
-            self.file_system_mount_src = f"{self.file_system_dns}:/"
-            self.file_system_mount_source = self.file_system_mount_src
+            self.file_system_mount_source = f"{self.slurmfs_fqdn}:/"
 
             if self.config['slurm']['storage']['efs']['use_efs_helper']:
                 self.file_system_type = 'efs'
@@ -886,7 +1072,7 @@ class CdkSlurmStack(Stack):
                 self.file_system_type = 'nfs4'
                 self.file_system_options = 'nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport'
 
-            self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo yum -y install nfs-utils && sudo mount -t {self.file_system_type} -o {self.file_system_options} {self.file_system_mount_src} {self.config['slurm']['storage']['mount_path']}"
+            self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo yum -y install nfs-utils && sudo mount -t {self.file_system_type} -o {self.file_system_options} {self.file_system_mount_source} {self.config['slurm']['storage']['mount_path']}"
 
         elif self.config['slurm']['storage']['provider'] == "ontap":
             if 'iops' in self.config['slurm']['storage']['ontap']:
@@ -940,6 +1126,15 @@ class CdkSlurmStack(Stack):
                 }
             ).get_att_string('DNSName')
 
+            # Get IpAddress of SVM
+            self.file_system_ip_address = CustomResource(
+                self, f"OntapSvmIpAddress",
+                service_token = self.dns_lookup_lambda.function_arn,
+                properties={
+                    "FQDN": self.file_system_dns
+                }
+            ).get_att_string('IpAddress')
+
             # Add a volume
             self.volume = fsx.CfnVolume(
                 self, 'OntapVolume',
@@ -966,7 +1161,7 @@ class CdkSlurmStack(Stack):
 
             self.file_system_mount_name = ""
 
-            self.file_system_mount_source = f"{self.file_system_dns}:/slurm"
+            self.file_system_mount_source = f"{self.slurmfs_fqdn}:/slurm"
 
             self.file_system_options = 'nfsvers=4.1'
 
@@ -1037,9 +1232,18 @@ class CdkSlurmStack(Stack):
             self.file_system_type = 'nfs'
             self.file_system_dns = self.file_system.attr_dns_name
 
+            # Get IpAddress of file system
+            self.file_system_ip_address = CustomResource(
+                self, f"ZfsIpAddress",
+                service_token = self.dns_lookup_lambda.function_arn,
+                properties={
+                    "FQDN": self.file_system_dns
+                }
+            ).get_att_string('IpAddress')
+
             self.file_system_mount_name = ""
 
-            self.file_system_mount_source = f"{self.file_system_dns}:/fsx/slurm"
+            self.file_system_mount_source = f"{self.slurmfs_fqdn}:/fsx/slurm"
 
             self.file_system_options = 'nfsvers=4.1'
 
@@ -1050,6 +1254,13 @@ class CdkSlurmStack(Stack):
 
         Tags.of(self.file_system).add("Name", f"{self.stack_name}-Slurm")
 
+        # Create DNS entry for file system that can be used in remote VPCs
+        route53.ARecord(
+            self, f"SlurmFileSystemDnsRecord",
+            zone = self.hosted_zone,
+            record_name = 'slurmfs',
+            target = route53.RecordTarget.from_ip_addresses(self.file_system_ip_address)
+        )
         CfnOutput(self, "FileSystemProvider",
             value = self.config['slurm']['storage']['provider']
         )
@@ -1061,6 +1272,9 @@ class CdkSlurmStack(Stack):
         )
         CfnOutput(self, "FileSystemDnsName",
             value = self.file_system_dns
+        )
+        CfnOutput(self, "FileSystemIpAddress",
+            value = self.file_system_ip_address
         )
         CfnOutput(self, "MountCommand",
             value = self.file_system_mount_command
@@ -1321,7 +1535,7 @@ class CdkSlurmStack(Stack):
                     dimensions_map = {'Reason': 'InsufficientInstanceCapacity'},
                 ),
             )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.insufficient_capacity_exceptions_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1337,7 +1551,7 @@ class CdkSlurmStack(Stack):
             stacked = True,
             statistic = 'Maximum',
         )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.running_instances_by_type_stacked_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1355,7 +1569,7 @@ class CdkSlurmStack(Stack):
             stacked = False,
             statistic = 'Maximum',
         )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.running_instances_by_type_unstacked_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1373,7 +1587,7 @@ class CdkSlurmStack(Stack):
             stacked = False,
             statistic = 'Maximum',
         )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.job_count_by_instance_type_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1389,7 +1603,7 @@ class CdkSlurmStack(Stack):
             stacked = False,
             statistic = 'Maximum',
         )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.running_jobs_by_instance_type_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1405,7 +1619,7 @@ class CdkSlurmStack(Stack):
             stacked = False,
             statistic = 'Maximum',
         )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.static_node_count_by_instance_type_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1421,7 +1635,7 @@ class CdkSlurmStack(Stack):
             stacked = False,
             statistic = 'Average',
         )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.memory_used_percent_by_instance_type_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1436,7 +1650,7 @@ class CdkSlurmStack(Stack):
             stacked = False,
             statistic = 'Average',
         )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.memory_stats_by_instance_type_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1444,7 +1658,7 @@ class CdkSlurmStack(Stack):
                     dimensions_map = {'InstanceType': instance_type},
                 ),
             )
-        for instance_type in self.config['slurm']['InstanceTypes']:
+        for instance_type in self.instance_types:
             self.memory_stats_by_instance_type_widget.add_right_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
@@ -1513,7 +1727,6 @@ class CdkSlurmStack(Stack):
             "AWS_DEFAULT_REGION": Aws.REGION,
             "ClusterName": self.config['slurm']['ClusterName'],
             "Domain": self.config['Domain'],
-            "EC2_KEYPAIR": self.config['SshKeyPair'],
             "ERROR_SNS_TOPIC_ARN": self.config['ErrorSnsTopicArn'],
             "ExtraMounts": self.config['slurm']['storage']['ExtraMounts'],
             "FileSystemDns": self.file_system_dns,
@@ -1540,9 +1753,9 @@ class CdkSlurmStack(Stack):
             else:
                 instance_template_vars["AccountingStorageHost"] = ''
             instance_template_vars["CloudWatchPeriod"] = self.config['slurm']['SlurmCtl']['CloudWatchPeriod']
+            instance_template_vars["DefaultPartition"] = self.default_partition
             if 'Federation' in self.config['slurm']:
                 instance_template_vars["Federation"] = self.config['slurm']['Federation']['Name']
-            instance_template_vars["GridSubnet1"] = self.subnet.subnet_id
             instance_template_vars["JobCompLoc"] = self.config['slurm']['JobCompLoc']
             instance_template_vars["JobCompType"] = self.config['slurm']['JobCompType']
             instance_template_vars["MaxStoppedDuration"] = self.config['slurm']['SlurmCtl']['MaxStoppedDuration']
@@ -1554,7 +1767,6 @@ class CdkSlurmStack(Stack):
             instance_template_vars["SlurmCtlBaseHostname"] = self.config['slurm']['SlurmCtl']['BaseHostname']
             instance_template_vars['SlurmNodeProfileArn'] = self.slurm_node_instance_profile.attr_arn
             instance_template_vars['SlurmNodeRoleName'] = self.slurm_node_role.role_name
-            instance_template_vars["SlurmNodeSecurityGroup"] = self.slurmnode_sg.security_group_id
             instance_template_vars["SuspendAction"] = self.config['slurm']['SlurmCtl']['SuspendAction']
             instance_template_vars["UseAccountingDatabase"] = self.useSlurmDbd
         elif 'SlurmNodeAmi':
@@ -1594,6 +1806,15 @@ class CdkSlurmStack(Stack):
                 string_value = f"{munge_key}"
             )
 
+        # Create SSM parameters to store the EC2 Keypairs
+        self.slurmnode_ec2_key_pair_ssm_parameters = {}
+        for compute_region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
+            self.slurmnode_ec2_key_pair_ssm_parameters[compute_region] = ssm.StringParameter(
+                self, f"SlurmNodeEc2KeyPairParameter{compute_region}",
+                parameter_name = f"/{self.stack_name}/SlurmNodeEc2KeyPairs/{compute_region}",
+                string_value = region_dict['SshKeyPair']
+            )
+
         self.slurmctl_role = iam.Role(self, "SlurmCtlRole",
             assumed_by=iam.CompositePrincipal(
                 iam.ServicePrincipal(self.principals_suffix["ssm"]),
@@ -1614,8 +1835,9 @@ class CdkSlurmStack(Stack):
                         'ec2:CreateTags',
                     ],
                     resources = [
-                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:volume/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:instance/*",
                         f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:network-interface/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:volume/*",
                     ]
                 ),
                 iam.PolicyStatement(
@@ -1641,14 +1863,14 @@ class CdkSlurmStack(Stack):
                         'ec2:RunInstances'
                     ],
                     resources = [
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:instance/*",
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:key-pair/{self.config['SshKeyPair']}",
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:network-interface/*",
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:security-group/{self.slurmnode_sg.security_group_id}",
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:subnet/{self.subnet.subnet_id}",
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:volume/*",
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:image/*",
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}::image/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:instance/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:key-pair/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:network-interface/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:security-group/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:subnet/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:volume/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:image/*",
+                        f"arn:{Aws.PARTITION}:ec2:*::image/*",
                     ]
                 ),
                 iam.PolicyStatement(
@@ -1677,18 +1899,19 @@ class CdkSlurmStack(Stack):
                 iam.PolicyStatement(
                     effect = iam.Effect.ALLOW,
                     actions = [
-                        'ec2:CreateTags',
                         'ec2:StartInstances',
                         'ec2:StopInstances',
                         'ec2:TerminateInstances'
                     ],
-                    resources = [f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:instance/*"]
+                    resources = [f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:instance/*"]
                 ),
                 iam.PolicyStatement(
                     effect = iam.Effect.ALLOW,
                     actions = [
                         'ec2:DescribeInstances',
                         'ec2:DescribeInstanceTypes',
+                        'ec2:DescribeSpotPriceHistory',
+                        'ec2:DescribeSubnets',
                     ],
                     # Does not support resource-level permissions and require you to choose All resources
                     resources = ["*"]
@@ -1756,6 +1979,10 @@ class CdkSlurmStack(Stack):
                 user_data=ec2.UserData.for_linux(shebang='#!/bin/bash -ex')
             )
             self.slurmctl_instances.append(slurmctl_instance)
+
+            for compute_region in self.compute_regions:
+                self.slurmnode_security_group_ssm_parameters[compute_region].grant_read(slurmctl_instance)
+                self.slurmnode_ec2_key_pair_ssm_parameters[compute_region].grant_read(slurmctl_instance)
 
             name = f"{self.stack_name}-SlurmSlurmCtl{instance_index}"
             Tags.of(slurmctl_instance).add("Name", name)
@@ -1829,17 +2056,12 @@ class CdkSlurmStack(Stack):
             slurmctl_instance.user_data.add_commands(user_data)
 
             # Create DNS entry
-            self.slurmctl_dns_record = CustomResource(
+            route53.ARecord(
                 self, f"SlurmCtl{instance_index}DnsRecord",
-                service_token = self.update_dns_lambda.function_arn,
-                properties={
-                    "Hostname": hostname,
-                    "Domain": self.config['Domain'],
-                    "HostedZoneId": self.hosted_zone.hosted_zone_id,
-                    "Type": 'A',
-                    "Value": slurmctl_instance.instance_private_ip
-                }
-            ).get_att_string('CIDR')
+                zone = self.hosted_zone,
+                record_name = hostname,
+                target = route53.RecordTarget.from_ip_addresses(slurmctl_instance.instance_private_ip)
+            )
 
     def create_slurmdbd(self):
         if 'SlurmDbd' not in self.config['slurm']:
@@ -1975,17 +2197,12 @@ class CdkSlurmStack(Stack):
         self.slurmdbd_instance.user_data.add_commands(user_data)
 
         # Create DNS entry
-        self.slurmdbd_dns_record = CustomResource(
-            self, "SlurmDbdDnsRecord",
-            service_token = self.update_dns_lambda.function_arn,
-            properties={
-                "Hostname": self.config['slurm']['SlurmDbd']['Hostname'],
-                "Domain": self.config['Domain'],
-                "HostedZoneId": self.hosted_zone.hosted_zone_id,
-                "Type": 'A',
-                "Value": self.slurmdbd_instance.instance_private_ip
-                }
-            ).get_att_string('CIDR')
+        route53.ARecord(
+            self, f"SlurmDbdDnsRecord",
+            zone = self.hosted_zone,
+            record_name = self.config['slurm']['SlurmDbd']['Hostname'],
+            target = route53.RecordTarget.from_ip_addresses(self.slurmdbd_instance.instance_private_ip)
+        )
 
         if self.slurmDbdFQDN:
             CfnOutput(self, "SlurmDbdFQDN",
@@ -2087,7 +2304,7 @@ class CdkSlurmStack(Stack):
                         'ec2:StopInstances'
                     ],
                     resources = [
-                        f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:instance/*",
+                        f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:instance/*",
                     ]
                 ),
                 # Permissions to create and tag AMI
@@ -2108,6 +2325,13 @@ class CdkSlurmStack(Stack):
                         f'arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:instance/*',
                         f'arn:{Aws.PARTITION}:ec2:{Aws.REGION}::snapshot/*'
                         ]
+                ),
+                iam.PolicyStatement(
+                    effect = iam.Effect.ALLOW,
+                    actions = [
+                        'ec2:CopyImage',
+                    ],
+                    resources=['*']
                 ),
                 iam.PolicyStatement(
                     effect = iam.Effect.ALLOW,
@@ -2178,6 +2402,7 @@ class CdkSlurmStack(Stack):
                 self.slurm_node_ami_instances[distribution][distribution_major_version] = {}
                 self.ami_ssm_parameters[distribution][distribution_major_version] = {}
                 for architecture in version_dict:
+                    self.ami_ssm_parameters[distribution][distribution_major_version][architecture] = {}
                     os_tag = f"{distribution}-{distribution_major_version}-{architecture}"
                     try:
                         ami_id = self.config['slurm']['SlurmNodeAmis']['BaseAmis'][self.region][distribution][distribution_major_version][architecture]['ImageId']
@@ -2239,19 +2464,25 @@ class CdkSlurmStack(Stack):
 
                     self.slurm_node_ami_instance.node.add_dependency(self.file_system_dependency)
 
-                    self.ami_ssm_parameters[distribution][distribution_major_version][architecture] = ssm.StringParameter(
-                        self, f"SlurmNodeAmiSsmParameter{distribution}{distribution_major_version}{architecture}",
-                        parameter_name = f"/{self.stack_name}/SlurmNodeAmis/{distribution}/{distribution_major_version}/{architecture}",
-                        string_value = "UNDEFINED",
-                    )
-                    self.ami_ssm_parameters[distribution][distribution_major_version][architecture].grant_write(self.slurm_node_ami_instance)
-                    ami_ssm_parameter = self.ami_ssm_parameters[distribution][distribution_major_version][architecture]
+                    ami_ssm_parameter_base_name = f"/{self.stack_name}/SlurmNodeAmis/{distribution}/{distribution_major_version}/{architecture}"
+                    ami_ssm_parameter_arns = []
+                    for compute_region in self.compute_regions:
+                        self.ami_ssm_parameters[distribution][distribution_major_version][architecture][compute_region] = ssm.StringParameter(
+                            self, f"SlurmNodeAmiSsmParameter{distribution}{distribution_major_version}{architecture}{compute_region}",
+                            parameter_name = f"{ami_ssm_parameter_base_name}/{compute_region}",
+                            string_value = "UNDEFINED",
+                        )
+                        self.ami_ssm_parameters[distribution][distribution_major_version][architecture][compute_region].grant_write(self.slurm_node_ami_instance)
+                        ami_ssm_parameter_arns.append(self.ami_ssm_parameters[distribution][distribution_major_version][architecture][compute_region].parameter_arn)
 
                     instance_template_vars = self.get_instance_template_vars('SlurmNodeAmi')
                     instance_template_vars['CONFIG_SCRIPT_PATH'] = '/root/slurm_node_ami_config.sh'
                     instance_template_vars['WAIT_FOR_AMI_SCRIPT_PATH'] = '/root/WaitForAmi.py'
                     instance_template_vars['PLAYBOOKS_ZIP_PATH'] = '/root/playbooks.zip'
-                    instance_template_vars['SlurmNodeAmiSsmParameter'] = ami_ssm_parameter.parameter_name
+                    instance_template_vars['SlurmNodeAmiSsmParameter'] = f"{ami_ssm_parameter_base_name}/{self.config['Region']}"
+                    instance_template_vars['SlurmNodeAmiSsmParameterBaseName'] = ami_ssm_parameter_base_name
+                    instance_template_vars['ComputeRegions'] = ','.join(self.compute_regions.keys())
+                    instance_template_vars['RemoteComputeRegions'] = ','.join(self.remote_compute_regions.keys())
                     instance_template_vars['SLURM_ROOT'] = f"{instance_template_vars['FileSystemMountPath']}/slurm-{self.config['slurm']['SlurmVersion']}/{distribution}/{distribution_major_version}/{architecture}"
 
                     # Add on_exit commands at top of user_data
@@ -2383,7 +2614,7 @@ class CdkSlurmStack(Stack):
                                 'ec2:StopInstances',
                                 'ec2:TerminateInstances'
                             ],
-                            resources = [f"arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:instance/*"]
+                            resources = [f"arn:{Aws.PARTITION}:ec2:*:{Aws.ACCOUNT_ID}:instance/*"]
                         )
                     ]
                 )

@@ -1,4 +1,6 @@
 site_name: EDA SLURM Cluster on AWS
+repo_url: https://github.com/aws-samples/aws-eda-slurm-cluster
+docs_dir: docs
 nav:
   - 'index.md'
   - 'deploy.md'
@@ -7,7 +9,18 @@ nav:
   - 'soca_integration.md'
   - 'f1-ami.md'
   - 'federation.md'
+  - 'multi-region.md'
   - 'implementation.md'
   - 'debug.md'
   - 'todo.md'
-  - 'mkdocs.md'
+strict: true
+theme:
+  name: mkdocs
+  #name: readthedocs
+  hljs_languages:
+    - python
+    - yaml
+  navigation_depth: 4
+  nav_style: dark
+  features:
+    - navigation.tabs

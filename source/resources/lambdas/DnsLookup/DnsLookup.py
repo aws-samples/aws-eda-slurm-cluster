@@ -17,44 +17,45 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 '''
-Configure the Ontap file system
+Do DNS lookup and return the IP address.
 '''
 import cfnresponse
-import boto3
+import json
 import logging
-from time import sleep
+from socket import getaddrinfo, SOCK_STREAM
 
 logging.getLogger().setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     try:
-        logging.info("event: {}".format(event))
-        requestType = event['RequestType']
-        if requestType == 'Delete':
-            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "")
-            return
-
+        logging.info(f"event:\n{json.dumps(event, indent=4)}")
         properties = event['ResourceProperties']
-        required_properties = ['SvmId']
+        required_properties = ['FQDN']
         error_message = ""
         for property in required_properties:
             try:
                 value = properties[property]
             except:
-                error_message += "Missing {} property. ".format(property)
+                error_message += f"Missing {property} property. "
         if error_message:
             raise KeyError(error_message)
 
-        fsx_client = boto3.client('fsx')
-        response = fsx_client.describe_storage_virtual_machines(StorageVirtualMachineIds=[properties['SvmId']])['StorageVirtualMachines'][0]
-        dns_name = response['Endpoints']['Nfs']['DNSName']
-        logging.info(f"DNSName={dns_name}")
+        requestType = event['RequestType']
+        if requestType == 'Delete':
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "")
+            return
 
-        logging.info('Success')
+        fqdn = properties['FQDN']
+        ip_address_tuples = getaddrinfo(host=fqdn, port=None, type=SOCK_STREAM)
+        logging.info(f"Found {len(ip_address_tuples)} ip addresses")
+        for ip_address_tuple in ip_address_tuples:
+            logging.info(f"ip_address_tuple: {ip_address_tuple}")
+        ip_address = ip_address_tuples[0][4][0]
+        logging.info(f"ip_address: {ip_address}")
 
     except Exception as e:
         logging.exception(str(e))
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, str(e))
         raise
 
-    cfnresponse.send(event, context, cfnresponse.SUCCESS, {'DNSName': dns_name}, f"{dns_name}")
+    cfnresponse.send(event, context, cfnresponse.SUCCESS, {'IpAddress': ip_address}, f"{ip_address}")

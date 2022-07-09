@@ -14,35 +14,12 @@ slurm:
   # A partition will be created for each combination of Base OS, Architecture, and Spot
   InstanceConfig:
     UseSpot: true
-    DefaultPartition: CentOS_7_x86_64_spot
     NodesPerInstanceType: 10
     BaseOsArchitecture:
       AlmaLinux: {8: [x86_64, arm64]}
     Include:
-      MaxSizeOnly: false
       InstanceFamilies: []
       InstanceTypes: []
-    Exclude:
-      InstanceFamilies:
-        - a1   # Graviton 1
-        - c4   # Replaced by c5
-        - d2   # SSD optimized
-        - g3   # Replaced by g4
-        - g3s  # Replaced by g4
-        - h1   # SSD optimized
-        - i3   # SSD optimized
-        - i3en # SSD optimized
-        - m4   # Replaced by m5
-        - p2   # Replaced by p3
-        - p3
-        - p3dn
-        - r4   # Replaced by r5
-        - t2   # Replaced by t3
-        - u
-        - x1
-        - x1e
-      InstanceTypes:
-        - '.*\.metal'
 
   # Use defaults from schema
   SlurmCtl: {}

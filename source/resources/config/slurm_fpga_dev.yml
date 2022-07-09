@@ -20,7 +20,6 @@ slurm:
 
   InstanceConfig:
     UseSpot: true
-    DefaultPartition: CentOS_7_x86_64_spot
     NodesPerInstanceType: 5
     BaseOsArchitecture:
       Amazon:
@@ -28,7 +27,6 @@ slurm:
       CentOS:
         7: [x86_64]
     Include:
-      MaxSizeOnly: false
       InstanceFamilies:
         - 'c6a'               # AMD EPYC 7R13 Processor           3.6 GHz
         - 'c6i'               # Intel Xeon 8375C (Ice Lake)       3.5 GHz
@@ -42,10 +40,6 @@ slurm:
         - 'x2iezn'            # Intel Xeon Platinum 8252          4.5 GHz 1.5 TB
         - 'z1d'               # Intel Xeon Platinum 8151          4.0 GHz
       InstanceTypes: []
-    Exclude:
-      InstanceFamilies: []
-      InstanceTypes:
-        - '.*\.metal'
 
   # Use defaults from schema
   SlurmCtl: {}

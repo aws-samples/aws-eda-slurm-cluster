@@ -75,17 +75,15 @@ Add the nodjs bin directory to your path.
 Note that the version of aws-cdk changes frequently.
 The version that has been tested is in the CDK_VERSION variable in the install script.
 
-```
 The install script will try to install the prerequisites if they aren't already installed.
-```
 
 ## Configuration File
 
 The first step in deploying your cluster is to create a configuration file.
-A default configuration file is found in [source/resources/config/default_config.yml](source/config/default_config.yml).
+A default configuration file is found in [source/resources/config/default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml).
 You should create a new config file and update the parameters for your cluster.
 
-The schema for the config file along with its default values can be found in [source/cdk/config_schema.py](source/cdk/config_schema.py).
+The schema for the config file along with its default values can be found in [source/cdk/config_schema.py](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py).
 The schema is defined in python, but the actual config file should be in yaml format.
 
 The following are key parameters that you will need to update.
@@ -115,7 +113,7 @@ The defaults for the following parameters are generally acceptable, but may be m
 ## Configure the Compute Instances
 
 The InstanceConfig configuration parameter configures the base operating systems, CPU architectures, instance families,
-and instance types that the SLURM cluster should support.
+and instance types that the Slurm cluster should support.
 The supported OSes and CPU architectures are:
 
 | Base OS | CPU Architectures
@@ -204,7 +202,7 @@ If you want to use the latest base OS AMIs, then configure your AWS cli credenti
 the tested version.
 
 ```
-source/create-ami-map.py > source/resources/config/ami_map.yml
+./source/create-ami-map.py > source/resources/config/ami_map.yml
 ```
 
 ## Use Your Own AMIs (Optional)
@@ -240,13 +238,13 @@ This is useful if the root volume needs additional space to install additional p
 
 ## Configure Fair Share Scheduling (Optional)
 
-SLURM supports [fair share scheduling](https://slurm.schedmd.com/fair_tree.html), but it requires the fair share policy to be configured.
+Slurm supports [fair share scheduling](https://slurm.schedmd.com/fair_tree.html), but it requires the fair share policy to be configured.
 By default, all users will be put into a default group that has a low fair share.
-The configuration file is at **source/resources/playbooks/roles/SlurmCtl/templates/tools/slurm/etc/accounts.yml.example**
+The configuration file is at [source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example)
 in the repository and is deployed to **/opt/slurm/{{ClusterName}}/conf/accounts.yml**.
 
 The file is a simple yaml file that allows you to configure groups, the users that belong to the group, and a fair share weight for the group.
-Refer to the SLURM documentation for details on how the fair share weight is calculated.
+Refer to the Slurm documentation for details on how the fair share weight is calculated.
 The scheduler can be configured so that users who aren't getting their fair share of resources get
 higher priority.
 The following shows 3 top level groups.
@@ -322,13 +320,13 @@ These weights can be adjusted based on your needs to control job priorities.
 
 ## Configure Licenses
 
-SLURM supports [configuring licenses as a consumable resource](https://slurm.schedmd.com/licenses.html).
+Slurm supports [configuring licenses as a consumable resource](https://slurm.schedmd.com/licenses.html).
 It will keep track of how many running jobs are using a license and when no more licenses are available
 then jobs will stay pending in the queue until a job completes and frees up a license.
 Combined with the fairshare algorithm, this can prevent users from monopolizing licenses and preventing others from
 being able to run their jobs.
 
-The configuration file is at **source/resources/playbooks/roles/SlurmCtl/templates/tools/slurm/etc/accounts.yml.example**
+The configuration file is at [source/resources/playbooks/roles/SlurmCtl/templates/tools/slurm/etc/slurm_licenses.conf.example](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/slurm_licenses.conf.example)
 in the repository and is deployed to **/opt/slurm/{{ClusterName}}/conf/accounts.yml**.
 
 The example configuration shows how the number of licenses can be configured as just a comma separated list.
@@ -351,11 +349,11 @@ with command line arguments, however it is better to specify all of the paramete
 ## Use the Cluster
 
 Configuring your environment for users requires root privileges.
-The configuration commands are found in the outputs of the SLURM cloudformation stack.
+The configuration commands are found in the outputs of the Slurm cloudformation stack.
 
-### Configure SLURM Users and Groups
+### Configure Slurm Users and Groups
 
-The SLURM cluster needs to configure the users and groups of your environment.
+The Slurm cluster needs to configure the users and groups of your environment.
 For efficiency, it does this by capturing the users and groups from your environment
 and saves them in a json file.
 When the compute nodes start they create local unix users and groups using this json file.
@@ -364,18 +362,18 @@ Choose a single instance in your VPC that will always be running and that is joi
 so that it can list all users and groups.
 For SOCA this would be the Scheduler instance.
 Connect to that instance and run the commands in the **MountCommand** and **ConfigureSyncSlurmUsersGroups** outputs
-of the SLURM stack.
-These commands will mount the SLURM file system at **/opt/slurm/{{ClusterName}}** and then create
+of the Slurm stack.
+These commands will mount the Slurm file system at **/opt/slurm/{{ClusterName}}** and then create
 a cron job that runs every 5 minutes and updates **/opt/slurm/{{ClusterName}}/config/users_groups.json**.
 
-### Configure SLURM Submitter Instances
+### Configure Slurm Submitter Instances
 
-Instances that need to submit to SLURM need to have their security group IDs in the **SubmitterSecurityGroupIds** configuration parameter
-so that the security groups allow communication between the submitter instances and the SLURM cluster.
-They also need to be configured by mounting the file system with the SLURM tools and
+Instances that need to submit to Slurm need to have their security group IDs in the **SubmitterSecurityGroupIds** configuration parameter
+so that the security groups allow communication between the submitter instances and the Slurm cluster.
+They also need to be configured by mounting the file system with the Slurm tools and
 configuring their environment.
 Connect to the submitter instance and run the commands in the **MountCommand** and **ConfigureSubmitterCommand** outputs
-of the SLURM stack.
+of the Slurm stack.
 If all users need to use the cluster then it is probably best to create a custom AMI that is configured with the configuration
 commands.
 
