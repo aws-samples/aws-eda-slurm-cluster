@@ -1,5 +1,5 @@
 ---
-# tasks file for common
+# tasks file for eda_tools
 
 # Uncomment to display all of the collected facts for all instances.
 #- debug: var=ansible_facts
@@ -7,6 +7,23 @@
 #- name: Save env
 #  shell: |
 #    env | sort > /tmp/ansible-common-env.txt
+
+# Allow virtual memory overcommit
+# This is to allow a fork to succeed from a process that is allocating over 50% of available memory.
+# The scenario is that the process starts a subprocess to run, for example, a system command.
+# This causes a fork that clones all of the parent process' pages which will fail if there isn't enough
+# available memory.
+# Most of the time the cloned pages will be discarded when new child process execs a new program and
+# the cloned pages are initially read-only and pointing to the parent process' pages with a copy-on-write
+# flag so they don't actually allocate any new memory.
+# By setting this flag, the fork can succeed and the program will only fail if the child process consumes
+# more memory than is available.
+# https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/performance_tuning_guide/sect-red_hat_enterprise_linux-performance_tuning_guide-configuration_tools-configuring_system_memory_capacity
+- name: Configure kernel parameter to allow over commit of virtual memory
+  sysctl:
+    name: vm.overcommit_memory
+    value: 1
+    sysctl_file: /etc/sysctl.d/slurmd.conf
 
 # Use "state: present" instead of latest so that the package versions
 # stay stable and to reduce the possibility of installation failures
