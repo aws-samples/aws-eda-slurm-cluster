@@ -778,6 +778,7 @@ class SlurmPlugin:
                                 {'Key': 'ClusterName', 'Value': self.config['ClusterName']},
                                 {'Key': 'hostname', 'Value': hostname},
                                 {'Key': 'role', 'Value': 'SlurmNode'},
+                                {'Key': 'NodeType', 'Value': 'SlurmNode'},
                                 {'Key': 'distribution', 'Value': hostinfo['distribution']},
                                 {'Key': 'distribution_major_version', 'Value': hostinfo['distribution_major_version']},
                                 {'Key': 'spot', 'Value': str(hostinfo['spot'])},

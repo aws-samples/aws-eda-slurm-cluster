@@ -2485,6 +2485,11 @@ class CdkSlurmStack(Stack):
                     instance_template_vars['RemoteComputeRegions'] = ','.join(self.remote_compute_regions.keys())
                     instance_template_vars['SLURM_ROOT'] = f"{instance_template_vars['FileSystemMountPath']}/slurm-{self.config['slurm']['SlurmVersion']}/{distribution}/{distribution_major_version}/{architecture}"
 
+                    # Check to make sure running on the AMI node
+                    user_data = open("resources/user_data/slurm_node_ami_user_data_prolog.sh", 'r').read()
+                    print(f"user_data:\n{user_data}")
+                    self.slurm_node_ami_instance.user_data.add_commands(user_data)
+
                     # Add on_exit commands at top of user_data
                     self.slurm_node_ami_instance.user_data.add_signal_on_exit_command(self.slurm_node_ami_instance)
                     on_exit_commands_template = Template(open("resources/user_data/slurm_node_ami_user_data_on_exit.sh", 'r').read())
