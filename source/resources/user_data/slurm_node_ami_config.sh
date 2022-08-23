@@ -40,7 +40,7 @@ fi
 # Install security updates first.
 # Since this is Amazon Linux 2 don't need to configure proxy because yum repos are in S3.
 # Disable epel because it isn't in S3 and requires configuration.
-yum -y update --security --bugfix
+yum -y update --security --bugfix || true
 
 export PATH=/usr/local/bin:$PATH
 
