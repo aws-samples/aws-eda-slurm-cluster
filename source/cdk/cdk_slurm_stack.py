@@ -2016,6 +2016,7 @@ class CdkSlurmStack(Stack):
             slurmctl_instance.user_data.add_on_exit_commands(on_exit_commands)
 
             # Set the environment.
+            self.add_bootstrap_user_data(slurmctl_instance, name, architecture, distribution, distribution_major_version)
             self.add_environment_user_data(slurmctl_instance, name, architecture, distribution, distribution_major_version, instance_template_vars)
 
             # Download playbook
@@ -2174,6 +2175,7 @@ class CdkSlurmStack(Stack):
         self.slurmdbd_instance.user_data.add_on_exit_commands(on_exit_commands)
 
         # Set the environment.
+        self.add_bootstrap_user_data(self.slurmdbd_instance, name, architecture, distribution, distribution_major_version)
         self.add_environment_user_data(self.slurmdbd_instance, name, architecture, distribution, distribution_major_version, instance_template_vars)
 
         # Download playbook
@@ -2485,16 +2487,18 @@ class CdkSlurmStack(Stack):
                     instance_template_vars['RemoteComputeRegions'] = ','.join(self.remote_compute_regions.keys())
                     instance_template_vars['SLURM_ROOT'] = f"{instance_template_vars['FileSystemMountPath']}/slurm-{self.config['slurm']['SlurmVersion']}/{distribution}/{distribution_major_version}/{architecture}"
 
-                    # Check to make sure running on the AMI node
-                    user_data = open("resources/user_data/slurm_node_ami_user_data_prolog.sh", 'r').read()
-                    print(f"user_data:\n{user_data}")
-                    self.slurm_node_ami_instance.user_data.add_commands(user_data)
-
                     # Add on_exit commands at top of user_data
+                    # Gets added at the top of user_data even if called later so put it here to make that more intuitive.
                     self.slurm_node_ami_instance.user_data.add_signal_on_exit_command(self.slurm_node_ami_instance)
                     on_exit_commands_template = Template(open("resources/user_data/slurm_node_ami_user_data_on_exit.sh", 'r').read())
                     on_exit_commands = on_exit_commands_template.render(**instance_template_vars)
                     self.slurm_node_ami_instance.user_data.add_on_exit_commands(on_exit_commands)
+
+                    self.add_bootstrap_user_data(self.slurm_node_ami_instance, name, architecture, distribution, distribution_major_version)
+
+                    # Check to make sure running on the AMI node
+                    user_data = open("resources/user_data/slurm_node_ami_user_data_prolog.sh", 'r').read()
+                    self.slurm_node_ami_instance.user_data.add_commands(user_data)
 
                     # Set the environment.
                     self.add_environment_user_data(self.slurm_node_ami_instance, name, architecture, distribution, distribution_major_version, instance_template_vars)
@@ -2527,7 +2531,7 @@ class CdkSlurmStack(Stack):
                     user_data = user_data_template.render(**instance_template_vars)
                     self.slurm_node_ami_instance.user_data.add_commands(user_data)
 
-    def add_environment_user_data(self, instance, name, architecture, distribution, distribution_major_version, vars):
+    def add_bootstrap_user_data(self, instance, name, architecture, distribution, distribution_major_version):
         instance.user_data.add_commands(dedent(f"""
             # Set variables used by user_data_bootstrap.sh
             AWS_DEFAULT_REGION={self.region}
@@ -2538,9 +2542,10 @@ class CdkSlurmStack(Stack):
             """))
 
         # Install ssm agent, ansible, awscli
-        # The awscli must be install before can download asses from s3.
+        # The awscli must be install before can download assets from s3.
         instance.user_data.add_commands(open('resources/user_data/user_data_bootstrap.sh').read())
 
+    def add_environment_user_data(self, instance, name, architecture, distribution, distribution_major_version, vars):
         # Set environment variables
         # This needs to be in the UserData section of the script so that tokens get correctly substituted by CloudFormation
         user_data = ""

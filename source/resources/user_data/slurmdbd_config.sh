@@ -22,7 +22,7 @@ trap on_exit EXIT
 # Install security updates first.
 # Since this is Amazon Linux 2 don't need to configure proxy because yum repos are in S3.
 # Disable epel because it isn't in S3 and requires configuration.
-yum -y update --security --bugfix || true
+yum -y update --security --bugfix  --skip-broken
 
 # Update to latest ssm agent
 if yum install -y https://s3.$AWS_DEFAULT_REGION.amazonaws.com/amazon-ssm-$AWS_DEFAULT_REGION/latest/linux_amd64/amazon-ssm-agent.rpm; then

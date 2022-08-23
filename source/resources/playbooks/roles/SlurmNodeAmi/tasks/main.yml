@@ -114,24 +114,6 @@
     group: root
     mode: 0775
 
-- name: Create {{SlurmConfigDir}}/SlurmVersion.sh
-  template:
-    src: ../../SlurmCtl/templates/opt/slurm/cluster/config/SlurmVersion.sh
-    dest: "{{SlurmConfigDir}}/SlurmVersion.sh"
-    owner: root
-    group: root
-    mode: 0644
-    force: yes
-
-- name: Create {{SlurmConfigDir}}/SlurmVersion.json
-  template:
-    src: ../../SlurmCtl/templates/opt/slurm/cluster/config/SlurmVersion.json
-    dest: "{{SlurmConfigDir}}/SlurmVersion.json"
-    owner: root
-    group: root
-    mode: 0644
-    force: yes
-
 - name: Update /etc/systemd/system/spot_monitor.service
   template:
     dest: /etc/systemd/system/spot_monitor.service
