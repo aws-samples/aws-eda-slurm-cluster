@@ -9,7 +9,16 @@ function on_exit {
     set +e
 
     if [[ $rc -ne 0 ]] && [[ ":$ERROR_SNS_TOPIC_ARN" != ":" ]]; then
-        aws sns publish --region $AWS_DEFAULT_REGION --topic-arn $ERROR_SNS_TOPIC_ARN --subject "$INSTANCE_NAME $0 Failed" --message "See /var/log/cloud-init.log or grep cloud-init /var/log/messages | less for more info."
+        msg_file=$(mktemp)
+        echo -e "grep cloud-init /var/log/messages | tail -n 200:\n\n" > $msg_file
+        grep cloud-init /var/log/messages |tail -n 200 >> $msg_file
+        if [ -e /var/log/cloud-init.log ]; then
+            echo -e "\n\n\ntail -n 200 /var/log/cloud-init.log:\n\n" >> $msg_file
+            tail -n 200 /var/log/cloud-init.log >> $msg_file
+        fi
+
+        aws sns publish --region $AWS_DEFAULT_REGION --topic-arn $ERROR_SNS_TOPIC_ARN --subject "$INSTANCE_NAME($instance_id) $0 Failed" --message "file://$msg_file"
+        rm $msg_file
     fi
 
     # Make sure that security patches that require a reboot are applied
