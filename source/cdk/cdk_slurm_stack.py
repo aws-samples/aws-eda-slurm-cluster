@@ -460,6 +460,21 @@ class CdkSlurmStack(Stack):
         logger.info(f"Subnet set to {self.config['SubnetId']}")
         logger.info(f"availability zone: {self.subnet.availability_zone}")
 
+        # Can't create query logging for private hosted zone.
+        if 'HostedZoneId' in self.config:
+            logger.info(f"Using existing Route53 hosted zone: {self.config['HostedZoneId']}")
+            self.hosted_zone = route53.HostedZone.from_hosted_zone_attributes(
+                self, "PrivateDns",
+                hosted_zone_id = self.config['HostedZoneId'],
+                zone_name = self.config['Domain']
+            )
+        else:
+            logger.info(f"Creating new Route53 private hosted zone.")
+            self.hosted_zone = route53.HostedZone(self, "PrivateDns",
+                vpcs = [self.vpc],
+                zone_name = self.config['Domain']
+            )
+
     def check_regions_config(self):
         '''
         Do this after the VPC object has been created so that we can choose a default SubnetId.
@@ -534,22 +549,14 @@ class CdkSlurmStack(Stack):
                 self, f"Vpc{region}",
                 region = region,
                 vpc_id = region_dict['VpcId'])
+            logger.info(f"{remote_vpcs[region].env}")
 
-        # Can't create query logging for private hosted zone.
-        if 'HostedZoneId' in self.config:
-            self.hosted_zone = route53.HostedZone.from_hosted_zone_attributes(
-                self, "PrivateDns",
-                hosted_zone_id = self.config['HostedZoneId'],
-                zone_name = self.config['Domain']
-            )
-        else:
-            self.hosted_zone = route53.HostedZone(self, "PrivateDns",
-                vpcs = [self.vpc],
-                zone_name = self.config['Domain']
-            )
-            # BUG: CDK isn't creating the correct region for the vpcs even though cdk_context.json has it right.
-            # for remote_region, remote_vpc in remote_vpcs.items():
-            #     self.hosted_zone.add_vpc(remote_vpc)
+        # Add remote regions to new hosted zone
+        if 'HostedZoneId' not in self.config:
+            for remote_region, remote_vpc in remote_vpcs.items():
+                assert remote_region == remote_vpc.env.region, f"{remote_region} != {remote_vpc.env.region}"
+                logger.info(f"Adding {remote_vpc.vpc_id} in {remote_region} to Route53")
+                self.hosted_zone.add_vpc(remote_vpc)
 
     def create_lambdas(self):
         dnsLookupLambdaAsset = s3_assets.Asset(self, "DnsLookupLambdaAsset", path="resources/lambdas/DnsLookup")
@@ -593,30 +600,6 @@ class CdkSlurmStack(Stack):
                     'ec2:RevokeSecurityGroupEgress',
                     'ec2:RevokeSecurityGroupIngress',
                 ],
-                resources=['*']
-                )
-            )
-
-        routeRoute53ZoneAddVpcLambdaAsset = s3_assets.Asset(self, "Route53HostedZoneAddVpcLambdaAsset", path="resources/lambdas/Route53HostedZoneAddVpc")
-        self.route53_hosted_zone_add_vpc_lambda = aws_lambda.Function(
-            self, "Route53HostedZoneAddVpcLambda",
-            function_name=f"{self.stack_name}-Route53HostedZoneAddVpc",
-            description="Associated VPC with Route53 hosted zone",
-            memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_7,
-            timeout=Duration.minutes(3),
-            log_retention=logs.RetentionDays.INFINITE,
-            handler="Route53HostedZoneAddVpc.lambda_handler",
-            code=aws_lambda.Code.from_bucket(routeRoute53ZoneAddVpcLambdaAsset.bucket, routeRoute53ZoneAddVpcLambdaAsset.s3_object_key)
-        )
-
-        self.route53_hosted_zone_add_vpc_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    "route53:AssociateVpcWithHostedZone",
-                    "route53:DissociateVpcFromHostedZone",
-                    ],
                 resources=['*']
                 )
             )
