@@ -3,18 +3,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0c9b903eaf332af4c # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-08c690d6e11a45b61 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0113c5fc6ac5e0043 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-04527b8d883a45234 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-03361228a16aabbea # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-02087d6f3ccd8073f # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-059755f6af2e54b66 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-0b069de314c9ab4c4 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -55,18 +55,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-066449bb2eec0a5a3 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-051e26366a65158ad # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0b808e3ad34cb9737 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0e4b0b4a4478f8781 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-07071aa2caa3d64c8 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-03159e41d5c4d0a31 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0633fb238d7de0f95 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-066d41d96fc160063 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -107,15 +107,15 @@ AmiMap:
     AlmaLinux:
       8:
         x86_64:
-          ImageId: ami-0848a81cb13386a65 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-09675c79c49dc6233 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0a3a798c4ad8fe477 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0996e8e04bf149889 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-03dc2e74e9f2c4663 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-00d7ff299ded74625 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     RedHat:
       7:
@@ -141,18 +141,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0b33eff7b67344b82 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-024b647dfc92b5bab # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0d0a3f206d0bd1efc # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0c35433f698dbb011 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0dc741c55a1bd33ce # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0fc81ccb6d411c58b # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-00c5a35740f4561e7 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-068cda7597e78094b # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -193,18 +193,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0e50cda203faa584e # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0bb3978ce236092f4 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0226c7236bc5c777b # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-00f599a60abc8810c # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0098dd09f8818784f # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-05465ed4133f4f04c # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-073f0a6c667dfeecf # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-013586750d303f89d # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -245,18 +245,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0dee75b996ea93e4f # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0d5573dc1f051b6aa # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0beacb82191c7b2d9 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-04b4f520c8f401170 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-07466c8ac1a23262d # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0f18530afdf50e2cf # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-016768a42b53f657a # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-0336d88ead51a9210 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -297,18 +297,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0c73f239392029939 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-08aa42f7878483c61 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-02babadf9c5e63d47 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-03436c29fe8817efc # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0576ee2a03be65a68 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0463527f07939f08c # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0bafcea81f5e35831 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-0300c413e2de1804e # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -349,18 +349,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0adb3f744482a3849 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-00dee1d7b914a1f2d # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-049e79e8a8e13327c # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-05b1fbf8905dda23c # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-004e02654d9016738 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0965af9995b3a878f # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-02cf11196cf0818e8 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-041e64b0129bffca9 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -401,18 +401,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-04edfa9ff60193e21 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-009736a06d793a62c # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-05d343ed0beb6c1eb # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-01cb5ce4c4eecf2a8 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-02177b37c1a913406 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0cb0c6fa5a3c56cc0 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-03b26f0b11774cf30 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-0b87edaa84d7c45ce # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -453,18 +453,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0272e5d6e63653845 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-08114c78464d93e7a # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-07715cd6db772c7e3 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-05e33b90c67d2cc13 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-06cecbaef31457ce9 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-05223a36a9748498d # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0be9259c3f48b4026 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-038e9cdc714b15936 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -483,9 +483,6 @@ AmiMap:
           RootDeviceName: /dev/sda1
     RedHat:
       7:
-        arm64:
-          ImageId: ami-0b5171a7b859ff1b4 # RHEL-7.6_HVM_GA-20181122-arm64-0-Hourly2-GP2
-          RootDeviceName: /dev/sda1
         x86_64:
           ImageId: ami-020e14de09d1866b4 # RHEL-7.9_HVM_GA-20200917-x86_64-0-Hourly2-GP2
           RootDeviceName: /dev/sda1
@@ -508,18 +505,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0b840f2c87f66b1cb # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0e0edf9708ab74684 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0625af50d3384aff2 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0847c9d1c800fcf4c # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-07bdb6c65efe05854 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0d97fa13ebda706b8 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-001c1821bbfc6dfd5 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-0c496e8bea496ed67 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -560,18 +557,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-009578ad888857a55 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-0cb6c6c5c174e11c2 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-05772b392a34b94b8 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0af22005ae27f5318 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-04a1596379e1536c4 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0e9ca48e27e192f4f # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-06033c5e25038a317 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-002e2b155689f6e23 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -612,18 +609,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0bbf4ed8f61e3dec6 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-074ba969402fd3057 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0bf9c7cf3f259cdbc # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0cf4b1948a667a57d # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-051893550f75bfa43 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-03616356ac6a80d87 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-01bb4acf3a0069f87 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-058f4e20c17271f68 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -664,18 +661,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-07c63d26f68b4ebff # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-022a3222b5ce49044 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-013e93e9fbc908d88 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0dc96b8fe1ee7d96b # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0201c8df31f1b7ead # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0ff3578f8df132330 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0cabc39acf991f4f1 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-02538f8925e3aa27a # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -694,9 +691,6 @@ AmiMap:
           RootDeviceName: /dev/sda1
     RedHat:
       7:
-        arm64:
-          ImageId: ami-0e3688b4a755ad736 # RHEL-7.6_HVM_GA-20181122-arm64-0-Hourly2-GP2
-          RootDeviceName: /dev/sda1
         x86_64:
           ImageId: ami-005b7876121b7244d # RHEL-7.9_HVM_GA-20200917-x86_64-0-Hourly2-GP2
           RootDeviceName: /dev/sda1
@@ -719,18 +713,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0d52725c4d40770b9 # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-00967809b4c692a6f # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0c520b629d071105a # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-0fc548f4049251034 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0aca53792a35df478 # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-04ed2b27d86c17f09 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-017a73c6475f1cefe # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-0ee5c62243ab25259 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -771,18 +765,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0147ff11336f31d0c # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-09ada2c96cc545038 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-0e046a5d1172cba32 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-01481cc586dccfa0a # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-02f326917b1b175da # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0f36e12deb25112d9 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0d1ac128cb656dd42 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-0019ad94c6124959d # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -823,18 +817,18 @@ AmiMap:
     AlmaLinux:
       8:
         arm64:
-          ImageId: ami-0f2aa0306aa17406b # AlmaLinux OS 8.6.20220715 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
+          ImageId: ami-02dbfcbfffcbaa472 # AlmaLinux OS 8.6.20220901 aarch64-744775f7-4efd-4c75-ac32-eb2540b4030c
           RootDeviceName: /dev/sda1
         x86_64:
-          ImageId: ami-01ad1e3d2d7278f10 # AlmaLinux OS 8.6.20220715 x86_64-c076b20a-2305-4771-823f-944909847a05
+          ImageId: ami-04a8370325c966e35 # AlmaLinux OS 8.6.20220901 x86_64-c076b20a-2305-4771-823f-944909847a05
           RootDeviceName: /dev/sda1
     Amazon:
       2:
         arm64:
-          ImageId: ami-0e052983952750fca # amzn2-ami-hvm-2.0.20220719.0-arm64-gp2
+          ImageId: ami-0bbda02f23a4a8964 # amzn2-ami-hvm-2.0.20220805.0-arm64-gp2
           RootDeviceName: /dev/xvda
         x86_64:
-          ImageId: ami-0c43067304fd16596 # amzn2-ami-hvm-2.0.20220719.0-x86_64-gp2
+          ImageId: ami-07d59d159373b8030 # amzn2-ami-hvm-2.0.20220805.0-x86_64-gp2
           RootDeviceName: /dev/xvda
     CentOS:
       7:
@@ -853,9 +847,6 @@ AmiMap:
           RootDeviceName: /dev/sda1
     RedHat:
       7:
-        arm64:
-          ImageId: ami-0e00026dd0f3688e2 # RHEL-7.6_HVM_GA-20181122-arm64-0-Hourly2-GP2
-          RootDeviceName: /dev/sda1
         x86_64:
           ImageId: ami-02d40d11bb3aaf3e5 # RHEL-7.9_HVM_GA-20200917-x86_64-0-Hourly2-GP2
           RootDeviceName: /dev/sda1

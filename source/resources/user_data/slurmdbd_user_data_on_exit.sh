@@ -2,7 +2,16 @@
 # SPDX-License-Identifier: MIT-0
 
     if [[ $exitCode -ne 0 ]] && [[ ":{{ERROR_SNS_TOPIC_ARN}}" != ":" ]]; then
-        aws sns publish --region {{AWS_DEFAULT_REGION}} --topic-arn {{ERROR_SNS_TOPIC_ARN}} --subject "$INSTANCE_NAME UserData failed" --message "See /var/log/cloud-init.log or grep cloud-init /var/log/messages | less for more info."
+        instance_id=$(curl --silent http://169.254.169.254/latest/meta-data/instance-id)
+        msg_file=$(mktemp)
+        echo -e "grep cloud-init /var/log/messages | tail -n 200:\n\n" > $msg_file
+        grep cloud-init /var/log/messages |tail -n 200 >> $msg_file
+        if [ -e /var/log/cloud-init.log ]; then
+            echo -e "\n\n\ntail -n 200 /var/log/cloud-init.log:\n\n" >> $msg_file
+            tail -n 200 /var/log/cloud-init.log >> $msg_file
+        fi
+        aws sns publish --region {{AWS_DEFAULT_REGION}} --topic-arn {{ERROR_SNS_TOPIC_ARN}} --subject "$INSTANCE_NAME($instance_id) UserData failed" "file://$msg_file"
+        rm $msg_file
     fi
 
     if ! needs-restarting -r; then
