@@ -1415,27 +1415,13 @@ class CdkSlurmStack(Stack):
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
                     metric_name = 'JobCount',
-                    dimensions_map = {'State': job_state},
+                    dimensions_map = {
+                        'State': job_state,
+                        'Cluster': self.config['slurm']['ClusterName']
+                    },
                     label = job_state,
                 ),
             )
-
-        self.vcs_licenses_widget = cloudwatch.GraphWidget(
-            title = "VCS Licenses",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Maximum',
-        )
-        for metric_name in ['LicensesTotal', 'LicensesUsed']:
-            for license_name in ['VCSCompiler_Net', 'VCSMXRunTime_Net']:
-                self.vcs_licenses_widget.add_left_metric(
-                    cloudwatch.Metric(
-                        namespace = self.slurm_namespace,
-                        metric_name = metric_name,
-                        dimensions_map = {'LicenseName': license_name},
-                        label = license_name,
-                    ),
-                )
 
         self.running_instances_widget = cloudwatch.GraphWidget(
             title = "Running Instances",
@@ -1449,10 +1435,52 @@ class CdkSlurmStack(Stack):
                 metric_name = 'NodeCount',
                 dimensions_map = {
                     'State': 'running',
-                    'InstanceType': 'all'
+                    'InstanceType': 'all',
+                    'Cluster': self.config['slurm']['ClusterName']
                     },
                 label = 'NodeCount',
             ),
+            )
+
+
+        self.running_instances_by_type_stacked_widget = cloudwatch.GraphWidget(
+            title = "Running Instances by Type - Stacked",
+            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+            stacked = True,
+            statistic = 'Maximum',
+        )
+        for instance_type in self.instance_types:
+            self.running_instances_by_type_stacked_widget.add_left_metric(
+                cloudwatch.Metric(
+                    namespace = self.slurm_namespace,
+                    metric_name = 'NodeCount',
+                    dimensions_map = {
+                        'State': 'running',
+                        'InstanceType': instance_type,
+                        'Cluster': self.config['slurm']['ClusterName']
+                        },
+                    label = instance_type,
+                ),
+            )
+
+        self.running_instances_by_type_unstacked_widget = cloudwatch.GraphWidget(
+            title = "Running Instances by Type - Unstacked",
+            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+            stacked = False,
+            statistic = 'Maximum',
+        )
+        for instance_type in self.instance_types:
+            self.running_instances_by_type_unstacked_widget.add_left_metric(
+                cloudwatch.Metric(
+                    namespace = self.slurm_namespace,
+                    metric_name = 'NodeCount',
+                    dimensions_map = {
+                        'State': 'running',
+                        'InstanceType': instance_type,
+                        'Cluster': self.config['slurm']['ClusterName']
+                        },
+                    label = instance_type,
+                ),
             )
 
         self.active_nodes_widget = cloudwatch.GraphWidget(
@@ -1466,7 +1494,7 @@ class CdkSlurmStack(Stack):
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
                     metric_name = 'NodeState',
-                    dimensions_map = {'State': node_state},
+                    dimensions_map = {'State': node_state, 'Cluster': self.config['slurm']['ClusterName']},
                     label = node_state,
                     ),
                 )
@@ -1482,7 +1510,7 @@ class CdkSlurmStack(Stack):
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
                     metric_name = 'NodeState',
-                    dimensions_map = {'State': node_state},
+                    dimensions_map = {'State': node_state, 'Cluster': self.config['slurm']['ClusterName']},
                     label = node_state,
                     ),
                 )
@@ -1500,7 +1528,9 @@ class CdkSlurmStack(Stack):
                     metric_name = 'NodeCount',
                     dimensions_map = {
                         'State': node_state,
-                        'InstanceType': 'all'},
+                        'InstanceType': 'all',
+                        'Cluster': self.config['slurm']['ClusterName']
+                    },
                     label = node_state,
                 ),
             )
@@ -1516,7 +1546,7 @@ class CdkSlurmStack(Stack):
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
                     metric_name = 'NodeState',
-                    dimensions_map = {'State': node_state},
+                    dimensions_map = {'State': node_state, 'Cluster': self.config['slurm']['ClusterName']},
                     label = node_state,
                     ),
                 )
@@ -1540,132 +1570,116 @@ class CdkSlurmStack(Stack):
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
                     metric_name = 'InsufficientCapacity',
-                    dimensions_map = {'InstanceType': instance_type},
+                    dimensions_map = {'InstanceType': instance_type, 'Cluster': self.config['slurm']['ClusterName']},
                     label = instance_type,
                 ),
             )
+        # TODO: See feature #51
+        # self.vcs_licenses_widget = cloudwatch.GraphWidget(
+        #     title = "VCS Licenses",
+        #     period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+        #     stacked = False,
+        #     statistic = 'Maximum',
+        # )
+        # for metric_name in ['LicensesTotal', 'LicensesUsed']:
+        #     for license_name in ['VCSCompiler_Net', 'VCSMXRunTime_Net']:
+        #         self.vcs_licenses_widget.add_left_metric(
+        #             cloudwatch.Metric(
+        #                 namespace = self.slurm_namespace,
+        #                 metric_name = metric_name,
+        #                 dimensions_map = {
+        #                     'LicenseName': license_name,
+        #                     'Cluster': self.config['slurm']['ClusterName']
+        #                 },
+        #                 label = license_name,
+        #             ),
+        #         )
 
-        self.running_instances_by_type_stacked_widget = cloudwatch.GraphWidget(
-            title = "Running Instances by Type",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = True,
-            statistic = 'Maximum',
-        )
-        for instance_type in self.instance_types:
-            self.running_instances_by_type_stacked_widget.add_left_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'NodeCount',
-                    dimensions_map = {
-                        'State': 'running',
-                        'InstanceType': instance_type},
-                    label = instance_type,
-                ),
-            )
+        # self.job_count_by_instance_type_widget = cloudwatch.GraphWidget(
+        #     title = "JobCount by InstanceType",
+        #     period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+        #     stacked = False,
+        #     statistic = 'Maximum',
+        # )
+        # for instance_type in self.instance_types:
+        #     self.job_count_by_instance_type_widget.add_left_metric(
+        #         cloudwatch.Metric(
+        #             namespace = self.slurm_namespace,
+        #             metric_name = 'JobCount',
+        #             dimensions_map = {'InstanceType': instance_type},
+        #             label = instance_type,
+        #         ),
+        #     )
 
-        self.running_instances_by_type_unstacked_widget = cloudwatch.GraphWidget(
-            title = "Running Instances by Type",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Maximum',
-        )
-        for instance_type in self.instance_types:
-            self.running_instances_by_type_unstacked_widget.add_left_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'NodeCount',
-                    dimensions_map = {
-                        'State': 'running',
-                        'InstanceType': instance_type},
-                    label = instance_type,
-                ),
-            )
+        # self.running_jobs_by_instance_type_widget = cloudwatch.GraphWidget(
+        #     title = "Running Jobs by Instance Type",
+        #     period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+        #     stacked = False,
+        #     statistic = 'Maximum',
+        # )
+        # for instance_type in self.instance_types:
+        #     self.running_jobs_by_instance_type_widget.add_left_metric(
+        #         cloudwatch.Metric(
+        #             namespace = self.slurm_namespace,
+        #             metric_name = 'RunningJobs',
+        #             dimensions_map = {'InstanceType': instance_type, 'Cluster': self.config['slurm']['ClusterName']},
+        #             label = instance_type,
+        #         ),
+        #     )
 
-        self.job_count_by_instance_type_widget = cloudwatch.GraphWidget(
-            title = "JobCount by InstanceType",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Maximum',
-        )
-        for instance_type in self.instance_types:
-            self.job_count_by_instance_type_widget.add_left_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'JobCount',
-                    dimensions_map = {'InstanceType': instance_type},
-                    label = instance_type,
-                ),
-            )
+        # self.static_node_count_by_instance_type_widget = cloudwatch.GraphWidget(
+        #     title = "Static Node Count By Instance Type",
+        #     period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+        #     stacked = False,
+        #     statistic = 'Maximum',
+        # )
+        # for instance_type in self.instance_types:
+        #     self.static_node_count_by_instance_type_widget.add_left_metric(
+        #         cloudwatch.Metric(
+        #             namespace = self.slurm_namespace,
+        #             metric_name = 'StaticNodeCount',
+        #             dimensions_map = {'InstanceType': instance_type},
+        #             label = instance_type,
+        #         ),
+        #     )
 
-        self.running_jobs_by_instance_type_widget = cloudwatch.GraphWidget(
-            title = "Running Jobs by Instance Type",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Maximum',
-        )
-        for instance_type in self.instance_types:
-            self.running_jobs_by_instance_type_widget.add_left_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'RunningJobs',
-                    dimensions_map = {'InstanceType': instance_type},
-                    label = instance_type,
-                ),
-            )
+        # self.memory_used_percent_by_instance_type_widget = cloudwatch.GraphWidget(
+        #     title = "Memory Utilization by Instance Type",
+        #     period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+        #     stacked = False,
+        #     statistic = 'Average',
+        # )
+        # for instance_type in self.instance_types:
+        #     self.memory_used_percent_by_instance_type_widget.add_left_metric(
+        #         cloudwatch.Metric(
+        #             namespace = self.slurm_namespace,
+        #             metric_name = 'MemoryUsedPercent',
+        #             dimensions_map = {'InstanceType': instance_type, 'Cluster': self.config['slurm']['ClusterName']},
+        #         ),
+        #     )
 
-        self.static_node_count_by_instance_type_widget = cloudwatch.GraphWidget(
-            title = "Static Node Count By Instance Type",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Maximum',
-        )
-        for instance_type in self.instance_types:
-            self.static_node_count_by_instance_type_widget.add_left_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'StaticNodeCount',
-                    dimensions_map = {'InstanceType': instance_type},
-                    label = instance_type,
-                ),
-            )
-
-        self.memory_used_percent_by_instance_type_widget = cloudwatch.GraphWidget(
-            title = "Memory Utilization by Instance Type",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Average',
-        )
-        for instance_type in self.instance_types:
-            self.memory_used_percent_by_instance_type_widget.add_left_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'MemoryUsedPercent',
-                    dimensions_map = {'InstanceType': instance_type},
-                ),
-            )
-
-        self.memory_stats_by_instance_type_widget = cloudwatch.GraphWidget(
-            title = "Memory Stats by Instance Type",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Average',
-        )
-        for instance_type in self.instance_types:
-            self.memory_stats_by_instance_type_widget.add_left_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'MemoryRequested',
-                    dimensions_map = {'InstanceType': instance_type},
-                ),
-            )
-        for instance_type in self.instance_types:
-            self.memory_stats_by_instance_type_widget.add_right_metric(
-                cloudwatch.Metric(
-                    namespace = self.slurm_namespace,
-                    metric_name = 'MemoryUsed',
-                    dimensions_map = {'InstanceType': instance_type},
-                ),
-            )
+        # self.memory_stats_by_instance_type_widget = cloudwatch.GraphWidget(
+        #     title = "Memory Stats by Instance Type",
+        #     period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+        #     stacked = False,
+        #     statistic = 'Average',
+        # )
+        # for instance_type in self.instance_types:
+        #     self.memory_stats_by_instance_type_widget.add_left_metric(
+        #         cloudwatch.Metric(
+        #             namespace = self.slurm_namespace,
+        #             metric_name = 'MemoryRequested',
+        #             dimensions_map = {'InstanceType': instance_type, 'Cluster': self.config['slurm']['ClusterName']},
+        #         ),
+        #     )
+        # for instance_type in self.instance_types:
+        #     self.memory_stats_by_instance_type_widget.add_right_metric(
+        #         cloudwatch.Metric(
+        #             namespace = self.slurm_namespace,
+        #             metric_name = 'MemoryUsed',
+        #             dimensions_map = {'InstanceType': instance_type, 'Cluster': self.config['slurm']['ClusterName']},
+        #         ),
+        #     )
 
         # self.down_percent_by_node_type = cloudwatch.GraphWidget(
         #     title = "DownPercent by NodeType",
@@ -1679,7 +1693,7 @@ class CdkSlurmStack(Stack):
         #         using_metrics = cloudwatch.Metric(
         #             namespace = self.slurm_namespace,
         #             metric_name = 'DownPercent',
-        #             dimensions_map = {'Partition': 'all'},
+        #             dimensions_map = {'Partition': 'all', 'Cluster': self.config['slurm']['ClusterName']},
         #             ),
         #         label = 'DownPercent'
         #     )
@@ -1691,28 +1705,28 @@ class CdkSlurmStack(Stack):
             widgets = [
                 [
                     self.job_count_widget,
-                    self.vcs_licenses_widget,
                     self.running_instances_widget,
-                    self.active_nodes_widget
+                    self.running_instances_by_type_stacked_widget,
+                    self.running_instances_by_type_unstacked_widget,
                 ],
                 [
+                    self.active_nodes_widget,
                     self.idle_nodes_widget,
                     self.stopped_nodes_widget,
                     self.down_nodes_widget,
+                ],
+                [
                     self.insufficient_capacity_exceptions_widget,
+                    # self.vcs_licenses_widget,
+                    # self.job_count_by_instance_type_widget,
+                    # self.running_jobs_by_instance_type_widget,
                 ],
-                [
-                    self.running_instances_by_type_stacked_widget,
-                    self.running_instances_by_type_unstacked_widget,
-                    self.job_count_by_instance_type_widget,
-                    self.running_jobs_by_instance_type_widget,
-                ],
-                [
-                    self.static_node_count_by_instance_type_widget,
-                    self.memory_used_percent_by_instance_type_widget,
-                    self.memory_stats_by_instance_type_widget,
-                    # self.down_percent_by_node_type
-                ]
+                # [
+                #     # self.static_node_count_by_instance_type_widget,
+                #     # self.memory_used_percent_by_instance_type_widget,
+                #     # self.memory_stats_by_instance_type_widget,
+                #     # self.down_percent_by_node_type
+                # ]
             ]
         )
 
