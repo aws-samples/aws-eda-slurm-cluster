@@ -105,8 +105,10 @@
   when: rhel8 or rhel8clone
   shell:
     cmd: |
+      set -ex
       setenforce Permissive
       sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/sysconfig/selinux
+      sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
 
 # Used by mount_ssds.bash
 - name: Install packages required by mount_ssds.bash
