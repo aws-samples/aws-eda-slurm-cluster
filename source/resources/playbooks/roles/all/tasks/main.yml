@@ -106,7 +106,11 @@
   shell:
     cmd: |
       set -ex
-      setenforce Permissive
+      if sestatus | grep -q disabled; then
+          echo "selinux is disabled"
+      else
+          setenforce Permissive
+      fi
       sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/sysconfig/selinux
       sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
 

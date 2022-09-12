@@ -1515,14 +1515,14 @@ class CdkSlurmStack(Stack):
                     ),
                 )
 
-        self.stopped_nodes_widget = cloudwatch.GraphWidget(
-            title = "Stopped Nodes",
+        self.stopped_instances_widget = cloudwatch.GraphWidget(
+            title = "Stopped Instances",
             period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
             stacked = True,
             statistic = 'Maximum',
             )
         for node_state in ['stopped']:
-            self.stopped_nodes_widget.add_left_metric(
+            self.stopped_instances_widget.add_left_metric(
                 cloudwatch.Metric(
                     namespace = self.slurm_namespace,
                     metric_name = 'NodeCount',
@@ -1710,9 +1710,9 @@ class CdkSlurmStack(Stack):
                     self.running_instances_by_type_unstacked_widget,
                 ],
                 [
+                    self.stopped_instances_widget,
                     self.active_nodes_widget,
                     self.idle_nodes_widget,
-                    self.stopped_nodes_widget,
                     self.down_nodes_widget,
                 ],
                 [

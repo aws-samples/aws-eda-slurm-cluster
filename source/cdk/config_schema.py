@@ -50,17 +50,21 @@ default_eda_instance_families = [
     #'c5a',               # AMD EPYC 7R32 3.3 GHz
     #'c5ad',              # AMD EPYC 7R32 3.3 GHz
     'c6a',
+    'c6ad',
     'c6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
+    'c6id',
     'c6g',               # AWS Graviton2 Processor 2.5 GHz
     #'c6gd',              # AWS Graviton2 Processor 2.5 GHz
     #'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
-    'm5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
+    #'m5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
     #'m5d',               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
     #'m5a',               # AMD EPYC 7571 2.5 GHz
     #'m5ad',              # AMD EPYC 7571 2.5 GHz
     'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
     'm6a',               # AMD EPYC 7R13 Processor 3.6 GHz
+    'm6ad',
     'm6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
+    'm6id',
     'm6g',               # AWS Graviton2 Processor 2.5 GHz
     #'m6gd',              # AWS Graviton2 Processor 2.5 GHz
     'r5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
@@ -68,7 +72,9 @@ default_eda_instance_families = [
     #'r5b',               # Intel Xeon Platinum 8259 (Cascade Lake) 3.1 GHz
     'r5a',               # AMD EPYC 7571 2.5 GHz
     'r5ad',              # AMD EPYC 7571 2.5 GHz
+    'r6a',
     'r6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz 1TB
+    'r6id',
     'r6g',               # AWS Graviton2 Processor 2.5 GHz
     #'r6gd',              # AWS Graviton2 Processor 2.5 GHz
     #'x1',                # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 2TB

@@ -49,7 +49,7 @@ import traceback
 import yaml
 
 logger = logging.getLogger(__file__)
-logger_formatter = logging.Formatter('%(levelname)s: %(message)s')
+logger_formatter = logging.Formatter('%(levelname)s:%(asctime)s: %(message)s')
 logger_streamHandler = logging.StreamHandler()
 logger_streamHandler.setFormatter(logger_formatter)
 logger.addHandler(logger_streamHandler)
@@ -180,6 +180,37 @@ class LaunchInstanceThread(threading.Thread):
 
 class SlurmPlugin:
 
+    CW_DEFAULT_JOB_STATE_COUNTS = {
+        #'COMPLETED': 0,
+        #'CONFIGURING': 0,
+        'PENDING': 0,
+        'RUNNING': 0
+    }
+
+    NODE_STATE_CODES = {
+        '*': 'The node is presently not responding and will not be allocated any new work.',
+        '~': 'The node is presently in powered off.',
+        '#': 'The node is presently being powered up or configured.',
+        '!': 'The node is pending power down.',
+        '%': 'The node is presently being powered down.',
+        '$': 'The node is currently in a reservation with a flag value of "maintenance".',
+        '@': 'The node is pending reboot.',
+        '^': 'The node reboot was issued.',
+        '-': 'The node is planned by the backfill scheduler for a higher priority job.',
+    }
+
+    CW_DEFAULT_NODE_STATE_COUNTS = {
+        'allocated': 0,
+        'completing': 0,
+        'down': 0,
+        'down~': 0,
+        'drained': 0,
+        'drained~': 0,
+        'idle': 0,
+        'idle~': 0,
+        'mixed': 0,
+    }
+
     # CloudWatch Metric Names
     # Emitted by Resume
     CW_SLURM_RESUME = "Resume"
@@ -266,6 +297,8 @@ class SlurmPlugin:
                 self.compute_regions.append(region)
         self.compute_regions.sort()
 
+        self.instance_types = None
+
         # Create first so that can publish metrics for unhandled exceptions
         self.cw = boto3.client('cloudwatch')
         self.ssm = boto3.client('ssm')
@@ -338,7 +371,7 @@ class SlurmPlugin:
             raise
 
     def get_instance_type_info(self):
-        logger.debug(f"get_instance_type_info")
+        logger.debug(f"get_instance_type_info()")
         eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions, json_filename=self.config['InstanceTypeInfoFile'])
         self.instance_type_info = eC2InstanceTypeInfo.instance_type_info
         self.create_instance_family_info()
@@ -436,6 +469,13 @@ class SlurmPlugin:
             hostnames ([str]): List of hostnames that may or may not have instances.
         '''
         logger.debug(f"get_hostinfo({hostnames})")
+
+        if not self.instance_types:
+            instance_types_file = self.config['InstanceTypesFile']
+            logger.info(f"Reading instance types from {instance_types_file}")
+            with open(instance_types_file, 'r') as fh:
+                self.instance_types = json.load(fh)
+
         self.hostinfo = {}
         for hostname in hostnames:
             # Ignore invalid hostnames
@@ -447,7 +487,14 @@ class SlurmPlugin:
 
         # Find existing unterminated instances
         # Collect the number of SlurmNodes in each state overall and by instance type
-        slurmNodeStats = {}
+        slurmNodeStats = {
+            'running': Counter({'all': 0}),
+            'stopped': Counter({'all': 0})
+        }
+        for region in self.compute_regions:
+            for instance_type in self.instance_types[region]:
+                slurmNodeStats['running'][instance_type] = 0
+                slurmNodeStats['stopped'][instance_type] = 0
         for region in self.compute_regions:
             for result in self.paginate(self.ec2_describe_instances_paginator[region], {}):
                 for reservation in result['Reservations']:
@@ -469,10 +516,7 @@ class SlurmPlugin:
 
                         instanceType = instance['InstanceType']
                         if state not in slurmNodeStats:
-                            slurmNodeStats[state] = {}
-                            slurmNodeStats[state]['all'] = 0
-                        if instanceType not in slurmNodeStats[state]:
-                            slurmNodeStats[state][instanceType] = 0
+                            slurmNodeStats[state] = Counter()
                         slurmNodeStats[state][instanceType] += 1
                         slurmNodeStats[state]['all'] += 1
 
@@ -1534,19 +1578,17 @@ class SlurmPlugin:
         return sorted(nodes)
 
     def create_node_conf(self):
+        '''
+        Create the slurm node config and a json file with all of the instance type information
+        '''
         try:
             global logger
-            logger_formatter = logging.Formatter('%(levelname)s:%(asctime)s: %(message)s')
-            logger_streamHandler = logging.StreamHandler()
-            logger_streamHandler.setFormatter(logger_formatter)
-            logger.addHandler(logger_streamHandler)
-            logger.setLevel(logging.INFO)
-            logger.propagate = False
 
             self.parser = argparse.ArgumentParser("Create SLURM node config from EC2 instance metadata")
             self.parser.add_argument('--config-file', required=True, help="YAML file with instance families and types to include/exclude")
             self.parser.add_argument('--output-file', '-o', required=True, help="Output file")
             self.parser.add_argument('--az-info-file', required=True, help="JSON file where AZ info will be saved")
+            self.parser.add_argument('--instance-types-json', required=True, help="JSON file with configured instance types.")
             self.parser.add_argument('--instance-type-info-json', default=False, help="JSON file with cached instance type info.")
             self.parser.add_argument('--debug', '-d', action='count', default=False, help="Enable debug messages")
             self.args = self.parser.parse_args()
@@ -1579,6 +1621,7 @@ class SlurmPlugin:
             logger.info(f"{len(az_info.keys())} AZs configured: {sorted(az_info.keys())}")
             logger.debug(f"{pp.pformat(az_info)}")
             with open(self.args.az_info_file, 'w') as fh:
+                logger.info(f"Writing AZ info to {self.args.az_info_file}")
                 fh.write(json.dumps(az_info, indent=4))
 
             eC2InstanceTypeInfo = EC2InstanceTypeInfo(compute_regions, json_filename=self.args.instance_type_info_json, debug=self.args.debug > 1)
@@ -1587,6 +1630,10 @@ class SlurmPlugin:
 
             instance_types = self.get_instance_types_from_instance_config(instance_config, compute_regions, eC2InstanceTypeInfo)
             logger.debug(f"instance_types:\n{pp.pformat(instance_types)}")
+            if self.args.instance_types_json:
+                logger.info(f"Writing configured instance types to {self.args.instance_types_json}")
+                with open(self.args.instance_types_json, 'w') as fh:
+                    json.dump(instance_types, fh, indent=4, sort_keys=True)
 
             architecture_prefix_map = {
                 'x86_64': 'x86',
@@ -1835,6 +1882,9 @@ class SlurmPlugin:
     def get_instance_types_from_instance_config(self, instance_config: dict, regions: [str], instance_type_info: EC2InstanceTypeInfo) -> dict:
         '''
         Get instance types selected by the config file.
+
+        Returns:
+            dict: Dictionary of arrays of instance types in each region. instance_types[region][instance_types]
         '''
         instance_types = {}
         for region in regions:
@@ -1951,6 +2001,7 @@ class SlurmPlugin:
             self.get_instance_type_info()
             self.get_hostinfo([])
 
+            # Get number of jobs in each state
             try:
                 # Not executing untrusted input.
                 lines = subprocess.check_output([f"{self.config['SLURM_ROOT']}/bin/squeue", '-o', '%T %y', '--noheader'], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
@@ -1965,20 +2016,21 @@ class SlurmPlugin:
             # Gives us a list of dicts [{state, nice}]
             num_jobs = len(jobs)
             logger.debug("Found {} jobs".format(num_jobs))
-            counts = defaultdict()
+            # Make sure that there is a default value for each state so 0 values will be written.
+            job_counts = {
+                'state': Counter(self.CW_DEFAULT_JOB_STATE_COUNTS),
+                'nice': Counter({'0': 0})
+            }
             for job in jobs:
-                for key, value in job.items():
-                    count = counts.get(key)
-                    if count:
-                        counts[key] += Counter([value])
-                    else:
-                        counts[key] = Counter([value])
+                for count_type, value in job.items():
+                    logger.debug(f"count_type={count_type} value={value}")
+                    job_counts[count_type][value] += 1
             self.publish_cw_metrics('JobCount', num_jobs, [{'Name': 'State', 'Value': 'all'}])
-            for count in counts.keys():
-                logger.debug("    {}: {}".format(count, counts[count]))
-                for key, value in counts[count].items():
-                    self.publish_cw_metrics('JobCount', value, [{'Name': count.capitalize(), 'Value': key}])
+            for count_type in job_counts.keys():
+                for key, value in job_counts[count_type].items():
+                    self.publish_cw_metrics('JobCount', value, [{'Name': count_type.capitalize(), 'Value': key}])
 
+            # Publish node states
             try:
                 # Not executing untrusted input.
                 lines = subprocess.check_output([f"{self.config['SLURM_ROOT']}/bin/sinfo", '-o', '%T,%D', '--noheader'], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
@@ -1986,9 +2038,13 @@ class SlurmPlugin:
                 logger.exception(f"sinfo failed:\ncommand: {e.cmd}\noutput:\n{e.output}")
                 raise
             node_states = lines.split()
-            logger.debug(node_states)
+            logger.debug(f"node_states={node_states}")
+            node_states_counter = Counter(self.CW_DEFAULT_NODE_STATE_COUNTS)
+            logger.debug(f"node_states_counter={node_states_counter}")
             for node_state in node_states:
                 (state, count) = node_state.split(',')
+                node_states_counter[state] = count
+            for state, count in node_states_counter.items():
                 logger.debug("Nodes in {:10s} state: {}".format(state, count))
                 self.publish_cw_metrics('NodeState', int(count), [{'Name': 'State', 'Value': state}])
 
