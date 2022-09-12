@@ -283,8 +283,13 @@ class SlurmPlugin:
         return
 
     def suspend_resume_setup(self):
-        # Parse args and setup for suspend/resume functions
+        '''
+        Parse args and setup for suspend/resume functions
+        '''
         global logger
+        # Set default values in case there's an exception
+        self.hostnames = []
+        self.hostlist = ''
 
         try:
             logger_formatter = logging.Formatter('%(levelname)s:%(asctime)s: %(message)s')
@@ -296,7 +301,11 @@ class SlurmPlugin:
             self.parser = argparse.ArgumentParser("SLURM suspend/resume plugin")
             self.parser.add_argument('hostname_list', help="hostname list")
             self.parser.add_argument('--debug', '-d', action='count', default=False, help="Enable debug messages")
-            self.args = self.parser.parse_args()
+            try:
+                self.args = self.parser.parse_args()
+            except SystemExit:
+                logger.error("Couldn't parse args")
+                raise
 
             if self.args.debug:
                 logger_streamHandler = logging.StreamHandler()
@@ -307,7 +316,6 @@ class SlurmPlugin:
             self.hostlist = self.args.hostname_list
             all_hostnames = hostlist.expand_hostlist(self.args.hostname_list)
             logger.debug(f"hostnames: {all_hostnames}")
-            self.hostnames = []
             # Ignore invalid hostnames. Could be on-prem hosts
             for hostname in all_hostnames:
                 try:
@@ -599,12 +607,18 @@ class SlurmPlugin:
         return value
 
     def resume(self):
+        '''
+        Main function for slurm_ec2_resume.py
+
+        Returns:
+            int: 0 if successful
+        '''
         try:
             self.test_ice = False
 
             self.suspend_resume_setup()
             if not self.hostnames:
-                return
+                return 0
 
             logger.info("Resuming {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_RESUME, len(self.hostnames), [])
@@ -614,7 +628,8 @@ class SlurmPlugin:
         except:
             logger.exception('Unhandled exception in SlurmPlugin.resume')
             self.publish_cw_metrics(self.CW_UNHANDLED_RESUME_EXCEPTION, 1, [])
-            raise
+            return 1
+        return 0
 
     def resume_region(self, region):
             # Decide what to do for each hostname
@@ -898,11 +913,23 @@ class SlurmPlugin:
             self.update_hostinfo()
             self.terminate_old_instances_region(region)
 
-    def resume_fail(self, region):
+    def resume_fail(self):
+        '''
+        Main function for slurm_ec2_resume_fail.py
+
+        Returns:
+            int: Return code for the program. 0 if successful
+        '''
         try:
-            self.suspend_resume_setup()
+            try:
+                self.suspend_resume_setup()
+            except:
+                logger.exception('Setup failed')
+                # Make sure that an alarm is raised for resume_fail
+                self.publish_cw_metrics(self.CW_SLURM_RESUME_TIMEOUT, 1, [])
+                raise
             if not self.hostnames:
-                return
+                return 0
 
             logger.error(f"Resume failed on {len(self.hostnames)} hosts: {self.hostlist}")
             # They will already have been marked down my slurmctld
@@ -915,7 +942,8 @@ class SlurmPlugin:
         except:
             logger.exception('Unhandled exception in SlurmPlugin.resume_fail')
             self.publish_cw_metrics(self.CW_UNHANDLED_RESUME_FAIL_EXCEPTION, 1, [])
-            raise
+            return 1
+        return 0
 
     def resume_fail_region(self, region):
             # Now stop them so that they stop consuming resources until they can be debugged.
@@ -962,10 +990,16 @@ class SlurmPlugin:
                     self.CW_SLURM_RESUME_FAIL_STOP, self.CW_SLURM_RESUME_FAIL_STOP_ERROR)
 
     def stop(self):
+        '''
+        Main function for slurm_ec2_stop.py
+
+        Returns:
+            int: Return code for the program. 0 if successful
+        '''
         try:
             self.suspend_resume_setup()
             if not self.hostnames:
-                return
+                return 0
 
             logger.info("Stopping  {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_STOP, len(self.hostnames), [])
@@ -975,7 +1009,8 @@ class SlurmPlugin:
         except:
             logger.exception('Unhandled exception in SlurmPlugin.stop')
             self.publish_cw_metrics(self.CW_UNHANDLED_STOP_EXCEPTION, 1, [])
-            raise
+            return 1
+        return 0
 
     def stop_region(self, region):
             # Decide what to do for each hostname
@@ -1050,10 +1085,16 @@ class SlurmPlugin:
             self.terminate_old_instances_region(region)
 
     def terminate(self):
+        '''
+        Main function for slurm_ec2_terminate.py
+
+        Returns:
+            int: Return code for the program. 0 if successful
+        '''
         try:
             self.suspend_resume_setup()
             if not self.hostnames:
-                return
+                return 0
 
             logger.info("Terminating {} hosts: {}".format(len(self.hostnames), self.hostlist))
             self.publish_cw_metrics(self.CW_SLURM_TERMINATE, len(self.hostnames), [])
@@ -1063,7 +1104,8 @@ class SlurmPlugin:
         except:
             logger.exception('Unhandled exception in SlurmPlugin.terminate')
             self.publish_cw_metrics(self.CW_UNHANDLED_TERMINATE_EXCEPTION, 1, [])
-            raise
+            return 1
+        return 0
 
     def terminate_region(self, region):
             # Find instances that need to be terminated
@@ -1453,26 +1495,29 @@ class SlurmPlugin:
             self.publish_cw_metrics(self.CW_UNHANDLED_MARK_NODE_DOWN_EXCEPTION, 1, [])
 
     def mark_ice_nodes_down(self, hostname, reason):
+        '''
+        Handle Insufficient Capacity Exceptions (ICE) by marking powered down nodes down
+        '''
         instance_type_hostlist = '-'.join(hostname.split('-')[0:-1]) + '-[0-9999]'
         logger.info(f"Finding POWERED_DOWN nodes in {instance_type_hostlist}")
         powered_down_nodes = self.get_powered_down_nodes(instance_type_hostlist)
+        # The node that got ICE shouldn't be powered down, but try to remove it just in case.
+        try:
+            powered_down_nodes.remove(hostname)
+        except:
+            logger.info(f"{hostname} not in powered_down_nodes")
 
         if not powered_down_nodes:
             logger.info(f"None of {instance_type_hostlist} are powered down")
-        else:
-            try:
-                powered_down_nodes.remove(hostname)
-            except:
-                logger.exception("Failed to remove {hostname} from powered_down_nodes")
-            if powered_down_nodes:
-                powered_down_hostlist = hostlist.collect_hostlist(powered_down_nodes)
-                logger.info(f"Marking {powered_down_hostlist} DOWN because of {reason}")
-                try:
-                    # Not executing untrusted input.
-                    lines = subprocess.check_output([f"{self.config['SLURM_ROOT']}/bin/scontrol", 'update', f'nodename={powered_down_hostlist}', 'state=DOWN', f"reason='{reason}'"], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
-                except subprocess.CalledProcessError as e:
-                    logger.exception(f"scontrol failed:\ncommand: {e.cmd}\noutput:\n{e.output}")
-                    raise
+            return
+        powered_down_hostlist = hostlist.collect_hostlist(powered_down_nodes)
+        logger.info(f"Marking {powered_down_hostlist} DOWN because of {reason}")
+        try:
+            # Not executing untrusted input.
+            lines = subprocess.check_output([f"{self.config['SLURM_ROOT']}/bin/scontrol", 'update', f'nodename={powered_down_hostlist}', 'state=DOWN', f"reason='{reason}'"], stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
+        except subprocess.CalledProcessError as e:
+            logger.exception(f"scontrol failed:\ncommand: {e.cmd}\noutput:\n{e.output}")
+            raise
 
     def get_powered_down_nodes(self, nodelist):
         try:
@@ -1973,7 +2018,7 @@ class SlurmPlugin:
         except:
             logger.exception('Unhandled exception in SlurmPlugin.publish_cw')
             self.publish_cw_metrics(self.CW_UNHANDLED_PUBLISH_CW_METRICS_EXCEPTION, 1, [])
-            raise
+            return 1
         return 0
 
     @retry_ec2_throttling()

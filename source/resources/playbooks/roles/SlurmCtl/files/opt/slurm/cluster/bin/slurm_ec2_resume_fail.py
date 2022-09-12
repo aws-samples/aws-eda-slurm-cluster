@@ -19,6 +19,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import logging
 from SlurmPlugin import SlurmPlugin
+from sys import argv, exit
 
 logger = logging.getLogger(__file__)
 logger_formatter = logging.Formatter('%(levelname)s:%(asctime)s: %(message)s')
@@ -28,9 +29,15 @@ logger.addHandler(logger_rotatingFileHandler)
 logger.setLevel(logging.INFO)
 
 if __name__ == '__main__':
+    rc = 1
     try:
+        logger.info("====================================================================================================")
+        logger.info(f"{__file__} {argv[1:]}")
+        logger.info("====================================================================================================")
         plugin = SlurmPlugin()
-        plugin.resume_fail()
+        rc = plugin.resume_fail()
     except:
         logging.exception(f"Unhandled exception in {__file__}")
-        raise
+        plugin.publish_cw_metrics(plugin.CW_UNHANDLED_RESUME_FAIL_EXCEPTION, 1, [])
+        rc = 1
+    exit(rc)

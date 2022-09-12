@@ -59,8 +59,8 @@ to a node with a different instance type or it will fail.
 This can take a substantial amount of time so `SlurmPlugin.py` does the following when it receives an ICE.
 
 * Mark the node as DRAIN so no new jobs are scheduled on it.
-* Find all other nodes of the same type and mark them DOWN so that they won't be scheduled after this node is marked DOWN. Nodes that are running will be left alone.
+* Find all other powered down nodes of the same type and mark them DOWN so that they won't be scheduled after this node is marked DOWN. Nodes that are running will be left alone.
 * Requeue jobs on the node that failed to resume because of ICE.
 * Mark the node DOWN.
 * Power down the node. This is so that Slurm knows that the node is powered down so that when it is marked IDLE it will be powered up when a job is scheduled on it.
-* A cron job periodically finds all DOWN Slurm nodes, powers them down, and then marks them IDLE so that they can have jobs scheduled on them. This will allow Slurm to attempt to use more nodes of the instance type in the hopes that there is more capacity. If not, then the cycle repeats.
+* The `slurm_down_nodes_clean.service` periodically finds all DOWN Slurm nodes, powers them down, and then marks them IDLE so that they can have jobs scheduled on them. This will allow Slurm to attempt to use more nodes of the instance type in the hopes that there is more capacity. If not, then the cycle repeats.
