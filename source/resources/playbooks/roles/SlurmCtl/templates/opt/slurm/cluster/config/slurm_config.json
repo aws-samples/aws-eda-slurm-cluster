@@ -6,6 +6,7 @@
     "ClusterName": "{{ClusterName}}",
     "DOMAIN": "{{Domain}}",
     "InstanceTypeInfoFile": "{{SlurmConfigDir}}/instance-type-info.json",
+    "InstanceTypesFile": "{{SlurmConfigDir}}/InstanceTypes.json",
     "MaxStoppedDuration": "{{MaxStoppedDuration}}",
     "region": "{{Region}}",
     "SLURM_POWER_LOG": "/var/log/slurm/power_save.log",
