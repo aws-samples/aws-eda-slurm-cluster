@@ -83,7 +83,9 @@ fi
 version=$(cdk --version | awk '{print $1}')
 if [[ $version != $CDK_VERSION ]]; then
     echo "Updating the global version of aws-cdk from version $version to $CDK_VERSION"
+    echo "Uninstalling old version: npm uninstall -g aws-cdk"
     npm uninstall -g aws-cdk
+    echo "npm install -g aws-cdk@$CDK_VERSION"
     if ! npm install -g aws-cdk@$CDK_VERSION; then
         sudo npm install -g aws-cdk@$CDK_VERSION
     fi
