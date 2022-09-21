@@ -112,6 +112,11 @@ class CdkSlurmStack(Stack):
 
         # Create VPC before lambdas so that lambdas can access the VPC.
         self.create_vpc()
+
+        self.check_regions_config()
+
+        self.create_remote_vpcs()
+
         self.create_lambdas()
         self.create_security_groups()
         if 'ElasticSearch' not in self.config['slurm']:
@@ -381,58 +386,6 @@ class CdkSlurmStack(Stack):
                     logger.error(f"Must specify existing ElasticSearch domain in slurm/JobCompLoc when slurm/JobCompType == jobcomp/elasticsearch and slurm/ElasticSearch is not set.")
                     exit(1)
 
-        if not self.config['slurm']['InstanceConfig']['Regions']:
-            self.config['slurm']['InstanceConfig']['Regions'] = {}
-            self.config['slurm']['InstanceConfig']['Regions'][self.config['Region']] = {
-                'VpcId': self.config['VpcId'],
-                'CIDR': self.config['CIDR'],
-                'SshKeyPair': self.config['SshKeyPair'],
-                'AZs': [
-                    {
-                        'Priority': 1,
-                        'Subnet': self.config['SubnetId']
-                    }
-                ]
-            }
-
-        self.compute_regions = {}
-        self.remote_compute_regions = {}
-        self.compute_region_cidrs_dict = {}
-        local_region = self.config['Region']
-        for compute_region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
-            compute_region_cidr = region_dict['CIDR']
-            if compute_region not in self.compute_regions:
-                self.compute_regions[compute_region] = compute_region_cidr
-                if compute_region != local_region:
-                    self.remote_compute_regions[compute_region] = compute_region_cidr
-            if compute_region_cidr not in self.compute_region_cidrs_dict:
-                self.compute_region_cidrs_dict[compute_region] = compute_region_cidr
-        logger.info(f"{len(self.compute_regions.keys())} regions configured: {sorted(self.compute_regions.keys())}")
-
-        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), json_filename='/tmp/instance_type_info.json', debug=False)
-
-        plugin = SlurmPlugin(slurm_config_file=None, region=self.region)
-        plugin.instance_type_info = eC2InstanceTypeInfo.instance_type_info
-        plugin.create_instance_family_info()
-        self.az_info = plugin.get_az_info_from_instance_config(self.config['slurm']['InstanceConfig'])
-        logger.info(f"{len(self.az_info.keys())} AZs configured: {sorted(self.az_info.keys())}")
-
-        az_partitions = []
-        for az, az_info in self.az_info.items():
-            az_partitions.append(f"{az}_all")
-        self.default_partition = ','.join(az_partitions)
-
-        self.instance_types = plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], self.compute_regions, eC2InstanceTypeInfo)
-        for compute_region in self.compute_regions:
-            region_instance_types = self.instance_types[compute_region]
-            if len(region_instance_types) == 0:
-                logger.error(f"No instance types found in region {compute_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{region_instance_types}")
-                sys.exit(1)
-            logger.info(f"{len(region_instance_types)} instance types configured in {compute_region}:\n{pp.pformat(region_instance_types)}")
-            for instance_type in region_instance_types:
-                self.instance_types[instance_type] = 1
-        self.instance_types = sorted(self.instance_types.keys())
-
         # Validate updated config against schema
         from config_schema import check_schema
         from schema import SchemaError
@@ -493,11 +446,86 @@ class CdkSlurmStack(Stack):
                     logger.error(f"SubnetId {self.config['SubnetId']} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(valid_subnet_ids)}")
                     exit(1)
         else:
+            if not self.vpc.private_subnets:
+                logger.error(f"{self.config['VpcId']} has 0 private subnets. VPC must have at least 1 private subnet with internet access.")
+                logger.info(f"There are {len(self.vpc.public_subnets)} public subnets:")
+                for subnet in self.vpc.public_subnets:
+                    logger.info(f"    {subnet.subnet_id}")
+                logger.info(f"There are {len(self.vpc.isolated_subnets)} isolated subnets:")
+                for subnet in self.vpc.isolated_subnets:
+                    logger.info(f"    {subnet.subnet_id}")
+                exit(1)
             self.subnet = self.vpc.private_subnets[0]
             self.config['SubnetId'] = self.subnet.subnet_id
         logger.info(f"Subnet set to {self.config['SubnetId']}")
         logger.info(f"availability zone: {self.subnet.availability_zone}")
 
+    def check_regions_config(self):
+        '''
+        Do this after the VPC object has been created so that we can choose a default SubnetId.
+        '''
+        if 'Regions' not in self.config['slurm']['InstanceConfig']:
+            self.config['slurm']['InstanceConfig']['Regions'] = {}
+            self.config['slurm']['InstanceConfig']['Regions'][self.config['Region']] = {
+                'VpcId': self.config['VpcId'],
+                'CIDR': self.config['CIDR'],
+                'SshKeyPair': self.config['SshKeyPair'],
+                'AZs': [
+                    {
+                        'Priority': 1,
+                        'Subnet': self.config['SubnetId']
+                    }
+                ]
+            }
+
+        self.compute_regions = {}
+        self.remote_compute_regions = {}
+        self.compute_region_cidrs_dict = {}
+        local_region = self.config['Region']
+        for compute_region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
+            compute_region_cidr = region_dict['CIDR']
+            if compute_region not in self.compute_regions:
+                self.compute_regions[compute_region] = compute_region_cidr
+                if compute_region != local_region:
+                    self.remote_compute_regions[compute_region] = compute_region_cidr
+            if compute_region_cidr not in self.compute_region_cidrs_dict:
+                self.compute_region_cidrs_dict[compute_region] = compute_region_cidr
+        logger.info(f"{len(self.compute_regions.keys())} regions configured: {sorted(self.compute_regions.keys())}")
+
+        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), json_filename='/tmp/instance_type_info.json', debug=False)
+
+        plugin = SlurmPlugin(slurm_config_file=None, region=self.region)
+        plugin.instance_type_info = eC2InstanceTypeInfo.instance_type_info
+        plugin.create_instance_family_info()
+        self.az_info = plugin.get_az_info_from_instance_config(self.config['slurm']['InstanceConfig'])
+        logger.info(f"{len(self.az_info.keys())} AZs configured: {sorted(self.az_info.keys())}")
+
+        az_partitions = []
+        for az, az_info in self.az_info.items():
+            az_partitions.append(f"{az}_all")
+        self.default_partition = ','.join(az_partitions)
+
+        self.instance_types = plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], self.compute_regions, eC2InstanceTypeInfo)
+        for compute_region in self.compute_regions:
+            region_instance_types = self.instance_types[compute_region]
+            if len(region_instance_types) == 0:
+                logger.error(f"No instance types found in region {compute_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{region_instance_types}")
+                sys.exit(1)
+            logger.info(f"{len(region_instance_types)} instance types configured in {compute_region}:\n{pp.pformat(region_instance_types)}")
+            for instance_type in region_instance_types:
+                self.instance_types[instance_type] = 1
+        self.instance_types = sorted(self.instance_types.keys())
+
+        # Validate updated config against schema
+        from config_schema import check_schema
+        from schema import SchemaError
+        try:
+            validated_config = check_schema(self.config)
+        except SchemaError:
+            logger.exception(f"Invalid config")
+            exit(1)
+
+    def create_remote_vpcs(self):
         remote_vpcs = {}
         for region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
             if region == self.config['Region']:

@@ -298,7 +298,7 @@ config_schema = Schema(
                     Optional('InstanceFamilies', default=default_eda_instance_families): [str],
                     Optional('InstanceTypes', default=default_eda_instance_types): [str]
                 },
-                Optional('Regions', default={}): {
+                Optional('Regions'): {
                     str: {
                         'VpcId': And(str, lambda s: re.match('vpc-', s)),
                         'CIDR': str,
