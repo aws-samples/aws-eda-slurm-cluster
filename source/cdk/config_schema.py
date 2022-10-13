@@ -261,6 +261,8 @@ config_schema = Schema(
             # SubmitterSecurityGroupIds:
             #     External security groups that should be able to use the cluster
             Optional('SubmitterSecurityGroupIds'): {str: str},
+            # SubmitterInstanceTags:
+            #    Tags of instances configure to submit to the cluster. When the cluster is deleted the tag is used unmount the slurm filesystem from the instannces using SSM.
             Optional('SubmitterInstanceTags'): {str: [str]},
             #
             # InstanceConfig:

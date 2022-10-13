@@ -73,7 +73,7 @@ if [[ $node_major_version -eq 14 ]] && [[ $node_minor_version -lt 6 ]]; then
 fi
 
 # Create a local installation of cdk
-CDK_VERSION=2.28.1 # If you change the CDK version here, make sure to also change it in source/requirements.txt
+CDK_VERSION=2.46.0 # If you change the CDK version here, make sure to also change it in source/requirements.txt
 if ! cdk --version &> /dev/null; then
     echo "CDK not installed. Installing global version of cdk@$CDK_VERSION."
     if ! npm install -g aws-cdk@$CDK_VERSION; then
