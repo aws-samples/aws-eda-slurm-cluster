@@ -32,22 +32,16 @@ from botocore.exceptions import ProfileNotFound, ValidationError
 from botocore import config
 from colored import fg, bg, attr
 import datetime
-import getpass
 import json
 import logging
 import os
 import os.path
 from os.path import dirname, realpath
-import random
-import re
 from requests import get
 from requests.exceptions import RequestException, Timeout
 import shutil
 from shutil import make_archive, copytree
-import string
 import sys
-import time
-from types import SimpleNamespace
 import urllib3
 import yaml
 from yaml.scanner import ScannerError
@@ -184,8 +178,8 @@ class SlurmInstaller():
         try:
             # Check provided values and if not provided, prompt for a value if --prompt specified
             checked_value = resource_finder.get_keypair(config_key, self.config.get(config_key, ''), args.SshKeyPair, args.prompt)
-        except:
-            logger.exception('')
+        except ValueError as e:
+            logger.error(e)
             sys.exit(1)
         if args.prompt:
             if args.SshKeyPair:
@@ -206,8 +200,8 @@ class SlurmInstaller():
                 sys.exit(1)
         try:
             checked_value = resource_finder.get_vpc_id(config_key, self.config.get(config_key, ''), args.VpcId, args.prompt)
-        except:
-            logger.exception('')
+        except ValueError as e:
+            logger.error(e)
             sys.exit(1)
         if args.prompt:
             if args.VpcId:
@@ -234,8 +228,8 @@ class SlurmInstaller():
         if config_key in self.config or args.SubnetId or args.prompt:
             try:
                 checked_value = resource_finder.get_subnet_id(self.config['VpcId'], config_key, self.config.get(config_key, ''), args.SubnetId, args.prompt)
-            except:
-                logger.exception('')
+            except ValueError as e:
+                logger.error(e)
                 sys.exit(1)
             if checked_value:
                 if args.prompt:
@@ -262,8 +256,8 @@ class SlurmInstaller():
         else:
             try:
                 checked_value = resource_finder.get_sns_topic_arn(config_key, self.config.get(config_key, ''), args.ErrorSnsTopicArn, args.prompt)
-            except:
-                logger.exception('')
+            except ValueError as e:
+                logger.error(e)
                 sys.exit(1)
             if checked_value:
                 if args.prompt:
@@ -297,8 +291,8 @@ class SlurmInstaller():
                 arg_SubmitterSecurityGroupIds = None
             try:
                 checked_value = resource_finder.get_submitter_security_groups(self.config['VpcId'], config_key, self.config.get(config_key, None), arg_SubmitterSecurityGroupIds, args.prompt)
-            except:
-                logger.exception('')
+            except ValueError as e:
+                logger.error(e)
                 sys.exit(1)
             if checked_value:
                 checked_value_json = json.dumps(checked_value)
@@ -461,8 +455,8 @@ class SlurmInstaller():
         from schema import SchemaError
         try:
             validated_config = check_schema(config_parameters)
-        except SchemaError:
-            logger.exception(f"Invalid config file: {config_file_path}")
+        except SchemaError as e:
+            logger.error(f"Invalid config file: {config_file_path}\n{e}\nSee: {dirname(dirname(__file__))}/cdk/config_schema.py")
             sys.exit(1)
 
         return validated_config

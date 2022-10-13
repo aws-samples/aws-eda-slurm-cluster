@@ -222,7 +222,7 @@ class CdkSlurmStack(Stack):
         cidr = self.node.try_get_context(config_key)
         if cidr:
             if config_key not in self.config:
-                logger.info(f"{config_key:20} set from command line: {vpc_id}")
+                logger.info(f"{config_key:20} set from command line: {cidr}")
             elif cidr != self.config[config_key]:
                 logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {cidr}")
             self.config[config_key] = cidr
@@ -290,6 +290,9 @@ class CdkSlurmStack(Stack):
 
         if 'mount_path' not in self.config['slurm']['storage']:
             self.config['slurm']['storage']['mount_path'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}"
+        storage_provider = self.config['slurm']['storage']['provider']
+        if storage_provider not in self.config['slurm']['storage']:
+            self.config['slurm']['storage'][storage_provider] = {}
 
         if 'SlurmDbd' in self.config['slurm'] and 'ExistingSlurmDbd' in self.config['slurm']:
             logger.error(f"Cannot specify both slurm/SlurmDbd and slurm/ExistingSlurmDbd")
@@ -394,6 +397,7 @@ class CdkSlurmStack(Stack):
         except SchemaError:
             logger.exception(f"Invalid config")
             exit(1)
+        self.config = validated_config
 
     def create_assets(self):
         self.slurmctl_user_data_asset = s3_assets.Asset(self, "SlurmCtlUserData", path="resources/user_data/slurmctl_user_data.sh")
@@ -426,36 +430,43 @@ class CdkSlurmStack(Stack):
             self.onprem_cidr = None
 
     def create_vpc(self):
+        logger.info(f"VpcId: {self.config['VpcId']}")
         self.vpc = ec2.Vpc.from_lookup(self, "Vpc", vpc_id = self.config['VpcId'])
+        self.private_and_isolated_subnets = self.vpc.private_subnets + self.vpc.isolated_subnets
+        if len(self.private_and_isolated_subnets) == 0:
+            logger.error(f"{self.config['VpcId']} must have at least one private or isolated subnet.")
+            logger.info(f"    {len(self.vpc.public_subnets)} public subnets")
+            for subnet in self.vpc.public_subnets:
+                logger.info(f"        {subnet.subnet_id}")
+            logger.info(f"    {len(self.vpc.private_subnets)} private subnets")
+            for subnet in self.vpc.private_subnets:
+                logger.info(f"        {subnet.subnet_id}")
+            logger.info(f"    {len(self.vpc.isolated_subnets)} isolated subnets")
+            for subnet in self.vpc.isolated_subnets:
+                logger.info(f"        {subnet.subnet_id}")
+            exit(1)
 
-        self.subnets = self.vpc.private_subnets
         valid_subnet_ids = []
         if 'SubnetId' in self.config:
             self.subnet = None
-            for subnet in self.subnets:
+            logger.info(f"Checking for {self.config['SubnetId']} in {len(self.private_and_isolated_subnets)} private and isolated subnets")
+            for subnet in self.private_and_isolated_subnets:
+                logger.info(f"    {subnet.subnet_id}")
                 valid_subnet_ids.append(subnet.subnet_id)
+                # If this is a new VPC then the cdk.context.json will not have the VPC and will be refreshed after the bootstrap phase. Until then the subnet ids will be placeholders so just pick the first subnet. After the bootstrap finishes the vpc lookup will be done and then the info will be correct.
+                if subnet.subnet_id in ['p-12345', 'p-67890']:
+                    logger.warning(f"VPC {self.config['VpcId']} not in cdk.context.json and will be refreshed before synth.")
+                    self.subnet = subnet
+                    break
                 if subnet.subnet_id == self.config['SubnetId']:
                     self.subnet = subnet
                     break
             if not self.subnet:
-                # If this is a new VPC then the cdk.context.json will not have the VPC and will be refreshed after the bootstrap phase. Until then the subnet ids will be placeholders so just pick the first subnet. After the bootstrap finishes the vpc lookup will be done and then the info will be correct.
-                if valid_subnet_ids[0] == 'p-12345':
-                    logger.warning(f"VPC {self.config['VpcId']} not in cdk.context.json and will be refresshed before synth.")
-                    self.subnet = self.vpc.private_subnets[0]
-                else:
-                    logger.error(f"SubnetId {self.config['SubnetId']} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(valid_subnet_ids)}")
-                    exit(1)
-        else:
-            if not self.vpc.private_subnets:
-                logger.error(f"{self.config['VpcId']} has 0 private subnets. VPC must have at least 1 private subnet with internet access.")
-                logger.info(f"There are {len(self.vpc.public_subnets)} public subnets:")
-                for subnet in self.vpc.public_subnets:
-                    logger.info(f"    {subnet.subnet_id}")
-                logger.info(f"There are {len(self.vpc.isolated_subnets)} isolated subnets:")
-                for subnet in self.vpc.isolated_subnets:
-                    logger.info(f"    {subnet.subnet_id}")
+                logger.error(f"SubnetId {self.config['SubnetId']} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(valid_subnet_ids)}")
                 exit(1)
-            self.subnet = self.vpc.private_subnets[0]
+        else:
+            # Subnet not specified so pick the first private or isolated subnet
+            self.subnet = self.private_and_isolated_subnets[0]
             self.config['SubnetId'] = self.subnet.subnet_id
         logger.info(f"Subnet set to {self.config['SubnetId']}")
         logger.info(f"availability zone: {self.subnet.availability_zone}")
@@ -524,6 +535,7 @@ class CdkSlurmStack(Stack):
         except SchemaError:
             logger.exception(f"Invalid config")
             exit(1)
+        self.config = validated_config
 
     def create_remote_vpcs(self):
         remote_vpcs = {}
@@ -956,7 +968,7 @@ class CdkSlurmStack(Stack):
 
         es_subnets = []
         for subnet_index in range(self.config['slurm']['ElasticSearch']['number_of_azs']):
-            es_subnets.append(ec2.SubnetSelection(subnets=[self.subnets[subnet_index]]))
+            es_subnets.append(ec2.SubnetSelection(subnets=[self.private_and_isolated_subnets[subnet_index]]))
 
         if self.config['slurm']['ElasticSearch']['number_of_azs'] > 1:
             zone_awareness = opensearch.ZoneAwarenessConfig(
@@ -1070,7 +1082,7 @@ class CdkSlurmStack(Stack):
                 # @BUG Cloudformation fails with: Resource handler returned message: "One or more LifecyclePolicy objects specified are malformed
                 #out_of_infrequent_access_policy = efs.OutOfInfrequentAccessPolicy.AFTER_1_ACCESS,
                 removal_policy = removal_policies[self.config['slurm']['storage']['removal_policy']],
-                vpc_subnets  = ec2.SubnetSelection(subnets=self.subnets),
+                vpc_subnets  = ec2.SubnetSelection(subnets=self.private_and_isolated_subnets),
                 security_group  = self.nfs_sg
                 )
 
@@ -1122,7 +1134,7 @@ class CdkSlurmStack(Stack):
 
             subnet_ids = [self.subnet.subnet_id]
             if self.config['slurm']['storage']['ontap']['deployment_type'] == 'MULTI_AZ_1':
-                for subnet in self.vpc.private_subnets:
+                for subnet in self.private_and_isolated_subnets:
                     if subnet.subnet_id != self.subnet.subnet_id:
                         subnet_ids.append(subnet.subnet_id)
                         break
@@ -1343,6 +1355,7 @@ class CdkSlurmStack(Stack):
             self, "SlurmDBCluster",
             engine = rds.DatabaseClusterEngine.AURORA_MYSQL,
             vpc = self.vpc,
+            vpc_subnets  = ec2.SubnetSelection(subnets=self.private_and_isolated_subnets),
             backup_retention = Duration.days(35),
             credentials = rds.Credentials.from_generated_secret(username="slurm"),
             default_database_name = "slurm_acct_db",

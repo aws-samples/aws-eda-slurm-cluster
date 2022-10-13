@@ -263,7 +263,7 @@ class FindExistingResource:
                 # Value specified in config or on command line is invalid. Fail unless prompt is true
                 msg_type = 'warning' if prompt else 'error'
                 msg_color = 'yellow' if prompt else 'red'
-                msg = f"{fg(msg_color)}{msg_type}: {value_type} value {specified_value} is invalid.{attr('reset')}"
+                msg = f"{fg(msg_color)}{msg_type}: Invalid {value_type} value. {config_key}={specified_value}{attr('reset')}"
                 if prompt:
                     print("\n{msg}")
                 else:
