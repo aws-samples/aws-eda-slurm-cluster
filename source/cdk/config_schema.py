@@ -359,7 +359,7 @@ config_schema = Schema(
                 # mount_path:
                 # Default is /opt/slurm/{{cluster_name}}
                 Optional('mount_path'): str,
-                Optional('provider', default='efs'): And(str, lambda s: s in ('efs', 'ontap', 'zfs')),
+                'provider': And(str, lambda s: s in ('efs', 'ontap', 'zfs')),
                 #
                 # removal_policy:
                 # RETAIN will preserve the EFS even if you delete the stack.
