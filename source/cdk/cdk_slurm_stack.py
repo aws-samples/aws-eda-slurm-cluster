@@ -107,13 +107,14 @@ class CdkSlurmStack(Stack):
 
         self.check_config()
 
-        # Assets must be created before setting instance_template_vars so the playbooks URL exists
-        self.create_assets()
-
         # Create VPC before lambdas so that lambdas can access the VPC.
         self.create_vpc()
 
         self.check_regions_config()
+
+        # Must be called after check_regions_config so that 'Regions' is set in the InstanceConfig.
+        # Assets must be created before setting instance_template_vars so the playbooks URL exists
+        self.create_assets()
 
         self.create_remote_vpcs()
 
