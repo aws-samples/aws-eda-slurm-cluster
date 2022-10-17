@@ -120,7 +120,7 @@ class CdkSlurmStack(Stack):
 
         self.create_lambdas()
         self.create_security_groups()
-        if 'ElasticSearch' not in self.config['slurm']:
+        if 'ElasticSearch' in self.config['slurm']:
             self.create_elasticsearch()
         self.create_file_system()
         if 'SlurmDbd' in self.config['slurm']:
@@ -434,6 +434,9 @@ class CdkSlurmStack(Stack):
         logger.info(f"VpcId: {self.config['VpcId']}")
         self.vpc = ec2.Vpc.from_lookup(self, "Vpc", vpc_id = self.config['VpcId'])
         self.private_and_isolated_subnets = self.vpc.private_subnets + self.vpc.isolated_subnets
+        self.private_and_isolated_subnet_ids_map = {}
+        for subnet in self.private_and_isolated_subnets:
+            self.private_and_isolated_subnet_ids_map[subnet.subnet_id] = subnet
         if len(self.private_and_isolated_subnets) == 0:
             logger.error(f"{self.config['VpcId']} must have at least one private or isolated subnet.")
             logger.info(f"    {len(self.vpc.public_subnets)} public subnets")
@@ -960,6 +963,8 @@ class CdkSlurmStack(Stack):
         if 'ElasticSearch' not in self.config['slurm']:
             return
 
+        logger.info(f"Creating OpenSearch domain for slurm")
+
         self.elasticsearch_sg = ec2.SecurityGroup(self, "ElasticSearchSG", vpc=self.vpc, allow_all_outbound=False, description="ElasticSearch Security Group")
         Tags.of(self.elasticsearch_sg).add("Name", f"{self.stack_name}-ElasticSearchSG")
 
@@ -967,9 +972,18 @@ class CdkSlurmStack(Stack):
             self.elasticsearch_sg.connections.allow_from(sg[0], ec2.Port.tcp(80), f'{sg[1]} to ElasticSearchSG')
             self.elasticsearch_sg.connections.allow_from(sg[0], ec2.Port.tcp(443), f'{sg[1]} to ElasticSearchSG')
 
-        es_subnets = []
-        for subnet_index in range(self.config['slurm']['ElasticSearch']['number_of_azs']):
-            es_subnets.append(ec2.SubnetSelection(subnets=[self.private_and_isolated_subnets[subnet_index]]))
+        es_subnet_ids = self.config['slurm']['ElasticSearch']['subnets']
+        if es_subnet_ids:
+            logger.info(f"    subnets: {es_subnet_ids}")
+            try:
+                es_subnets = self.check_subnet_ids(es_subnet_ids)
+            except ValueError as e:
+                logger.error(f"{e}")
+                exit(1)
+        else:
+            # Pick a subnet for each AZ.
+            es_subnets, es_subnet_ids = self.get_subnet_from_each_az(self.config['slurm']['ElasticSearch']['number_of_azs'])
+            logger.info(f"    subnets: {es_subnet_ids}")
 
         if self.config['slurm']['ElasticSearch']['number_of_azs'] > 1:
             zone_awareness = opensearch.ZoneAwarenessConfig(
@@ -1012,7 +1026,7 @@ class CdkSlurmStack(Stack):
             removal_policy = RemovalPolicy.RETAIN, # RemovalPolicy.DESTROY
             security_groups = [self.elasticsearch_sg],
             vpc = self.vpc,
-            vpc_subnets = es_subnets,
+            vpc_subnets  = [ec2.SubnetSelection(subnets=es_subnets)],
             zone_awareness = zone_awareness,
             access_policies = [
                 iam.PolicyStatement(
@@ -1047,6 +1061,8 @@ class CdkSlurmStack(Stack):
             }
 
         if self.config['slurm']['storage']['provider'] == "efs":
+            logger.info(f"Creating efs filesystem:")
+
             lifecycle_policies = {
                 'None': None,
                 'AFTER_14_DAYS': efs.LifecyclePolicy.AFTER_14_DAYS,
@@ -1072,6 +1088,18 @@ class CdkSlurmStack(Stack):
             else:
                 provisioned_throughput_per_second = None
 
+            efs_subnet_ids = self.config['slurm']['storage']['efs']['subnets']
+            if efs_subnet_ids:
+                logger.info(f"    subnets: {efs_subnet_ids}")
+                try:
+                    efs_subnets = self.check_subnet_ids(efs_subnet_ids)
+                except ValueError as e:
+                    logger.error(f"{e}")
+                    exit(1)
+            else:
+                efs_subnets, efs_subnet_ids = self.get_subnet_from_each_az()
+                logger.info(f"    subnets: {efs_subnet_ids}")
+
             self.file_system = efs.FileSystem(self, "EFS",
                 vpc = self.vpc,
                 encrypted = self.config['slurm']['storage']['efs']['encrypted'],
@@ -1083,7 +1111,7 @@ class CdkSlurmStack(Stack):
                 # @BUG Cloudformation fails with: Resource handler returned message: "One or more LifecyclePolicy objects specified are malformed
                 #out_of_infrequent_access_policy = efs.OutOfInfrequentAccessPolicy.AFTER_1_ACCESS,
                 removal_policy = removal_policies[self.config['slurm']['storage']['removal_policy']],
-                vpc_subnets  = ec2.SubnetSelection(subnets=self.private_and_isolated_subnets),
+                vpc_subnets  = ec2.SubnetSelection(subnets=efs_subnets),
                 security_group  = self.nfs_sg
                 )
 
@@ -1116,6 +1144,8 @@ class CdkSlurmStack(Stack):
             self.file_system_mount_command = f"sudo mkdir -p {self.config['slurm']['storage']['mount_path']} && sudo yum -y install nfs-utils && sudo mount -t {self.file_system_type} -o {self.file_system_options} {self.file_system_mount_source} {self.config['slurm']['storage']['mount_path']}"
 
         elif self.config['slurm']['storage']['provider'] == "ontap":
+            logger.info(f"Creating ontap filesystem:")
+            logger.info(f"    deployment type: {self.config['slurm']['storage']['ontap']['deployment_type']}")
             if 'iops' in self.config['slurm']['storage']['ontap']:
                 disk_iops_configuration = fsx.CfnFileSystem.DiskIopsConfigurationProperty(
                     iops = self.config['slurm']['storage']['ontap']['iops'],
@@ -1132,18 +1162,26 @@ class CdkSlurmStack(Stack):
                 'throughput_capacity': self.config['slurm']['storage']['ontap']['throughput_capacity']
             }
             ontap_configuration = fsx.CfnFileSystem.OntapConfigurationProperty(**ontap_configuration_kwargs)
+            logger.info(f"    preferred_subnet_id: {self.subnet.subnet_id}")
 
-            subnet_ids = [self.subnet.subnet_id]
+            ontap_subnet_ids = [self.subnet.subnet_id]
             if self.config['slurm']['storage']['ontap']['deployment_type'] == 'MULTI_AZ_1':
-                for subnet in self.private_and_isolated_subnets:
-                    if subnet.subnet_id != self.subnet.subnet_id:
-                        subnet_ids.append(subnet.subnet_id)
-                        break
+                if 'extra_subnet' in self.config['slurm']['storage']['ontap']:
+                    ontap_subnet_ids.append(self.config['slurm']['storage']['ontap']['extra_subnet'])
+                    logger.info(f"    extra subnet: {self.config['slurm']['storage']['ontap']['extra_subnet']}")
+                    try:
+                        ontap_subnets = self.check_subnet_ids(ontap_subnet_ids)
+                    except ValueError as e:
+                        logger.error(e)
+                        exit(1)
+                else:
+                    ontap_subnets, ontap_subnet_ids = self.get_subnet_from_each_az(number_of_azs=2)
+                    logger.info(f"    extra subnet: {ontap_subnet_ids[1]}")
 
             self.file_system = fsx.CfnFileSystem(
                 self, "Ontap",
                 file_system_type = 'ONTAP',
-                subnet_ids = subnet_ids,
+                subnet_ids = ontap_subnet_ids,
                 ontap_configuration = ontap_configuration,
                 security_group_ids = [self.nfs_sg.security_group_id],
                 storage_capacity = self.config['slurm']['storage']['ontap']['storage_capacity'],
@@ -1347,16 +1385,76 @@ class CdkSlurmStack(Stack):
 
             self.deconfigure_cluster_resource.node.add_dependency(self.file_system)
 
+    def check_subnet_ids(self, subnet_ids):
+        '''
+        Make sure that subnets are:
+        * Include primary subnet
+        * Are private or isolated
+        * In Unique AZs
+        '''
+        subnets = []
+
+        # Check that the main subnet is included.
+        if self.subnet.subnet_id not in subnet_ids:
+            raise ValueError(f"{self.subnet.subnet_id} not in {subnet_ids}")
+
+        # Check that all subnets are private or isolated and are in unique AZs
+        subnet_azs = {}
+        for subnet_id in subnet_ids:
+            if subnet_id not in self.private_and_isolated_subnet_ids_map:
+                raise ValueError(f"{subnet_id} is not a private or isolated subnet")
+            subnet = self.private_and_isolated_subnet_ids_map[subnet_id]
+            subnets.append(subnet)
+            az = subnet.availability_zone
+            if az in subnet_azs:
+                raise ValueError(f"Both {subnet_azs[az].subnet_id} and {subnet_id} are in {az}")
+            subnet_azs[az] = subnet
+        return subnets
+
+    def get_subnet_from_each_az(self, number_of_azs=None):
+        subnets = [self.subnet]
+        subnet_ids = [self.subnet.subnet_id]
+        subnet_azs = {self.subnet.availability_zone: self.subnet}
+        for subnet in self.private_and_isolated_subnets:
+            az = subnet.availability_zone
+            if az not in subnet_azs:
+                subnet_azs[az] = subnet
+                subnets.append(subnet)
+                subnet_ids.append(subnet.subnet_id)
+                if number_of_azs and len(subnets) == number_of_azs:
+                    break
+        return subnets, subnet_ids
+
     def create_db(self):
         if 'SlurmDbd' not in self.config['slurm']:
             return
+
+        logger.info(f"Creating RDS Serverless Cluster for SlurmDbd")
+
+        rds_subnet_ids = self.config['slurm']['SlurmDbd']['subnets']
+        if rds_subnet_ids:
+            logger.info(f"    subnets: {rds_subnet_ids}")
+            try:
+                rds_subnets = self.check_subnet_ids(rds_subnet_ids)
+            except ValueError as e:
+                logger.error(f"{e}")
+                exit(1)
+        else:
+            # Pick a subnet for each AZ.
+            logger.info(f"    No subnets specified so picking one from each AZ.")
+            rds_subnets, rds_subnet_ids = self.get_subnet_from_each_az()
+            logger.info(f"    subnets: {rds_subnet_ids}")
+
+        if len(rds_subnets) < 2:
+            logger.error(f"RDS Serverless cluster requires at least 2 subnets.")
+            exit(1)
 
         # See https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.how-it-works.html#aurora-serverless.architecture
         self.db_cluster = rds.ServerlessCluster(
             self, "SlurmDBCluster",
             engine = rds.DatabaseClusterEngine.AURORA_MYSQL,
             vpc = self.vpc,
-            vpc_subnets  = ec2.SubnetSelection(subnets=self.private_and_isolated_subnets),
+            vpc_subnets  = ec2.SubnetSelection(subnets=rds_subnets),
             backup_retention = Duration.days(35),
             credentials = rds.Credentials.from_generated_secret(username="slurm"),
             default_database_name = "slurm_acct_db",
