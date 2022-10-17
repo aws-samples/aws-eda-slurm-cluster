@@ -23,7 +23,7 @@ import re
 from schema import Schema, And, Use, Optional, Regex, SchemaError
 from sys import exit
 
-DEFAULT_SLURM_VERSION = '22.05.3'
+DEFAULT_SLURM_VERSION = '22.05.5'
 
 config = {}
 
