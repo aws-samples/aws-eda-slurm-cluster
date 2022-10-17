@@ -214,7 +214,10 @@ config_schema = Schema(
                 Optional('volume_size', default=200): int,
                 Optional('database', default={'port': 3306}): {
                     'port': int,
-                }
+                },
+                Optional('subnets', default=[]): [
+                    And(str, lambda s: re.match('subnet-', s))
+                ]
             },
             #
             # ExistingSlurmDbd:
@@ -343,6 +346,9 @@ config_schema = Schema(
                 Optional('data_node_instance_type', default='m5.large.search'): str,
                 Optional('warm_nodes', default=0): int,
                 Optional('warm_instance_type', default='ultrawarm.medium.search'): str,
+                Optional('subnets', default=[]): [
+                    And(str, lambda s: re.match('subnet-', s))
+                ]
             },
             #
             # JobCompType:
@@ -385,6 +391,9 @@ config_schema = Schema(
                     # encrypted
                     # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-encrypted
                     Optional('encrypted', default=True): bool,
+                    Optional('subnets', default=[]): [
+                        And(str, lambda s: re.match('subnet-', s))
+                    ]
                 },
                 Optional('ontap'): {
                     Optional('deployment_type', default='SINGLE_AZ_1'): And(str, lambda s: s in ('SINGLE_AZ_1', 'MULTI_AZ_1')),
@@ -393,6 +402,7 @@ config_schema = Schema(
                     Optional('throughput_capacity', default=128): And(int, lambda s: s in [128, 256, 512, 1024, 2048]),
                     Optional('tiering_policy', default='AUTO'): And(str, lambda s: s in ('ALL', 'AUTO', 'NONE', 'SNAPSHOT_ONLY')),
                     Optional('cooling_period', default=31): And(int, lambda s: (s >= 2 and s <= 183)),
+                    Optional('extra_subnet'): And(str, lambda s: re.match('subnet-', s)),
                 },
                 Optional('zfs'): {
                     Optional('storage_capacity', default=64): And(int, lambda s: s >= 64 and s <= 524288),
