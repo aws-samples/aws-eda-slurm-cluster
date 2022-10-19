@@ -20,7 +20,7 @@ import boto3
 from botocore.client import ClientError
 from os import environ
 import re
-from schema import Schema, And, Use, Optional, Regex, SchemaError
+from schema import And, Schema, Optional, Or, Regex, Use, SchemaError
 from sys import exit
 
 DEFAULT_SLURM_VERSION = '22.05.5'
@@ -263,7 +263,9 @@ config_schema = Schema(
             #
             # SubmitterSecurityGroupIds:
             #     External security groups that should be able to use the cluster
-            Optional('SubmitterSecurityGroupIds'): {str: str},
+            Optional('SubmitterSecurityGroupIds', default={}): {
+                Optional(str): And(str, lambda s: re.match(r'sg-', s))
+            },
             # SubmitterInstanceTags:
             #    Tags of instances configure to submit to the cluster. When the cluster is deleted the tag is used unmount the slurm filesystem from the instannces using SSM.
             Optional('SubmitterInstanceTags'): {str: [str]},
@@ -412,9 +414,8 @@ config_schema = Schema(
                 },
                 #
                 # ExtraMounts
-                # Additional mounts for compute nodes
-                # This examle shows SOCA EFS file systems.
-                # This is required so the compute node as the same file structure as the remote desktops.
+                # Additional mounts for compute nodes.
+                # This can be used so the compute nodes have the same file structure as the remote desktops.
                 Optional('ExtraMounts', default=[]): [
                     {
                         'dest': str,
@@ -422,7 +423,19 @@ config_schema = Schema(
                         'type': str,
                         'options': str
                     }
-                ]
+                ],
+                # ExtraMountSecurityGroups
+                Optional('ExtraMountSecurityGroups', default={}): {
+                    Optional(Or('nfs', 'zfs', 'lustre')): {
+                        str: And(str, lambda s: re.match(r'sg-', s))
+                    }
+                },
+                # ExtraMountCidrs
+                Optional('ExtraMountCidrs', default={}): {
+                    Optional(Or('nfs', 'zfs', 'lustre')): {
+                        str: And(str, lambda s: re.match(r'\d+\.\d+\.\d+\.\d+/\d+', s))
+                    }
+                }
             },
         },
         Optional('AmiMap', default={}): {

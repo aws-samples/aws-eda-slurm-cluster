@@ -698,6 +698,16 @@ class CdkSlurmStack(Stack):
         Tags.of(self.lustre_sg).add("Name", f"{self.stack_name}-LustreSG")
         self.suppress_cfn_nag(self.lustre_sg, 'W29', 'Egress port range used to block all egress')
 
+        self.extra_mount_security_groups = {}
+        for fs_type in self.config['slurm']['storage']['ExtraMountSecurityGroups'].keys():
+            self.extra_mount_security_groups[fs_type] = {}
+            for extra_mount_sg_name, extra_mount_sg_id in self.config['slurm']['storage']['ExtraMountSecurityGroups'][fs_type].items():
+                self.extra_mount_security_groups[fs_type][extra_mount_sg_name] = ec2.SecurityGroup.from_security_group_id(
+                    self, f"{extra_mount_sg_name}{fs_type}",
+                    security_group_id = extra_mount_sg_id,
+                    allow_all_outbound = False,
+                )
+
         self.database_sg = ec2.SecurityGroup(self, "DatabaseSG", vpc=self.vpc, allow_all_outbound=False, description="Database Security Group")
         Tags.of(self.database_sg).add("Name", f"{self.stack_name}-DatabaseSG")
         self.suppress_cfn_nag(self.database_sg, 'W29', 'Egress port range used to block all egress')
@@ -758,13 +768,12 @@ class CdkSlurmStack(Stack):
         Tags.of(self.slurm_submitter_sg).add("Name", self.slurm_submitter_sg_name)
         self.suppress_cfn_nag(self.slurm_submitter_sg, 'W29', 'Egress port range used to block all egress')
         self.submitter_security_groups[self.slurm_submitter_sg_name] = self.slurm_submitter_sg
-        if 'SubmitterSecurityGroupIds' in self.config['slurm']:
-            for slurm_submitter_sg_name, slurm_submitter_sg_id in self.config['slurm']['SubmitterSecurityGroupIds'].items():
-                self.submitter_security_groups[slurm_submitter_sg_name] = ec2.SecurityGroup.from_security_group_id(
-                    self, f"{slurm_submitter_sg_name}",
-                    security_group_id = slurm_submitter_sg_id,
-                    allow_all_outbound = False,
-                )
+        for slurm_submitter_sg_name, slurm_submitter_sg_id in self.config['slurm']['SubmitterSecurityGroupIds'].items():
+            self.submitter_security_groups[slurm_submitter_sg_name] = ec2.SecurityGroup.from_security_group_id(
+                self, f"{slurm_submitter_sg_name}",
+                security_group_id = slurm_submitter_sg_id,
+                allow_all_outbound = False,
+            )
 
         # Security Group Rules
 
@@ -838,6 +847,48 @@ class CdkSlurmStack(Stack):
             self.lustre_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1021, 1023), f"{compute_region} to Lustre")
             self.lustre_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(988), f"Lustre to {compute_region}")
             self.lustre_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1021, 1023), f"Lustre to {compute_region}")
+
+        for fs_type in self.extra_mount_security_groups.keys():
+            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
+                if fs_type in ['nfs', 'zfs']:
+                    self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp(2049), f"SlurmNode to {extra_mount_sg_name} - Nfs")
+                    if fs_type == 'zfs':
+                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp(111), f"SlurmNode to {extra_mount_sg_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp(111), f"SlurmNode to {extra_mount_sg_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp(2049), f"SlurmNode to {extra_mount_sg_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp_range(20001, 20003), f"SlurmNode to {extra_mount_sg_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp_range(20001, 20003), f"SlurmNode to {extra_mount_sg_name} - Zfs")
+                        self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
+                        self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
+                elif fs_type == 'lustre':
+                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp(988), f"SlurmNode to {extra_mount_sg_name} - Lustre")
+                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"SlurmNode to {extra_mount_sg_name} - Lustre")
+                    self.lustre_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(988), f"{extra_mount_sg_name} to SlurmNode")
+                    self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp_range(1021, 1023), f"{extra_mount_sg_name} to SlurmNode")
+                    self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
+                    self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for lustre: 1021-1023')
+
+        for fs_type in self.config['slurm']['storage']['ExtraMountCidrs'].keys():
+            for extra_mount_cidr_name, extra_mount_cidr in self.config['slurm']['storage']['ExtraMountCidrs'][fs_type].items():
+                extra_mount_cidr = ec2.Peer.ipv4(extra_mount_cidr)
+                if fs_type in ['nfs', 'zfs']:
+                    self.slurmnode_sg.connections.allow_to(extra_mount_cidr, ec2.Port.tcp(2049), f"SlurmNode to {extra_mount_cidr_name} - Nfs")
+                    if fs_type == 'zfs':
+                        self.slurmnode_sg.connections.allow_to(extra_mount_cidr, ec2.Port.tcp(111), f"SlurmNode to {extra_mount_cidr_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_cidr, ec2.Port.udp(111), f"SlurmNode to {extra_mount_cidr_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_cidr, ec2.Port.tcp(2049), f"SlurmNode to {extra_mount_cidr_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_cidr, ec2.Port.udp(2049), f"SlurmNode to {extra_mount_cidr_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_cidr, ec2.Port.tcp_range(20001, 20003), f"SlurmNode to {extra_mount_cidr_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_cidr, ec2.Port.udp_range(20001, 20003), f"SlurmNode to {extra_mount_cidr_name} - Zfs")
+                        self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
+                        self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
+                elif fs_type == 'lustre':
+                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp(988), f"SlurmNode to {extra_mount_cidr_name} - Lustre")
+                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"SlurmNode to {extra_mount_cidr_name} - Lustre")
+                    self.lustre_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(988), f"{extra_mount_cidr_name} to SlurmNode")
+                    self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp_range(1021, 1023), f"{extra_mount_cidr_name} to SlurmNode")
+                    self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
+                    self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for lustre: 1021-1023')
 
         # slurmctl connections
         # egress
