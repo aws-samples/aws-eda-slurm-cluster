@@ -96,6 +96,8 @@ class CdkSlurmStack(Stack):
             "ssm": f"ssm.{Aws.URL_SUFFIX}"
         }
 
+        self.ec2_client = boto3.client('ec2', region_name=self.region)
+
         # Read the config file and then any overrides from the context variables.
         self.config = self.get_config('config_file', 'default_config.yml')
 
@@ -702,10 +704,12 @@ class CdkSlurmStack(Stack):
         for fs_type in self.config['slurm']['storage']['ExtraMountSecurityGroups'].keys():
             self.extra_mount_security_groups[fs_type] = {}
             for extra_mount_sg_name, extra_mount_sg_id in self.config['slurm']['storage']['ExtraMountSecurityGroups'][fs_type].items():
+                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(extra_mount_sg_id)
                 self.extra_mount_security_groups[fs_type][extra_mount_sg_name] = ec2.SecurityGroup.from_security_group_id(
                     self, f"{extra_mount_sg_name}{fs_type}",
                     security_group_id = extra_mount_sg_id,
-                    allow_all_outbound = False,
+                    allow_all_outbound = allow_all_outbound,
+                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
                 )
 
         self.database_sg = ec2.SecurityGroup(self, "DatabaseSG", vpc=self.vpc, allow_all_outbound=False, description="Database Security Group")
@@ -719,10 +723,12 @@ class CdkSlurmStack(Stack):
 
         if 'ExistingSlurmDbd' in self.config['slurm']:
             for slurmdbd_sg_name, slurmdbd_sg_id in self.config['slurm']['ExistingSlurmDbd']['SecurityGroup'].items():
+                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(slurmdbd_sg_id)
                 self.slurmdbd_sg = ec2.SecurityGroup.from_security_group_id(
                     self, f"{slurmdbd_sg_name}",
                     security_group_id = slurmdbd_sg_id,
-                    allow_all_outbound = False,
+                    allow_all_outbound = allow_all_outbound,
+                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
                 )
                 self.slurmdbd_sg_name = slurmdbd_sg_name
         elif 'SlurmDbd' in self.config['slurm']:
@@ -742,10 +748,12 @@ class CdkSlurmStack(Stack):
         self.federated_slurmctl_sgs = {}
         if 'Federation' in self.config['slurm']:
             for federated_slurmctl_sg_name, federated_slurmctl_sg_id in self.config['slurm']['Federation']['SlurmCtlSecurityGroups'].items():
+                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(federated_slurmctl_sg_id)
                 federated_slurmctl_sg = ec2.SecurityGroup.from_security_group_id(
                     self, f"{federated_slurmctl_sg_name}",
                     security_group_id = federated_slurmctl_sg_id,
-                    allow_all_outbound = False,
+                    allow_all_outbound = allow_all_outbound,
+                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
                 )
                 self.federated_slurmctl_sgs[federated_slurmctl_sg_name] = federated_slurmctl_sg
                 federated_slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{federated_slurmctl_sg_name} to {self.slurmnode_sg_name}")
@@ -755,10 +763,12 @@ class CdkSlurmStack(Stack):
         self.federated_slurmnode_sgs = {}
         if 'Federation' in self.config['slurm']:
             for federated_slurmnode_sg_name, federated_slurmnode_sg_id in self.config['slurm']['Federation']['SlurmNodeSecurityGroups'].items():
+                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(federated_slurmnode_sg_id)
                 federated_slurmnode_sg = ec2.SecurityGroup.from_security_group_id(
                     self, f"{federated_slurmnode_sg_name}",
                     security_group_id = federated_slurmnode_sg_id,
-                    allow_all_outbound = False,
+                    allow_all_outbound = allow_all_outbound,
+                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
                 )
                 self.federated_slurmnode_sgs[federated_slurmnode_sg_name] = federated_slurmnode_sg
 
@@ -769,10 +779,12 @@ class CdkSlurmStack(Stack):
         self.suppress_cfn_nag(self.slurm_submitter_sg, 'W29', 'Egress port range used to block all egress')
         self.submitter_security_groups[self.slurm_submitter_sg_name] = self.slurm_submitter_sg
         for slurm_submitter_sg_name, slurm_submitter_sg_id in self.config['slurm']['SubmitterSecurityGroupIds'].items():
+            (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(slurm_submitter_sg_id)
             self.submitter_security_groups[slurm_submitter_sg_name] = ec2.SecurityGroup.from_security_group_id(
                 self, f"{slurm_submitter_sg_name}",
                 security_group_id = slurm_submitter_sg_id,
-                allow_all_outbound = False,
+                allow_all_outbound = allow_all_outbound,
+                allow_all_ipv6_outbound = allow_all_ipv6_outbound
             )
 
         # Security Group Rules
@@ -1009,6 +1021,17 @@ class CdkSlurmStack(Stack):
                 parameter_name = f"/{self.stack_name}/SlurmNodeSecurityGroups/{compute_region}",
                 string_value = slurmnode_security_group_id
             )
+
+    def allow_all_outbound(self, security_group_id: str):
+        allow_all_outbound = False
+        allow_all_ipv6_outbound = False
+        egress_rules = self.ec2_client.describe_security_groups(GroupIds=[security_group_id])['SecurityGroups'][0]['IpPermissionsEgress']
+        for egress_rule in egress_rules:
+            if 'FromPort' not in egress_rule and 'ToPort' not in egress_rule and egress_rule['IpProtocol'] == '-1' and egress_rule.get('IpRanges', []) and egress_rule['IpRanges'][0].get('CidrIp', '') == '0.0.0.0/0':
+                allow_all_outbound = True
+            if 'FromPort' not in egress_rule and 'ToPort' not in egress_rule and egress_rule['IpProtocol'] == '-1' and egress_rule.get('Ipv6Ranges', []) and egress_rule['Ipv6Ranges'][0]['CidrIpv6'] == '::/0':
+                allow_all_ipv6_outbound = True
+        return (allow_all_outbound, allow_all_ipv6_outbound)
 
     def create_elasticsearch(self):
         if 'ElasticSearch' not in self.config['slurm']:
@@ -2601,7 +2624,6 @@ class CdkSlurmStack(Stack):
                 for architecture in version_dict:
                     if architecture not in distributions[distribution][distribution_major_version]:
                         distributions[distribution][distribution_major_version].append(architecture)
-        ec2_client = boto3.client('ec2', region_name=self.region)
         for distribution, distribution_dict in distributions.items():
             self.slurm_node_ami_instances[distribution] = {}
             self.ami_ssm_parameters[distribution] = {}
@@ -2619,7 +2641,7 @@ class CdkSlurmStack(Stack):
                         except KeyError:
                             logger.error(f"AmiMap doesn't have ImageId for {self.region}/{distribution}/{distribution_major_version}/{architecture}")
                             exit(1)
-                    ami_info = ec2_client.describe_images(ImageIds=[ami_id])['Images'][0]
+                    ami_info = self.ec2_client.describe_images(ImageIds=[ami_id])['Images'][0]
                     root_device_name = ami_info['RootDeviceName']
                     block_devices = []
                     for block_device_info in ami_info['BlockDeviceMappings']:
