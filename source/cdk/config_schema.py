@@ -120,6 +120,19 @@ default_excluded_instance_types = [
     '.*\.metal'
 ]
 
+architectures = [
+    'arm64',
+    'x86_64'
+]
+
+os_distributions = [
+    'AlmaLinux',
+    'Amazon',
+    'CentOS',
+    'RedHat',
+    'Rocky'
+]
+
 # The config file is used in the installer and the CDK app.
 # Some configuration values are required in the CDK app but are optional so that they can be set by the installer.
 config_schema = Schema(
@@ -179,7 +192,7 @@ config_schema = Schema(
                 #     For high availability configure multiple controllers
                 Optional('NumberOfControllers', default=1): And(Use(int), lambda n: 1 <= n <= 3),
                 Optional('BaseHostname', default='slurmctl'): str,
-                Optional('architecture', default='arm64'): And(str, lambda s: s in ['arm64', 'x86_64']),
+                Optional('architecture', default='arm64'): And(str, lambda s: s in architectures),
                 Optional('instance_type', default='c6g.large'): str,
                 Optional('volume_size', default=200): int,
                 #
@@ -209,7 +222,7 @@ config_schema = Schema(
             Optional('SlurmDbd'): {
                 Optional('UseSlurmDbd', default=True): bool,
                 Optional('Hostname', default='slurmdbd'): str,
-                Optional('architecture', default='arm64'): And(str, lambda s: s in ['arm64', 'x86_64']),
+                Optional('architecture', default='arm64'): And(str, lambda s: s in architectures),
                 Optional('instance_type', default='m6g.large'): str,
                 Optional('volume_size', default=200): int,
                 Optional('database', default={'port': 3306}): {
@@ -240,8 +253,8 @@ config_schema = Schema(
             },
             Optional('SlurmNodeAmis', default={'instance_type': {'x86_64': 'm5.large', 'arm64': 'm6g.large'}}): {
                 Optional('instance_type', default={'x86_64': 'm5.large', 'arm64': 'm6g.large'}): {
-                    'x86_64': str,
                     'arm64': str,
+                    'x86_64': str,
                 },
                 #
                 # BaseAmis:
@@ -249,7 +262,7 @@ config_schema = Schema(
                 #     If these aren't defined then the generic base AMIs are used.
                 Optional('BaseAmis'): {
                     And(str, lambda s: s in valid_regions): { # region
-                        And(str, lambda s: s in ['AlmaLinux', 'Amazon', 'CentOS', 'RedHat', 'Rocky']): { # Distribution
+                        And(str, lambda s: s in os_distributions): { # Distribution
                             And(int, lambda n: n in [2, 7, 8]): { # distribution_major_version
                                 str: { # architecture
                                     'ImageId': And(str, lambda s: re.match('ami-', s)),
@@ -282,9 +295,9 @@ config_schema = Schema(
                 #     The number of nodes that will be defined for each instance type.
                 'NodesPerInstanceType': int,
                 'BaseOsArchitecture': {
-                    And(str, lambda s: s in ['AlmaLinux', 'Amazon', 'CentOS', 'RedHat', 'Rocky']): { # Distribution
+                    And(str, lambda s: s in os_distributions): { # Distribution
                         And(int, lambda n: n in [2, 7, 8]): [ # distribution_major_version
-                            And(str, lambda s: s in ['x86_64', 'arm64']) # architecture
+                            And(str, lambda s: s in architectures) # architecture
                         ]
                     }
                 },
@@ -441,9 +454,9 @@ config_schema = Schema(
         Optional('AmiMap', default={}): {
             #str: { # Region
             And(str, lambda s: s in valid_regions, error=f"Invalid region. valid_regions={valid_regions}"): { # Region
-                And(str, lambda s: s in ['AlmaLinux', 'Amazon', 'CentOS', 'RedHat', 'Rocky']): { # Distribution
+                And(str, lambda s: s in os_distributions): { # Distribution
                     And(int, lambda n: n in [2, 7, 8]): { # distribution_major_version
-                        And(str, lambda s: s in ['x86_64', 'arm64']): {
+                        And(str, lambda s: s in architectures): {
                             'ImageId': str,
                             'RootDeviceName': str
                         }
