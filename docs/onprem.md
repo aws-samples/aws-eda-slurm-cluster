@@ -3,14 +3,18 @@
 The slurm cluster can also be configured to manage on-premises compute nodes.
 The user must configure the on-premises compute nodes and then give the configuration information.
 
-## On-Premises Network and Compute Nodes
+## Network Requirements
 
 The on-prem network must have a CIDR range that doesn't overlap the Slurm cluster's VPC and the two networks
 need to be connected using VPN or AWS Direct Connect.
 The on-prem firewall must allow ingress and egress from the VPC.
 The ports are used to connect to the file systems, slurm controllers, and allow traffic between virtual desktops and compute nodes.
 
+## DNS Requirements
+
 Local network DNS must have an entry for the slurm controller or have a forwarding rule to the AWS provided DNS in the Slurm VPC.
+
+## File System Requirements
 
 All of the compute nodes in the cluster, including the on-prem nodes, must have file system mounts that replicate the same directory structure.
 This can involve mounting filesystems across VPN or Direct Connect or synchronizing file systems using tools like rsync or NetApp FlexCache or SnapMirror.

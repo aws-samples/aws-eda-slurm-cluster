@@ -10,6 +10,7 @@ nav:
   - 'f1-ami.md'
   - 'federation.md'
   - 'multi-region.md'
+  - 'plugin-integration.md'
   - 'implementation.md'
   - 'debug.md'
   - 'todo.md'
