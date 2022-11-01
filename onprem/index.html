@@ -60,6 +60,9 @@
                                 <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
                             </li>
                             <li class="navitem">
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../implementation/" class="nav-link">Implementation Details</a>
                             </li>
                             <li class="navitem">
@@ -109,7 +112,15 @@
             
             <li class="nav-item" data-level="1"><a href="#on-premises-integration" class="nav-link">On-Premises Integration</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="2"><a href="#on-premises-network-and-compute-nodes" class="nav-link">On-Premises Network and Compute Nodes</a>
+            <li class="nav-item" data-level="2"><a href="#network-requirements" class="nav-link">Network Requirements</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#dns-requirements" class="nav-link">DNS Requirements</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#file-system-requirements" class="nav-link">File System Requirements</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -131,12 +142,14 @@
 <h1 id="on-premises-integration">On-Premises Integration</h1>
 <p>The slurm cluster can also be configured to manage on-premises compute nodes.
 The user must configure the on-premises compute nodes and then give the configuration information.</p>
-<h2 id="on-premises-network-and-compute-nodes">On-Premises Network and Compute Nodes</h2>
+<h2 id="network-requirements">Network Requirements</h2>
 <p>The on-prem network must have a CIDR range that doesn't overlap the Slurm cluster's VPC and the two networks
 need to be connected using VPN or AWS Direct Connect.
 The on-prem firewall must allow ingress and egress from the VPC.
 The ports are used to connect to the file systems, slurm controllers, and allow traffic between virtual desktops and compute nodes.</p>
+<h2 id="dns-requirements">DNS Requirements</h2>
 <p>Local network DNS must have an entry for the slurm controller or have a forwarding rule to the AWS provided DNS in the Slurm VPC.</p>
+<h2 id="file-system-requirements">File System Requirements</h2>
 <p>All of the compute nodes in the cluster, including the on-prem nodes, must have file system mounts that replicate the same directory structure.
 This can involve mounting filesystems across VPN or Direct Connect or synchronizing file systems using tools like rsync or NetApp FlexCache or SnapMirror.
 Performance will dictate the architecture of the file system.</p>

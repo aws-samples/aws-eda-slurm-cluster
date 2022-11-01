@@ -8,7 +8,7 @@
         
         
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>Debug - EDA SLURM Cluster on AWS</title>
+        <title>Plugin Integration Into Existing Slurm Cluster - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
@@ -59,14 +59,14 @@
                             <li class="navitem">
                                 <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
                             </li>
-                            <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../implementation/" class="nav-link">Implementation Details</a>
                             </li>
-                            <li class="navitem active">
-                                <a href="./" class="nav-link">Debug</a>
+                            <li class="navitem">
+                                <a href="../debug/" class="nav-link">Debug</a>
                             </li>
                             <li class="navitem">
                                 <a href="../todo/" class="nav-link">To Do List</a>
@@ -80,17 +80,17 @@
                             </a>
                         </li>
                             <li class="nav-item">
-                                <a rel="prev" href="../implementation/" class="nav-link">
+                                <a rel="prev" href="../multi-region/" class="nav-link">
                                     <i class="fa fa-arrow-left"></i> Previous
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../todo/" class="nav-link">
+                                <a rel="next" href="../implementation/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/debug.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/plugin-integration.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
                             </li>
                     </ul>
                 </div>
@@ -110,37 +110,33 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#debug" class="nav-link">Debug</a>
+            <li class="nav-item" data-level="1"><a href="#plugin-integration-into-existing-slurm-cluster" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="2"><a href="#slurm-controller" class="nav-link">Slurm Controller</a>
-              <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#log-files" class="nav-link">Log Files</a>
+            <li class="nav-item" data-level="2"><a href="#network-requirements" class="nav-link">Network Requirements</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#slurm-accounting-database" class="nav-link">Slurm Accounting Database</a>
-              <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#log-files_1" class="nav-link">Log Files</a>
+            <li class="nav-item" data-level="2"><a href="#file-system-requirements" class="nav-link">File System Requirements</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#compute-nodes" class="nav-link">Compute Nodes</a>
-              <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#log-files_2" class="nav-link">Log Files</a>
+            <li class="nav-item" data-level="2"><a href="#create-aws-slurm-cluster" class="nav-link">Create AWS Slurm Cluster</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#job-stuck-in-pending-state" class="nav-link">Job Stuck in Pending State</a>
+            <li class="nav-item" data-level="2"><a href="#aws-credentials" class="nav-link">AWS Credentials</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="2"><a href="#job-stuck-in-completing-state" class="nav-link">Job Stuck in Completing State</a>
+            <li class="nav-item" data-level="2"><a href="#amazon-machine-images-for-compute-nodes" class="nav-link">Amazon Machine Images for Compute Nodes</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#ssm-parameter-store-variables" class="nav-link">SSM Parameter Store Variables</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#slurm-configuration" class="nav-link">Slurm Configuration</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -151,120 +147,138 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="debug">Debug</h1>
-<h2 id="slurm-controller">Slurm Controller</h2>
-<p>If slurm commands hang, then it's likely a problem with the Slurm controller.</p>
-<p>Connect to the slurmctl instance using SSM Manager and switch to the root user.</p>
-<p><code>sudo su</code></p>
-<p>The first thing to do is to ensure that the Slurm controller daemon is running:</p>
-<p><code>systemctl status slurmctld</code></p>
-<p>If it isn't then first check for errors in the user data script. The following command will show the output:</p>
-<p><code>grep cloud-init /var/log/messages | less</code></p>
-<p>The most common problem is that the ansible playbook failed.
-Check the ansible log file to see what failed.</p>
-<p><code>less /var/log/ansible.log</code></p>
-<p>The following command will rerun the user data.
-It will download the playbooks from the S3 deployment bucket and then run it to configure the instance.</p>
-<p><code>/var/lib/cloud/instance/scripts/part-001</code></p>
-<p>If the problem is with the ansible playbook, then you can edit it in /root/playbooks and then run
-your modified playbook by running the following command.</p>
-<p><code>/root/slurmctl_config.sh</code></p>
-<p>The daemon may also be failing because of soem other error.
-Check the <code>slurmctld.log</code> for errors.</p>
-<h3 id="log-files">Log Files</h3>
+<h1 id="plugin-integration-into-existing-slurm-cluster">Plugin Integration Into Existing Slurm Cluster</h1>
+<p>If you have an existing Slurm cluster and want to enable it to scale into AWS then you can integrate
+the <code>SlurmPlugin.py</code> into your existing cluster.
+The plugin implements the Slurm power saving API scripts so the integration is as simple
+as copying the plugin and it's scripts into your file system and then modifying your slurm configuration to use them.</p>
+<h2 id="network-requirements">Network Requirements</h2>
+<p>The instructions for integrating the AWS cluster with on-premises compute nodes contains the <a href="/onprem/#network-requirements">network requirements</a>.</p>
+<p>The VPC's DNS must be configured so that it can resolve the on-prem hostnames such as the slurm controller and file systems.</p>
+<h2 id="file-system-requirements">File System Requirements</h2>
+<p>The compute nodes in the AWS VPC will need access to the same file systems paths as your existing compute nodes.
+This can easily be accomplished by mounting your on-prem file systems across the VPN of Direct Connect connection, but
+that will likely have significant latency and performance impacts.
+If your on-prem file systems are NetApp Ontap then you can create <a href="https://aws.amazon.com/fsx/netapp-ontap/">Amazon FSx for NetApp Ontap</a>
+file systems configured with FlexCache volumes to provide low latency, high performance caches of your on-prem file systems on AWS.
+If you do not use NetApp then you can use <a href="https://aws.amazon.com/filecache/">Amazon File Cache</a> to create high performance
+file caches of your on-prem file systems.</p>
+<h2 id="create-aws-slurm-cluster">Create AWS Slurm Cluster</h2>
+<p>The plugin requires a number of configuration files as well as AWS resources for the compute nodes such as Amazon Machine Images (AMIs),
+IAM instance roles, and security groups.
+The easiest way to create all of the required resources is to follow the <a href="/onprem">instructions to deploy a cluster with on-premises compute nodes</a>
+into your AWS VPC and then use those resources to configure your existing cluster.
+Note that <code>slurm_nodes_on_prem.conf</code> can be empty and doesn't have to include any on-prem compute nodes.
+The configuration file should include the file systems that should be mounted on the AWS compute nodes.</p>
+<p>After you've deployed the AWS cluster,
+Mount the slurm file system on your slurm controller at</p>
+<pre>/opt/slurm/<b><i>cluster-name</i></b></pre>
+
+<h2 id="aws-credentials">AWS Credentials</h2>
+<p>The power saving scripts run as the <code>slurm</code> user on your slurm controller and require AWS IAM permissions
+to orchestrate AWS instances for your Slurm cluster.
+Specifically, the slurm controller needs access to the AMIs and permission to start, stop, and terminate EC2 instances.
+The permissions are defined in the SlurmCtlPolicy resource of the cluster's Cloudformation stack.
+You can create a <code>slurm</code> IAM user and attach the SlurmCtlPolicy.
+Then you can create IAM credentials for the <code>slurm</code> user and save them on the slurm controller using <code>aws config</code>.</p>
+<h2 id="amazon-machine-images-for-compute-nodes">Amazon Machine Images for Compute Nodes</h2>
+<p>You can modify the AMIs created by the AWS slurm cluster for use by your on-prem cluster.</p>
+<h2 id="ssm-parameter-store-variables">SSM Parameter Store Variables</h2>
+<p>The plugin reads serveral SSM parameters to get information that it needs to orchestrate instances.</p>
 <table>
 <thead>
 <tr>
-<th>Logfile</th>
+<th>SSM Parameter</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>/var/log/ansible.log</code></td>
-<td>Ansible logfile</td>
+<td><pre>/<b><i>cluster-name</i></b>/SlurmNodeAmi/<b><i>os-distribution</i></b>/<b><i>os-major-version</i></b>/<b><i>architecture</i></b>/<b><i>region</i></b></pre></td>
+<td>AMIs for AWS EC2 compute nodes</td>
 </tr>
 <tr>
-<td><code>/var/log/slurm/cloudwatch.log</code></td>
-<td>Logfile for the script that uploads CloudWatch events.</td>
+<td><pre>/<b><i>cluster-name</i></b>/SlurmNodeEc2KeyPairs/<b><i>region</i></b></pre></td>
+<td>EC2 Keypairs for each region</td>
 </tr>
 <tr>
-<td><code>/var/log/slurm/slurmctld.log</code></td>
-<td>slurmctld logfile</td>
-</tr>
-<tr>
-<td><code>/var/log/slurm/power_save.log</code></td>
-<td>Slurm plugin logfile with power saving scripts that start, stop, and terminated instances.</td>
-</tr>
-<tr>
-<td><code>/var/log/slurm/terminate_old_instances.log</code></td>
-<td>Logfile for the script that terminates stopped instances.</td>
+<td><pre>/<b><i>cluster-name</i></b>/SlurmNodeSecurityGroups/<b><i>region</i></b></pre></td>
+<td>Security groups for AWS EC2 compute nodes</td>
 </tr>
 </tbody>
 </table>
-<h2 id="slurm-accounting-database">Slurm Accounting Database</h2>
-<p>If you are having problems with the slurm accounting database connect to the slurmdbd instance using SSM Manager.</p>
-<p>Check for cloud-init and ansible errors the same way as for the slurmctl instance.</p>
-<p>Also check the <code>slurmdbd.log</code> for errors.</p>
-<h3 id="log-files_1">Log Files</h3>
 <table>
 <thead>
 <tr>
-<th>Logfile</th>
-<th>Description</th>
+<th>Field</th>
+<th>Valid Values</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>/var/log/ansible.log</code></td>
-<td>Ansible logfile</td>
+<td>os-distribution</td>
+<td>AlmaLinux | Amazon | CentOS | RedHat | Rocky</td>
 </tr>
 <tr>
-<td><code>/var/log/slurm/slurmdbd.log</code></td>
-<td>slurmctld logfile</td>
+<td>architecture</td>
+<td>arm64 | x86_64</td>
 </tr>
 </tbody>
 </table>
-<h2 id="compute-nodes">Compute Nodes</h2>
-<p>If there are problems with the compute nodes, connect to them using SSM Manager.</p>
-<p>Check for cloud-init errors the same way as for the slurmctl instance.
-The compute nodes do not run ansible; their AMIs are configured using ansible.</p>
-<p>Also check the <code>slurmd.log</code>.</p>
-<p>Check that the slurm daemon is running.</p>
-<p><code>systemctl status slurmd</code></p>
-<h3 id="log-files_2">Log Files</h3>
-<table>
-<thead>
-<tr>
-<th>Logfile</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>/var/log/slurm/slurmd.log</code></td>
-<td>slurmctld logfile</td>
-</tr>
-</tbody>
-</table>
-<h2 id="job-stuck-in-pending-state">Job Stuck in Pending State</h2>
-<p>You can use scontrol to get detailed information about a job.</p>
-<pre><code>scontrol show job *jobid*
-</code></pre>
-<h2 id="job-stuck-in-completing-state">Job Stuck in Completing State</h2>
-<p>When a node starts it reports it's number of cores and free memory to the controller.
-If the memory is less than in slurm_node.conf then the controller will mark the node
-as invalid.
-You can confirm this by searching for the node in /var/log/slurm/slurmctld.log on the controller.
-If this happens, fix the memory in slurm_nodes.conf and restart slurmctld.</p>
-<pre><code>systemctl restart slurmctld
-</code></pre>
-<p>Then reboot the node.</p>
-<p>Another cause of this is a hung process on the compute node.
-To clear this out, connect to the slurm controller and mark the node down, resume, and then idle.</p>
-<pre><code>scontrol update node NODENAME state=DOWN reason=hung
-scontrol update node NODENAME state=RESUME
-scontrol update node NODENAME state=IDLE
+<h2 id="slurm-configuration">Slurm Configuration</h2>
+<p>The existing slurm cluster's configuration file will need to be updated to to configure the AWS compute nodes
+and to use the <code>SlurmPlugin.py</code>.</p>
+<p>Update your <code>slurm.conf</code> based on <code>/opt/slurm/slurmaws/etc/slurm.conf</code>.
+At a minimum you will need to add the following lines.</p>
+<pre><code># CommunicationParameters:
+# NoAddrCache: Do not assume that nodes will retain their IP addresses. Do not cache node-&gt;ip mapping
+CommunicationParameters = NoAddrCache
+
+# ReturnToService
+# 0: Make node available if it registers with a valid configuration regardless of why it is down.
+# 1: Only return to service if DOWN due to being non-responsive.
+# 2: A DOWN node will become available for use upon registration with a valid configuration.
+ReturnToService=2
+
+# TreeWidth is set to the maximum for cloud clusters so messages go directly between controller and nodes.
+# https://slurm.schedmd.com/elastic_computing.html
+TreeWidth = 65533
+
+#
+# SlurmctldParameters
+# cloud_dns: Do not set cloud_dns unless joining the domain and adding nodes to DNS
+#     Joining the domain overloads the DCs when lots of nodes are started so
+#     not joining the domain or using cloud_dns.
+# idle_on_node_suspend: Mark nodes as idle, regardless of current state, when suspending
+#     nodes with SuspendProgram so that nodes will be eligible to be resumed at a later time.
+# node_reg_mem_percent: Percentage of memory a node is allowed to register with without being marked as invalid with low memory.
+#     Use this so can configure nodes with 100% of their memory.
+#     Without this option the node will fail because the system uses some of the memory.
+SlurmctldParameters=\
+idle_on_node_suspend,\
+,node_reg_mem_percent=90
+#
+# Allow users to see state of nodes that are powered down
+PrivateData = cloud
+
+#
+# POWER SAVE SUPPORT FOR IDLE NODES
+#
+SuspendProgram = /opt/slurm/slurmaws/bin/slurm_ec2_stop.py
+ResumeProgram = /opt/slurm/slurmaws/bin/slurm_ec2_resume.py
+ResumeFailProgram = /opt/slurm/slurmaws/bin/slurm_ec2_resume_fail.py
+# Maximum time between when a node is suspended and when suspend is complete.
+# At that time it should be ready to be resumed.
+SuspendTimeout = 60
+ResumeTimeout = 600
+# Number of nodes per minute that can be resumed or suspended
+ResumeRate = 300
+SuspendRate = 60
+# Time that a node has to be idle or down before being suspended
+# Should be &gt;= (SuspendTimeout + ResumeTimeout)
+SuspendTime = 660
+
+include /opt/slurm/slurmaws/etc/slurm_nodes.conf
 </code></pre></div>
             </div>
         </div>

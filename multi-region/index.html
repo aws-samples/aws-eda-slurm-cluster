@@ -60,6 +60,9 @@
                                 <a href="./" class="nav-link">Multi-AZ and Multi-Region Support</a>
                             </li>
                             <li class="navitem">
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../implementation/" class="nav-link">Implementation Details</a>
                             </li>
                             <li class="navitem">
@@ -82,7 +85,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../implementation/" class="nav-link">
+                                <a rel="next" href="../plugin-integration/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -146,6 +149,10 @@
               </ul>
             </li>
             <li class="nav-item" data-level="2"><a href="#slurm-configuration" class="nav-link">Slurm Configuration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#deployment" class="nav-link">Deployment</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -433,7 +440,9 @@ slurm:
         src: fs-data.slurmdub.local:/
         type: nfs4
         options: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport
-</code></pre></div>
+</code></pre>
+<h2 id="deployment">Deployment</h2>
+<p>After the configuration is complete then deployment is the same as document on the <a href="../deploy/">Deploy the Cluster</a> page.</p></div>
             </div>
         </div>
 
