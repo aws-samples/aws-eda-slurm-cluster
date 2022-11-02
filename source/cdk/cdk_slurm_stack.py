@@ -2087,8 +2087,6 @@ class CdkSlurmStack(Stack):
             logger.info(f"{self.config['slurm']['MungeKeySsmParameter']} SSM parameter doesn't exist. Creating it so can give IAM permissions to it.")
             output = check_output(['dd if=/dev/random bs=1 count=1024 | base64 -w 0'], shell=True, stderr=subprocess.DEVNULL, encoding='utf8', errors='ignore')
             munge_key = output.split('\n')[0]
-            # print(f"output\n{output}")
-            # print(f"munge_key:\n{munge_key}")
             self.munge_key_ssm_parameter = ssm.StringParameter(
                 self, f"MungeKeySsmParamter",
                 parameter_name  = f"{self.config['slurm']['MungeKeySsmParameter']}",
@@ -2117,6 +2115,14 @@ class CdkSlurmStack(Stack):
             string_value = 'None'
         )
         self.jwt_token_for_slurmrestd_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
+
+        # SSM Parameter to mock Insufficient Instance Capacity Exceptions (ICE)
+        # Add comma separated list of instance types that will be handled as if ICE is returned
+        self.mock_ice_instance_types_ssm_parameter = ssm.StringListParameter(
+            self, f"MockICEInstanceTypesSsmParamter",
+            parameter_name  = f"/{self.stack_name}/MockICEInstanceTypes",
+            string_list_value = ['None']
+        )
 
         self.slurmctl_role = iam.Role(self, "SlurmCtlRole",
             assumed_by=iam.CompositePrincipal(

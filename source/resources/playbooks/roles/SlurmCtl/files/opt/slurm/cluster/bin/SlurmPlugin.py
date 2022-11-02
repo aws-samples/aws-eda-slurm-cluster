@@ -144,17 +144,21 @@ class LaunchInstanceThread(threading.Thread):
     This is required so that instances can be launched as quickly as possible so that slurm doesn't time out waiting
     for them to enter service.
     '''
-    def __init__(self, plugin, region, kwargs):
+    def __init__(self, plugin, region: str, mock_ice: bool, kwargs):
         super(LaunchInstanceThread, self).__init__()
         self.plugin = plugin
         self.region = region
+        self.mock_ice = mock_ice
         self.kwargs = kwargs
         self.result = None
         self.e = None
 
     def run(self):
         try:
-            self.launch_instance()
+            if self.mock_ice:
+                raise ClientError(error_response={'Error': {'Code': 'InsufficientInstanceCapacity', 'Message': ''}}, operation_name='run_instances')
+            else:
+                self.launch_instance()
         except ClientError as e:
             self.e = e
             self.traceback = traceback.format_exc()
@@ -637,8 +641,6 @@ class SlurmPlugin:
             int: 0 if successful
         '''
         try:
-            self.test_ice = False
-
             self.suspend_resume_setup()
             if not self.hostnames:
                 return 0
@@ -671,6 +673,9 @@ class SlurmPlugin:
             stopping_instanceIds = []
             stopped_hostnames = []
             stopped_instanceIds = []
+
+            mock_ice_instance_types = self.ssm.get_parameter(Name=f"/{self.config['STACK_NAME']}/MockICEInstanceTypes")["Parameter"]["Value"].split(',')
+
             for hostname in self.hostnames:
                 hostinfo = self.hostinfo[hostname]
                 if hostinfo['region'] != region:
@@ -783,6 +788,7 @@ class SlurmPlugin:
             userDataTemplate = Template(open(userDataFilename, 'r').read())
             for hostname in hostnames_to_create:
                 hostinfo = self.hostinfo[hostname]
+                mock_ice = hostinfo['instance_type'] in mock_ice_instance_types
                 az_id = hostinfo['az_id']
                 az = self.az_ids[az_id]
                 region = self.az_info[az]['region']
@@ -840,7 +846,7 @@ class SlurmPlugin:
                     kwargs['BlockDeviceMappings'].append({'DeviceName': '/dev/sd'+drive_letter, 'VirtualName': 'ephemeral'+str(ephemeral_index)})
                     drive_letter = chr(ord(drive_letter) + 1)
                 logger.debug(f"run_instances kwargs:\n{pp.pformat(kwargs)}")
-                hostinfo['launch_thread'] = LaunchInstanceThread(self, region, kwargs)
+                hostinfo['launch_thread'] = LaunchInstanceThread(self, region, mock_ice, kwargs)
                 hostinfo['launch_thread'].start()
             # Wait for instances to be launched
             launch_failures = 0
@@ -855,10 +861,7 @@ class SlurmPlugin:
                     hostinfo['ImageId'] = hostinfo['ami']
                     hostinfo['State'] = 'running'
                     logger.info("Created {}({})".format(hostname, instanceId))
-                if self.test_ice:
-                    launch_thread.exception_reason = 'InsufficientInstanceCapacity'
-                    launch_thread.traceback = "Dummy traceback"
-                if not launch_thread.result or self.test_ice:
+                if not launch_thread.result:
                     logger.error(f"Failed to create {hostname}. Marking down with reason=\'{launch_thread.exception_reason}\'.\n{launch_thread.traceback}")
                     if launch_thread.exception_reason == 'InsufficientInstanceCapacity':
                         instanceType = hostinfo['instance_type']
