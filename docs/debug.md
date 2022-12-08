@@ -1,10 +1,28 @@
 # Debug
 
+## Log Files
+
+Most of the key log files are stored on the Slurm file system so that they can be accessed from any instance with the file system mounted.
+
+| Logfile | Description
+|---------|------------
+| `/opt/slurm/{{ClusterName}}/logs/nodes/{{node-name}}/slurmd.log` | Slurm daemon (slurmd) logfile
+| `/opt/slurm/{{ClusterName}}/logs/nodes/{{node-name}}/spot_monitor.log` | Spot monitor logfile
+| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/cloudwatch.log` | Cloudwatch cron (slurm_ec2_publish_cw.py) logfile
+| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/power_save.log` | Power saving API logfile
+| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/slurmctld.log` | Slurm controller daemon (slurmctld) logfile
+| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/terminate_old_instances.log` | Terminate old instances cron (terminate_old_instances.py) logfile
+| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmdbd/slurmdbd.log` | Slurm database daemon (slurmdbd) logfile
+
 ## Slurm Controller
 
 If slurm commands hang, then it's likely a problem with the Slurm controller.
 
-Connect to the slurmctl instance using SSM Manager and switch to the root user.
+The first thing to check is the controller's logfile which is stored on the Slurm file system.
+
+`/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/slurmctld.log`
+
+If the logfile doesn't exist or is empty then you will need to connect to the slurmctl instance using SSM Manager or ssh and switch to the root user.
 
 `sudo su`
 
@@ -31,10 +49,23 @@ your modified playbook by running the following command.
 
 `/root/slurmctl_config.sh`
 
-The daemon may also be failing because of soem other error.
+The daemon may also be failing because of some other error.
 Check the `slurmctld.log` for errors.
 
-### Log Files
+Another way to debug the `slurmctld` daemon is to launch it interactively with debug set high.
+The first thing to do is get the path to the slurmctld binary.
+
+```
+slurmctld=$(cat /etc/systemd/system/slurmctld.service | awk -F '=' '/ExecStart/ {print $2}')
+```
+
+Then you can run slurmctld:
+
+```
+$slurmctld -D -vvvvv
+```
+
+### Slurm Controller Log Files
 
 | Logfile | Description
 |---------|------------
@@ -44,7 +75,7 @@ Check the `slurmctld.log` for errors.
 | `/var/log/slurm/power_save.log` | Slurm plugin logfile with power saving scripts that start, stop, and terminated instances.
 | `/var/log/slurm/terminate_old_instances.log` | Logfile for the script that terminates stopped instances.
 
-## Slurm Accounting Database
+## Slurm Accounting Database (slurmdbd)
 
 If you are having problems with the slurm accounting database connect to the slurmdbd instance using SSM Manager.
 
