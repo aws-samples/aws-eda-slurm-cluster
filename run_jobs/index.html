@@ -116,7 +116,7 @@
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="2"><a href="#key-slurm-commands" class="nav-link">Key SLURM Commands</a>
+            <li class="nav-item" data-level="2"><a href="#key-slurm-commands" class="nav-link">Key Slurm Commands</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -148,7 +148,7 @@
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="2"><a href="#other-slurm-commands" class="nav-link">Other SLURM Commands</a>
+            <li class="nav-item" data-level="2"><a href="#other-slurm-commands" class="nav-link">Other Slurm Commands</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -160,11 +160,11 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="run-jobs">Run Jobs</h1>
-<p>This page is to give some basic instructions on how to run and monitor jobs on SLURM.
-SLURM provides excellent man pages for all of its commands, so if you have questions refer
+<p>This page is to give some basic instructions on how to run and monitor jobs on Slurm.
+Slurm provides excellent man pages for all of its commands, so if you have questions refer
 to the man pages.</p>
 <h2 id="set-up">Set Up</h2>
-<p>Load the environment module for slurm to configure your PATH and SLURM related environment
+<p>Load the environment module for Slurm to configure your PATH and Slurm related environment
 variables.</p>
 <pre><code>module load {{ClusterName}}
 </code></pre>
@@ -176,8 +176,8 @@ The environment variables can always be overridden by the command line options.<
 <p>For example, the SQUEUE_FORMAT2 and SQUEUE_SORT environment variables are set so that
 the default output format is easier to read and contains useful information that isn't
 in the default format.</p>
-<h2 id="key-slurm-commands">Key SLURM Commands</h2>
-<p>The key SLURM commands are</p>
+<h2 id="key-slurm-commands">Key Slurm Commands</h2>
+<p>The key Slurm commands are</p>
 <table>
 <thead>
 <tr>
@@ -209,7 +209,7 @@ in the default format.</p>
 </tr>
 <tr>
 <td>sinfo</td>
-<td>Get info about slurm node status</td>
+<td>Get info about Slurm node status</td>
 <td>sinfo -p all</td>
 </tr>
 <tr>
@@ -332,7 +332,7 @@ It accepts most of the same options as sbatch to request cpus, memory, and node 
 <p>To open up a pseudo terminal in your shell on a compute node with 4 cores and 16G of memory, execute the following command.</p>
 <pre><code>srun -c 4 --mem 8G --pty /bin/bash
 </code></pre>
-<p>This will queue a job and when it is allocated to a node and the node runs the job control will be returned to
+<p>This will queue a job and when it is allocated to a node and the node runs, the job control will be returned to
 your shell, but stdin and stdout will be on the compute node.
 If you set your DISPLAY environment variable and allow external X11 connections you can use this to
 run interactive GUI jobs on the compute node and have the windows on your instance.</p>
@@ -340,6 +340,9 @@ run interactive GUI jobs on the compute node and have the windows on your instan
 export DISPLAY=$(hostname):$(echo $DISPLAY | cut -d ':' -f 2)
 srun -c 4 --mem 8G --pty /bin/bash
 emacs . # Or whatever gui application you want to run. Should open a window.
+</code></pre>
+<p>Another way to run interactive GUI jobs is to use <strong>srun</strong>'s <strong>--x11</strong> flag to enable X11 forwarding.</p>
+<pre><code>srun -c 1 --mem 8G --pty --x11 emacs
 </code></pre>
 <h2 id="squeue">squeue</h2>
 <p>The squeue command shows the status of jobs.</p>
@@ -365,8 +368,8 @@ For example, it can be used to get the requested CPU and memory and see the CPU 
 </code></pre>
 <h2 id="sreport">sreport</h2>
 <p>The <code>sreport</code> command can be used to generate report from the Slurm database.</p>
-<h2 id="other-slurm-commands">Other SLURM Commands</h2>
-<p>Use <code>man command</code> to get information about these less commonly used SLURM commands.</p>
+<h2 id="other-slurm-commands">Other Slurm Commands</h2>
+<p>Use <code>man command</code> to get information about these less commonly used Slurm commands.</p>
 <table>
 <thead>
 <tr>
@@ -381,7 +384,7 @@ For example, it can be used to get the requested CPU and memory and see the CPU 
 </tr>
 <tr>
 <td>salloc</td>
-<td>Obtain a slurm job allocation</td>
+<td>Obtain a Slurm job allocation</td>
 </tr>
 <tr>
 <td>sattach</td>
