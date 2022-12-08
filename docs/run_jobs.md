@@ -1,12 +1,12 @@
 # Run Jobs
 
-This page is to give some basic instructions on how to run and monitor jobs on SLURM.
-SLURM provides excellent man pages for all of its commands, so if you have questions refer
+This page is to give some basic instructions on how to run and monitor jobs on Slurm.
+Slurm provides excellent man pages for all of its commands, so if you have questions refer
 to the man pages.
 
 ## Set Up
 
-Load the environment module for slurm to configure your PATH and SLURM related environment
+Load the environment module for Slurm to configure your PATH and Slurm related environment
 variables.
 
 ```
@@ -23,9 +23,9 @@ For example, the SQUEUE_FORMAT2 and SQUEUE_SORT environment variables are set so
 the default output format is easier to read and contains useful information that isn't
 in the default format.
 
-## Key SLURM Commands
+## Key Slurm Commands
 
-The key SLURM commands are
+The key Slurm commands are
 
 | Command | Description | Example
 |---------|-------------|---------
@@ -33,7 +33,7 @@ The key SLURM commands are
 | srun    | Run a job within an allocation. | srun --pty bin/bash
 | squeue  | Get job status |
 | scancel | Cancel a job | scancel *jobid*
-| sinfo   | Get info about slurm node status | sinfo -p all
+| sinfo   | Get info about Slurm node status | sinfo -p all
 | scontrol |
 | sstat       | Display various status information about a running job/step
 | sshare      | Tool for listing fair share information
@@ -83,7 +83,7 @@ To open up a pseudo terminal in your shell on a compute node with 4 cores and 16
 srun -c 4 --mem 8G --pty /bin/bash
 ```
 
-This will queue a job and when it is allocated to a node and the node runs the job control will be returned to
+This will queue a job and when it is allocated to a node and the node runs, the job control will be returned to
 your shell, but stdin and stdout will be on the compute node.
 If you set your DISPLAY environment variable and allow external X11 connections you can use this to
 run interactive GUI jobs on the compute node and have the windows on your instance.
@@ -93,6 +93,12 @@ xhost +
 export DISPLAY=$(hostname):$(echo $DISPLAY | cut -d ':' -f 2)
 srun -c 4 --mem 8G --pty /bin/bash
 emacs . # Or whatever gui application you want to run. Should open a window.
+```
+
+Another way to run interactive GUI jobs is to use **srun**'s **--x11** flag to enable X11 forwarding.
+
+```
+srun -c 1 --mem 8G --pty --x11 emacs
 ```
 
 ## squeue
@@ -140,14 +146,14 @@ man sacct
 
 The `sreport` command can be used to generate report from the Slurm database.
 
-## Other SLURM Commands
+## Other Slurm Commands
 
-Use `man command` to get information about these less commonly used SLURM commands.
+Use `man command` to get information about these less commonly used Slurm commands.
 
 | Command     | Description
 |-------------|-------------
 | sacctmgr    | View/modify Slurm account information
-| salloc      | Obtain a slurm job allocation
+| salloc      | Obtain a Slurm job allocation
 | sattach     | Attach to a job step
 | sbcast      | Transmit a file to the nodes allocated to a Slurm job.
 | scrontab    | Manage slurm crontab files
