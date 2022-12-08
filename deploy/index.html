@@ -68,9 +68,6 @@
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
                             </li>
-                            <li class="navitem">
-                                <a href="../todo/" class="nav-link">To Do List</a>
-                            </li>
                         </ul>
 
                     <ul class="nav navbar-nav ml-auto">
@@ -399,7 +396,8 @@ The disadvantage is higher cost if the instance is lightly loaded.</p>
 <p>The default InstanceConfig includes all supported base OSes and architectures and burstable and general purpose
 instance types.
 Note that instance types and families are python regular expressions.</p>
-<pre><code>  InstanceConfig:
+<pre><code>slurm:
+  InstanceConfig:
     DefaultPartition: CentOS_7_x86_64
     BaseOsArchitecture:
       AlmaLinux:
@@ -423,7 +421,8 @@ Note that instance types and families are python regular expressions.</p>
         - '.*\.metal'
 </code></pre>
 <p>The following InstanceConfig configures instance types recommended for EDA workloads running on CentOS.</p>
-<pre><code>  InstanceConfig:
+<pre><code>slurm:
+  InstanceConfig:
     DefaultPartition: CentOS_7_x86_64
     BaseOsArchitecture:
       AlmaLinux: {8: [x86_64, arm64]}
@@ -445,6 +444,12 @@ Note that instance types and families are python regular expressions.</p>
     Exclude:
       InstanceTypes:
         - '.*\.metal'
+</code></pre>
+<p>If you have reserved instances (RIs) or savings plans then you can configure instances so that they are always on since you are paying for them whether they are running or not.</p>
+<pre><code>slurm:
+  InstanceConfig:
+    AlwaysOnNodes:
+      - nodename-[0-4]
 </code></pre>
 <h2 id="update-to-latest-base-operating-system-amis-optional">Update to Latest Base Operating System AMIs (Optional)</h2>
 <p>The default configuration includes the latest AMIs that have been tested.
