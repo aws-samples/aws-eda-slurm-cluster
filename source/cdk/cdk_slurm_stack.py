@@ -568,6 +568,7 @@ class CdkSlurmStack(Stack):
             # BUG: CDK isn't creating the correct region for the vpcs even though cdk_context.json has it right.
             # for remote_region, remote_vpc in remote_vpcs.items():
             #     self.hosted_zone.add_vpc(remote_vpc)
+        return
 
     def create_lambdas(self):
         dnsLookupLambdaAsset = s3_assets.Asset(self, "DnsLookupLambdaAsset", path="resources/lambdas/DnsLookup")
@@ -1532,7 +1533,7 @@ class CdkSlurmStack(Stack):
             backup_retention = Duration.days(35),
             credentials = rds.Credentials.from_generated_secret(username="slurm"),
             default_database_name = "slurm_acct_db",
-            deletion_protection = False,
+            deletion_protection = True,
             scaling = rds.ServerlessScalingOptions(auto_pause=Duration.days(1)),
             security_groups = [self.database_sg],
             parameter_group = rds.ParameterGroup(
