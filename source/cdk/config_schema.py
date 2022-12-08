@@ -18,12 +18,21 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import boto3
 from botocore.client import ClientError
+import logging
 from os import environ
 import re
 from schema import And, Schema, Optional, Or, Regex, Use, SchemaError
 from sys import exit
 
-DEFAULT_SLURM_VERSION = '22.05.5'
+logger = logging.getLogger(__file__)
+logger_formatter = logging.Formatter('%(levelname)s: %(message)s')
+logger_streamHandler = logging.StreamHandler()
+logger_streamHandler.setFormatter(logger_formatter)
+logger.addHandler(logger_streamHandler)
+logger.propagate = False
+logger.setLevel(logging.INFO)
+
+DEFAULT_SLURM_VERSION = '22.05.6'
 
 config = {}
 

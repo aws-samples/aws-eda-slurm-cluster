@@ -90,7 +90,7 @@
     mkdir -p {{SlurmSrcDir}}
     cd {{SlurmSrcDir}}
     wget https://download.schedmd.com/slurm/slurm-{{SlurmVersion}}.tar.bz2
-    bzip2 -d slurm-{{SlurmVersion}}.tar.bz2
+    bzip2 -d -f slurm-{{SlurmVersion}}.tar.bz2
     tar -xf slurm-{{SlurmVersion}}.tar
     rm slurm-{{SlurmVersion}}.tar
 

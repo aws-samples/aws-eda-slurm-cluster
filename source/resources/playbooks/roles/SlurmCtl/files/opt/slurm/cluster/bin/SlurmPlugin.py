@@ -46,6 +46,7 @@ from textwrap import dedent
 import threading
 import time
 import traceback
+from typing import List
 import yaml
 
 logger = logging.getLogger(__file__)
@@ -1879,7 +1880,7 @@ class SlurmPlugin:
                 }
         return az_info
 
-    def get_instance_types_from_instance_config(self, instance_config: dict, regions: [str], instance_type_info: EC2InstanceTypeInfo) -> dict:
+    def get_instance_types_from_instance_config(self, instance_config: dict, regions: List[str], instance_type_info: EC2InstanceTypeInfo) -> dict:
         '''
         Get instance types selected by the config file.
 
