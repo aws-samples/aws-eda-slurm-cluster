@@ -13,7 +13,6 @@ nav:
   - 'plugin-integration.md'
   - 'implementation.md'
   - 'debug.md'
-  - 'todo.md'
 strict: true
 theme:
   name: mkdocs

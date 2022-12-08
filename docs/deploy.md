@@ -142,6 +142,7 @@ instance types.
 Note that instance types and families are python regular expressions.
 
 ```
+slurm:
   InstanceConfig:
     DefaultPartition: CentOS_7_x86_64
     BaseOsArchitecture:
@@ -169,6 +170,7 @@ Note that instance types and families are python regular expressions.
 The following InstanceConfig configures instance types recommended for EDA workloads running on CentOS.
 
 ```
+slurm:
   InstanceConfig:
     DefaultPartition: CentOS_7_x86_64
     BaseOsArchitecture:
@@ -191,6 +193,15 @@ The following InstanceConfig configures instance types recommended for EDA workl
     Exclude:
       InstanceTypes:
         - '.*\.metal'
+```
+
+If you have reserved instances (RIs) or savings plans then you can configure instances so that they are always on since you are paying for them whether they are running or not.
+
+```
+slurm:
+  InstanceConfig:
+    AlwaysOnNodes:
+      - nodename-[0-4]
 ```
 
 ## Update to Latest Base Operating System AMIs (Optional)
