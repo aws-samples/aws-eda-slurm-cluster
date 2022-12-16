@@ -45,6 +45,9 @@
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
                             </li>
                             <li class="navitem">
+                                <a href="../job_preemption/" class="nav-link">Job Preemption</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../onprem/" class="nav-link">On-Premises Integration</a>
                             </li>
                             <li class="navitem">
@@ -109,7 +112,11 @@
             
             <li class="nav-item" data-level="1"><a href="#debug" class="nav-link">Debug</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="2"><a href="#log-files" class="nav-link">Log Files</a>
+            <li class="nav-item" data-level="2"><a href="#log-files-on-file-system" class="nav-link">Log Files on File System</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#slurm-ami-nodes" class="nav-link">Slurm AMI Nodes</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -123,7 +130,7 @@
             </li>
             <li class="nav-item" data-level="2"><a href="#slurm-accounting-database-slurmdbd" class="nav-link">Slurm Accounting Database (slurmdbd)</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#log-files_1" class="nav-link">Log Files</a>
+            <li class="nav-item" data-level="3"><a href="#log-files" class="nav-link">Log Files</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -131,7 +138,7 @@
             </li>
             <li class="nav-item" data-level="2"><a href="#compute-nodes" class="nav-link">Compute Nodes</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#log-files_2" class="nav-link">Log Files</a>
+            <li class="nav-item" data-level="3"><a href="#log-files_1" class="nav-link">Log Files</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -153,7 +160,7 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="debug">Debug</h1>
-<h2 id="log-files">Log Files</h2>
+<h2 id="log-files-on-file-system">Log Files on File System</h2>
 <p>Most of the key log files are stored on the Slurm file system so that they can be accessed from any instance with the file system mounted.</p>
 <table>
 <thead>
@@ -172,27 +179,42 @@
 <td>Spot monitor logfile</td>
 </tr>
 <tr>
-<td><code>/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/cloudwatch.log</code></td>
+<td><code>/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/cloudwatch.log</code></td>
 <td>Cloudwatch cron (slurm_ec2_publish_cw.py) logfile</td>
 </tr>
 <tr>
-<td><code>/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/power_save.log</code></td>
+<td><code>/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/power_save.log</code></td>
 <td>Power saving API logfile</td>
 </tr>
 <tr>
-<td><code>/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/slurmctld.log</code></td>
+<td><code>/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/slurmctld.log</code></td>
 <td>Slurm controller daemon (slurmctld) logfile</td>
 </tr>
 <tr>
-<td><code>/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/terminate_old_instances.log</code></td>
+<td><code>/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/terminate_old_instances.log</code></td>
 <td>Terminate old instances cron (terminate_old_instances.py) logfile</td>
 </tr>
 <tr>
-<td><code>/opt/slurm/{{ClusterName}}/logs/nodes/slurmdbd/slurmdbd.log</code></td>
+<td><code>/opt/slurm/{{ClusterName}}/logs/slurmdbd/slurmdbd.log</code></td>
 <td>Slurm database daemon (slurmdbd) logfile</td>
 </tr>
 </tbody>
 </table>
+<h2 id="slurm-ami-nodes">Slurm AMI Nodes</h2>
+<p>The Slurm AMI nodes build the Slurm binaries for all of the configured operating system (OS) variants.
+The Amazon Linux 2 build is a prerequisite for the Slurm controllers and slurmdbd instances.
+The other builds are prerequisites for compute nodes and submitters.</p>
+<p>First check for errors in the user data script. The following command will show the output:</p>
+<p><code>grep cloud-init /var/log/messages | less</code></p>
+<p>The most common problem is that the ansible playbook failed.
+Check the ansible log file to see what failed.</p>
+<p><code>less /var/log/ansible.log</code></p>
+<p>The following command will rerun the user data.
+It will download the playbooks from the S3 deployment bucket and then run it to configure the instance.</p>
+<p><code>/var/lib/cloud/instance/scripts/part-001</code></p>
+<p>If the problem is with the ansible playbook, then you can edit it in /root/playbooks and then run
+your modified playbook by running the following command.</p>
+<p><code>/root/slurm_node_ami_config.sh</code></p>
 <h2 id="slurm-controller">Slurm Controller</h2>
 <p>If slurm commands hang, then it's likely a problem with the Slurm controller.</p>
 <p>The first thing to check is the controller's logfile which is stored on the Slurm file system.</p>
@@ -256,7 +278,7 @@ The first thing to do is get the path to the slurmctld binary.</p>
 <p>If you are having problems with the slurm accounting database connect to the slurmdbd instance using SSM Manager.</p>
 <p>Check for cloud-init and ansible errors the same way as for the slurmctl instance.</p>
 <p>Also check the <code>slurmdbd.log</code> for errors.</p>
-<h3 id="log-files_1">Log Files</h3>
+<h3 id="log-files">Log Files</h3>
 <table>
 <thead>
 <tr>
@@ -282,7 +304,7 @@ The compute nodes do not run ansible; their AMIs are configured using ansible.</
 <p>Also check the <code>slurmd.log</code>.</p>
 <p>Check that the slurm daemon is running.</p>
 <p><code>systemctl status slurmd</code></p>
-<h3 id="log-files_2">Log Files</h3>
+<h3 id="log-files_1">Log Files</h3>
 <table>
 <thead>
 <tr>
