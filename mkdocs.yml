@@ -5,6 +5,7 @@ nav:
   - 'index.md'
   - 'deploy.md'
   - 'run_jobs.md'
+  - 'job_preemption.md'
   - 'onprem.md'
   - 'soca_integration.md'
   - 'f1-ami.md'
