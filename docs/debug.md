@@ -1,6 +1,6 @@
 # Debug
 
-## Log Files
+## Log Files on File System
 
 Most of the key log files are stored on the Slurm file system so that they can be accessed from any instance with the file system mounted.
 
@@ -8,11 +8,36 @@ Most of the key log files are stored on the Slurm file system so that they can b
 |---------|------------
 | `/opt/slurm/{{ClusterName}}/logs/nodes/{{node-name}}/slurmd.log` | Slurm daemon (slurmd) logfile
 | `/opt/slurm/{{ClusterName}}/logs/nodes/{{node-name}}/spot_monitor.log` | Spot monitor logfile
-| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/cloudwatch.log` | Cloudwatch cron (slurm_ec2_publish_cw.py) logfile
-| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/power_save.log` | Power saving API logfile
-| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/slurmctld.log` | Slurm controller daemon (slurmctld) logfile
-| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/terminate_old_instances.log` | Terminate old instances cron (terminate_old_instances.py) logfile
-| `/opt/slurm/{{ClusterName}}/logs/nodes/slurmdbd/slurmdbd.log` | Slurm database daemon (slurmdbd) logfile
+| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/cloudwatch.log` | Cloudwatch cron (slurm_ec2_publish_cw.py) logfile
+| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/power_save.log` | Power saving API logfile
+| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/slurmctld.log` | Slurm controller daemon (slurmctld) logfile
+| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/terminate_old_instances.log` | Terminate old instances cron (terminate_old_instances.py) logfile
+| `/opt/slurm/{{ClusterName}}/logs/slurmdbd/slurmdbd.log` | Slurm database daemon (slurmdbd) logfile
+
+## Slurm AMI Nodes
+
+The Slurm AMI nodes build the Slurm binaries for all of the configured operating system (OS) variants.
+The Amazon Linux 2 build is a prerequisite for the Slurm controllers and slurmdbd instances.
+The other builds are prerequisites for compute nodes and submitters.
+
+First check for errors in the user data script. The following command will show the output:
+
+`grep cloud-init /var/log/messages | less`
+
+The most common problem is that the ansible playbook failed.
+Check the ansible log file to see what failed.
+
+`less /var/log/ansible.log`
+
+The following command will rerun the user data.
+It will download the playbooks from the S3 deployment bucket and then run it to configure the instance.
+
+`/var/lib/cloud/instance/scripts/part-001`
+
+If the problem is with the ansible playbook, then you can edit it in /root/playbooks and then run
+your modified playbook by running the following command.
+
+`/root/slurm_node_ami_config.sh`
 
 ## Slurm Controller
 
