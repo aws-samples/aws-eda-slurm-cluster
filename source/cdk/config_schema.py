@@ -460,6 +460,15 @@ config_schema = Schema(
                 }
             },
         },
+        Optional('Licenses', default={}): {
+            Optional(str): { # License name: for example VCSCompiler_Net, VCSMXRunTime_Net
+                'Count': int,
+                Optional('Server'): str,
+                Optional('Port'): str,
+                Optional('ServerType'): str,
+                Optional('StatusScript'): str,
+            }
+        },
         Optional('AmiMap', default={}): {
             #str: { # Region
             And(str, lambda s: s in valid_regions, error=f"Invalid region. valid_regions={valid_regions}"): { # Region

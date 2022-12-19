@@ -1789,26 +1789,36 @@ class CdkSlurmStack(Stack):
                     label = instance_type,
                 ),
             )
-        # TODO: See feature #51
-        # self.vcs_licenses_widget = cloudwatch.GraphWidget(
-        #     title = "VCS Licenses",
-        #     period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-        #     stacked = False,
-        #     statistic = 'Maximum',
-        # )
-        # for metric_name in ['LicensesTotal', 'LicensesUsed']:
-        #     for license_name in ['VCSCompiler_Net', 'VCSMXRunTime_Net']:
-        #         self.vcs_licenses_widget.add_left_metric(
-        #             cloudwatch.Metric(
-        #                 namespace = self.slurm_namespace,
-        #                 metric_name = metric_name,
-        #                 dimensions_map = {
-        #                     'LicenseName': license_name,
-        #                     'Cluster': self.config['slurm']['ClusterName']
-        #                 },
-        #                 label = license_name,
-        #             ),
-        #         )
+        self.licenses_widget = cloudwatch.GraphWidget(
+            title = "Licenses",
+            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+            stacked = False,
+            statistic = 'Maximum',
+        )
+        license_metric_names = {
+            'total': 'LicensesTotal',
+            'used': 'LicensesUsed'
+        }
+        for license_name in self.config['Licenses']:
+            full_license_name = license_name
+            if 'SlurmDbd' in self.config['slurm']:
+                if 'Server' in self.config['Licenses'][license_name]:
+                    full_license_name += f"@{self.config['Licenses'][license_name]['Server']}"
+                    if 'Port' in self.config['Licenses'][license_name]:
+                        # Using '@' for the port separator instead of ':' because sbatch doesn't work if ':' is in the server name.
+                        full_license_name += f"@{self.config['Licenses'][license_name]['Port']}"
+            for label_suffix, metric_name in license_metric_names.items():
+                self.licenses_widget.add_left_metric(
+                    cloudwatch.Metric(
+                        namespace = self.slurm_namespace,
+                        metric_name = metric_name,
+                        dimensions_map = {
+                            'LicenseName': full_license_name,
+                            'Cluster': self.config['slurm']['ClusterName']
+                        },
+                        label = f"{full_license_name} {label_suffix}",
+                    ),
+                )
 
         # self.job_count_by_instance_type_widget = cloudwatch.GraphWidget(
         #     title = "JobCount by InstanceType",
@@ -1932,7 +1942,7 @@ class CdkSlurmStack(Stack):
                 ],
                 [
                     self.insufficient_capacity_exceptions_widget,
-                    # self.vcs_licenses_widget,
+                    self.licenses_widget,
                     # self.job_count_by_instance_type_widget,
                     # self.running_jobs_by_instance_type_widget,
                 ],
@@ -1987,6 +1997,7 @@ class CdkSlurmStack(Stack):
                 instance_template_vars["Federation"] = self.config['slurm']['Federation']['Name']
             instance_template_vars["JobCompLoc"] = self.config['slurm']['JobCompLoc']
             instance_template_vars["JobCompType"] = self.config['slurm']['JobCompType']
+            instance_template_vars["Licenses"] = self.config['Licenses']
             instance_template_vars["MaxStoppedDuration"] = self.config['slurm']['SlurmCtl']['MaxStoppedDuration']
             instance_template_vars['MungeKeySsmParameter'] = self.config['slurm']['MungeKeySsmParameter']
             instance_template_vars["NumberOfControllers"] = self.config['slurm']['SlurmCtl']['NumberOfControllers']
