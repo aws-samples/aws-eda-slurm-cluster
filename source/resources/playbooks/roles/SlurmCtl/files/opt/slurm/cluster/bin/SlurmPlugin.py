@@ -1641,6 +1641,11 @@ class SlurmPlugin:
                 'arm64':  'arm',
             }
 
+            if instance_config['UseSpot']:
+                purchase_options = ['spot', 'ondemand']
+            else:
+                purchase_options = ['ondemand']
+
             node_sets = {}
 
             max_priority = 0
@@ -1653,28 +1658,25 @@ class SlurmPlugin:
                     max_priority_az = az
                 az_id = az_info[az]['id']
                 instance_type_info = eC2InstanceTypeInfo.instance_type_info[region]
+                node_sets[az] = {}
 
                 for distribution, distribution_dict in instance_config['BaseOsArchitecture'].items():
                     logger.debug(distribution)
                     logger.debug(f"distribution_dict:\n{pp.pformat(distribution_dict)}")
                     os_prefix = distribution_to_prefix_map[distribution]
+                    node_sets[az][distribution] = {}
                     for distribution_major_version, architectures in distribution_dict.items():
+                        node_sets[az][distribution][distribution_major_version] = {}
                         for architecture in architectures:
-                            node_set = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
-                            node_sets[node_set] = {
-                                'nodes': [],
-                                'node_names': [],
-                                'priority': priority
-                                }
-                            if instance_config['UseSpot']:
-                                spot_node_set = f"{node_set}_spot"
-                                node_sets[spot_node_set] = {
-                                    'nodes': [],
-                                    'node_names': [],
-                                    'priority': priority
+                            node_sets[az][distribution][distribution_major_version][architecture] = {}
+                            node_set_prefix = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
+                            for purchase_option in purchase_options:
+                                node_sets[az][distribution][distribution_major_version][architecture][purchase_option] = {
+                                    'priority': priority,
+                                    'nodes': {},
+                                    'nodes_by_weight': []
                                     }
                             architecture_prefix = architecture_prefix_map[architecture]
-                            partitionName = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
                             for instanceType in sorted(instance_types[region]):
                                 if instance_type_info[instanceType]['architecture'] != architecture:
                                     continue
@@ -1682,9 +1684,8 @@ class SlurmPlugin:
                                 instance_family = self.get_instance_family(instanceType)
                                 short_instance_size = self.get_short_instance_size(instanceType)
                                 max_node_index = instance_config['NodesPerInstanceType'] - 1
-
-                                node = f"{az_id}-{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}-[0-{max_node_index}]"
-                                node_sets[node_set]['nodes'].append(node)
+                                # Each node has an ondemand and spot variant. The node_prefix is common between the two.
+                                node_prefix = f"{az_id}-{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}"
 
                                 coreCount = instance_type_info[instanceType]['CoreCount']
                                 realMemory = instance_type_info[instanceType]['MemoryInMiB']
@@ -1692,25 +1693,38 @@ class SlurmPlugin:
                                     realMemory -= 650
                                 realMemory = int(realMemory * 0.95)
                                 clockSpeedInGHz = instance_type_info[instanceType]['SustainedClockSpeedInGhz']
-                                base_featureList = f"{az},{az_id},{os_prefix}{distribution_major_version},{partitionName},{instance_family},{instanceType},{architecture},GHz:{clockSpeedInGHz}"
+                                base_featureList = f"{az},{az_id},{os_prefix}{distribution_major_version},{distribution}_{distribution_major_version},{architecture},{instance_family},{instanceType},GHz:{clockSpeedInGHz}"
                                 if instance_type_info[instanceType]['SSDCount']:
                                     base_featureList += ",ssd"
+
+                                ondemand_node = f"{node_prefix}-ondemand-[0-{max_node_index}]"
                                 ondemand_featureList = base_featureList + ',ondemand'
-                                price = instance_type_info[instanceType]['pricing']['OnDemand']
-                                weight = int(float(price) * 10000)
-                                node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
-                                    node, str(coreCount), str(realMemory), ondemand_featureList, weight)
-                                node_sets[node_set]['node_names'].append(node_name)
+                                ondemand_price = instance_type_info[instanceType]['pricing']['OnDemand']
+                                ondemand_weight = int(float(ondemand_price) * 10000)
+                                ondemand_node_line = "NodeName={:45s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
+                                    ondemand_node, str(coreCount), str(realMemory), ondemand_featureList, ondemand_weight)
+                                node_sets[az][distribution][distribution_major_version][architecture]['ondemand']['nodes'][ondemand_node] = {
+                                    # Store the weight to allow the dictionary to be sorted later by weight
+                                    'weight': ondemand_weight,
+                                    'line':   ondemand_node_line
+                                }
 
                                 if instance_config['UseSpot']:
-                                    spot_node = f"{az_id}-{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}-sp-[0-{max_node_index}]"
-                                    node_sets[spot_node_set]['nodes'].append(spot_node)
+                                    spot_node = f"{node_prefix}-sp-[0-{max_node_index}]"
                                     spot_feature_list = f"{base_featureList},spot"
                                     spot_price = instance_type_info[instanceType]['pricing']['spot'][az]
                                     spot_weight = int(float(spot_price) * 10000)
-                                    spot_node_name = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
+                                    spot_node_line = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
                                         spot_node, str(coreCount), str(realMemory), spot_feature_list, spot_weight)
-                                    node_sets[spot_node_set]['node_names'].append(spot_node_name)
+                                    node_sets[az][distribution][distribution_major_version][architecture]['spot']['nodes'][spot_node] = {
+                                        # Store the weight to allow the dictionary to be sorted later by weight
+                                        'weight': spot_weight,
+                                        'line':   spot_node_line
+                                    }
+
+                            # Sort the nodes by weight
+                            for purchase_option in purchase_options:
+                                node_sets[az][distribution][distribution_major_version][architecture][purchase_option]['nodes_by_weight'] = sorted(node_sets[az][distribution][distribution_major_version][architecture][purchase_option]['nodes'].keys(), key=lambda node: node_sets[az][distribution][distribution_major_version][architecture][purchase_option]['nodes'][node]['weight'])
 
             fh = open(self.args.output_file, 'w')
             print(dedent('''\
@@ -1735,25 +1749,49 @@ class SlurmPlugin:
                 #   * RHEL7 instances are billed per hour so they should have the highest weight.
                 NodeName=Default State=CLOUD'''), file=fh)
 
-            for node_set in node_sets:
-                print(f"\n# {node_set}", file=fh)
-                for node_name in node_sets[node_set]['node_names']:
-                    print(node_name, file=fh)
+            for az, az_dict in node_sets.items():
+                for distribution, distribution_dict in az_dict.items():
+                    for distribution_major_version, distribution_major_version_dict in distribution_dict.items():
+                        for architecture, architecture_dict in distribution_major_version_dict.items():
+                            for purchase_option in purchase_options:
+                                print(f"\n# {az}_{distribution}_{distribution_major_version}_{architecture}_{purchase_option}", file=fh)
+                                for node in architecture_dict[purchase_option]['nodes_by_weight']:
+                                    node_line = node_sets[az][distribution][distribution_major_version][architecture][purchase_option]['nodes'][node]['line']
+                                    print(node_line, file=fh)
 
             print(dedent('''\
 
                 #
                 # NodeSets:
                 # Used to group nodes to simplify partition definition.
-                #
-                '''), file=fh)
-            for node_set in node_sets:
-                print(dedent(f"""\
-                    #
-                    # {node_set} NodeSet
-                    #
-                    NodeSet={node_set}_nodes Nodes=\\"""), file=fh)
-                print(',\\\n'.join(node_sets[node_set]['nodes']), file=fh)
+                #'''), file=fh)
+
+            for az, az_dict in node_sets.items():
+                print(dedent(f'''\
+
+                    #===============================================================================
+                    # {az} NodeSets:
+                    #==============================================================================='''), file=fh)
+                for distribution, distribution_dict in az_dict.items():
+                    for distribution_major_version, distribution_major_version_dict in distribution_dict.items():
+                        for architecture, architecture_dict in distribution_major_version_dict.items():
+                            print(dedent(f'''\
+
+                                #--------------------------------------------------------------------------
+                                # {az} {distribution} {distribution_major_version} {architecture} NodeSets:
+                                #--------------------------------------------------------------------------'''), file=fh)
+                            all_nodes = []
+                            for purchase_option in purchase_options:
+                                node_set = f"{az}_{distribution}_{distribution_major_version}_{architecture}_{purchase_option}"
+                                nodes = architecture_dict[purchase_option]['nodes_by_weight']
+                                if not nodes:
+                                    continue
+                                print(dedent(f"""\
+                                    #
+                                    # {node_set} NodeSet
+                                    #
+                                    NodeSet={node_set}_nodes Nodes=\\"""), file=fh)
+                                print(',\\\n'.join(nodes), file=fh)
 
             print(dedent('''\
 
@@ -1765,18 +1803,42 @@ class SlurmPlugin:
                 #
                 # Set defaults for partitions
                 #
-                PartitionName=Default MaxTime=INFINITE State=UP Default=NO PriorityTier=1
-                '''), file=fh)
+                PartitionName=Default MaxTime=INFINITE State=UP Default=NO PriorityTier=1'''), file=fh)
 
-            for node_set in node_sets:
-                node_set_name = f"{node_set}_nodes"
-                partitionName = node_set
-                print(dedent(f"""\
+            for az, az_dict in node_sets.items():
+                print(dedent(f'''\
 
-                    #
-                    # {partitionName} Partition
-                    #
-                    PartitionName={partitionName} Default=NO PriorityTier={node_sets[node_set]['priority']} Nodes={node_set_name}"""), file=fh)
+                    #===============================================================================
+                    # {az} Partitions:
+                    #==============================================================================='''), file=fh)
+                for distribution, distribution_dict in az_dict.items():
+                    for distribution_major_version, distribution_major_version_dict in distribution_dict.items():
+                        for architecture, architecture_dict in distribution_major_version_dict.items():
+                            print(dedent(f'''\
+
+                                #-------------------------------------------------------------------------------
+                                # {az} {distribution} {distribution_major_version} {architecture} Partitions:
+                                #-------------------------------------------------------------------------------'''), file=fh)
+                            node_sets = []
+                            for purchase_option in purchase_options:
+                                nodes = architecture_dict[purchase_option]['nodes_by_weight']
+                                if not nodes:
+                                    continue
+                                partition_name = f"{az}_{distribution}_{distribution_major_version}_{architecture}_{purchase_option}"
+                                priority = architecture_dict[purchase_option]['priority']
+                                node_set = f"{partition_name}_nodes"
+                                node_sets.append(node_set)
+                                print(dedent(f"""\
+                                    #
+                                    # {partition_name} Partition
+                                    #
+                                    PartitionName={partition_name} Default=NO PriorityTier={priority} Nodes={node_set}"""), file=fh)
+                            partition_name = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
+                            print(dedent(f"""\
+                                #
+                                # {partition_name} Partition
+                                #
+                                PartitionName={partition_name} Default=NO PriorityTier={priority} Nodes={','.join(node_sets)}"""), file=fh)
 
             # Create partitions for each AZ
             print(dedent(f"""\
@@ -1793,15 +1855,12 @@ class SlurmPlugin:
                     default_partition = 'NO'
                 priority = az_info[az]['priority']
                 az_nodesets = []
-                for distribution, distribution_dict in instance_config['BaseOsArchitecture'].items():
-                    for distribution_major_version, architectures in distribution_dict.items():
-                        for architecture in architectures:
-                            node_set = f"{az}_{distribution}_{distribution_major_version}_{architecture}"
-                            az_nodesets.append(f"{node_set}_nodes")
-                            if instance_config['UseSpot']:
-                                az_nodesets.append(f"{node_set}_spot_nodes")
-                for node_set in az_nodesets:
-                    node_set_name = f"{node_set}_nodes"
+                for purchase_option in purchase_options:
+                    for distribution, distribution_dict in instance_config['BaseOsArchitecture'].items():
+                        for distribution_major_version, architectures in distribution_dict.items():
+                            for architecture in architectures:
+                                node_set = f"{az}_{distribution}_{distribution_major_version}_{architecture}_{purchase_option}_nodes"
+                                az_nodesets.append(node_set)
                 node_list = ',\\\n'.join(az_nodesets)
                 print(dedent(f"""\
 

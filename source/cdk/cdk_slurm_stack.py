@@ -424,13 +424,21 @@ class CdkSlurmStack(Stack):
 
         if 'OnPremComputeNodes' in self.config['slurm']['InstanceConfig']:
             if not path.exists(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']):
-                logger.error(f"On-premises compute nodes config file not found: {self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']}")
+                logger.error(f"slurm/InstanceConfig/OnPremComputeNodes/ConfigFile: On-premises compute nodes config file not found: /{self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']}")
                 exit(1)
             self.on_prem_compute_nodes_config_file_asset = s3_assets.Asset(self, "OnPremComputeNodesConfigFile", path=self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile'])
             self.onprem_cidr = ec2.Peer.ipv4(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['CIDR'])
         else:
             self.on_prem_compute_nodes_config_file_asset = None
             self.onprem_cidr = None
+
+        if 'SlurmConfOverrides' in self.config['slurm']['SlurmCtl']:
+            if not path.exists(self.config['slurm']['SlurmCtl']['SlurmConfOverrides']):
+                logger.error(f"slurm/SlurmCtlSlurmConfOverrides: slurm.conf overrides file not found: {self.config['slurm']['SlurmCtl']['SlurmConfOverrides']}")
+                exit(1)
+            self.slurm_conf_overrides_file_asset = s3_assets.Asset(self, "SlurmConfOverridesFile", path=self.config['slurm']['SlurmCtl']['SlurmConfOverrides'])
+        else:
+            self.slurm_conf_overrides_file_asset = None
 
     def create_vpc(self):
         logger.info(f"VpcId: {self.config['VpcId']}")
@@ -2240,6 +2248,10 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG'] = f"slurm_nodes_on_prem.conf"
                 instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG_LOCAL_PATH'] = f"/root/{instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG']}"
                 instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG_PATH'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}/etc/{instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG']}"
+            if self.slurm_conf_overrides_file_asset:
+                instance_template_vars['SLURM_CONF_OVERRIDES'] = f"slurm_overrides.conf"
+                instance_template_vars['SLURM_CONF_OVERRIDES_LOCAL_PATH'] = f"/root/{instance_template_vars['SLURM_CONF_OVERRIDES']}"
+                instance_template_vars['SLURM_CONF_OVERRIDES_PATH'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}/etc/{instance_template_vars['SLURM_CONF_OVERRIDES']}"
             instance_template_vars['PLAYBOOKS_ZIP_PATH'] = '/root/playbooks.zip'
 
             if self.munge_key_ssm_parameter:
@@ -2290,6 +2302,14 @@ class CdkSlurmStack(Stack):
                     bucket = self.on_prem_compute_nodes_config_file_asset.bucket,
                     bucket_key = self.on_prem_compute_nodes_config_file_asset.s3_object_key,
                     local_file = instance_template_vars['ON_PREM_COMPUTE_NODES_CONFIG_LOCAL_PATH']
+                )
+
+            if self.slurm_conf_overrides_file_asset:
+                self.slurm_conf_overrides_file_asset.grant_read(slurmctl_instance.role)
+                slurmctl_instance.user_data.add_s3_download_command(
+                    bucket = self.slurm_conf_overrides_file_asset.bucket,
+                    bucket_key = self.slurm_conf_overrides_file_asset.s3_object_key,
+                    local_file = instance_template_vars['SLURM_CONF_OVERRIDES_LOCAL_PATH']
                 )
 
             user_data_template = Template(open("resources/user_data/slurmctl_user_data.sh", 'r').read())

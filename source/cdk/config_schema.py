@@ -220,6 +220,10 @@ config_schema = Schema(
                 Optional('PreemptMode', default='REQUEUE'): And(str, lambda s: s in ['OFF', 'CANCEL', 'GANG', 'REQUEUE', 'SUSPEND']),
                 Optional('PreemptType', default='preempt/partition_prio'): And(str, lambda s: s in ['preempt/none', 'preempt/partition_prio', 'preempt/qos']),
                 Optional('PreemptExemptTime', default='0'): str,
+                #
+                # SlurmConfOverrides:
+                #     File that will be included at end of slurm.conf to override configuration parameters.
+                Optional('SlurmConfOverrides'): str,
             },
             #
             # The accounting database is required to enable fairshare scheduling
