@@ -92,6 +92,12 @@ class EC2InstanceTypeInfo:
     def get_instance_type_info(self, region):
         region_name = self.get_region_name(region)
         logger.debug(f"region_name={region_name}")
+        azs = []
+        for az_info in self.ec2.describe_availability_zones(Filters=[{'Name': 'region-name', 'Values': [region]}], AllAvailabilityZones=False)['AvailabilityZones']:
+            if az_info['ZoneType'] != 'availability-zone':
+                continue
+            azs.append(az_info['ZoneName'])
+        azs = sorted(azs)
         instance_type_info = {}
         self.instance_type_info[region] = instance_type_info
         describe_instance_types_paginator = self.ec2.get_paginator('describe_instance_types')
@@ -227,15 +233,18 @@ class EC2InstanceTypeInfo:
             instance_type_info[instanceType]['physicalProcessor'] = physicalProcessor
 
             # Get spot price for each AZ
-            result = self.ec2.describe_spot_price_history(
-                InstanceTypes = [instanceType],
-                Filters = [
-                    {'Name': 'product-description', 'Values': ['Linux/UNIX']}
-                ],
-                StartTime = datetime.now()
-            )
-            for spotPriceHistory in result['SpotPriceHistory']:
-                az = spotPriceHistory['AvailabilityZone']
+            for az in azs:
+                result = self.ec2.describe_spot_price_history(
+                    AvailabilityZone = az,
+                    InstanceTypes = [instanceType],
+                    Filters = [
+                        {'Name': 'product-description', 'Values': ['Linux/UNIX']}
+                    ],
+                    StartTime = datetime.now()
+                )
+                if not result['SpotPriceHistory']:
+                    continue
+                spotPriceHistory = result['SpotPriceHistory'][0]
                 spot_price = float(spotPriceHistory['SpotPrice'])
                 instance_type_info[instanceType]['pricing']['spot'][az] = spot_price
                 instance_type_info[instanceType]['pricing']['spot']['min'] = min(spot_price, instance_type_info[instanceType]['pricing']['spot'].get('min', 999999999))

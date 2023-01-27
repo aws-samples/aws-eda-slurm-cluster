@@ -291,6 +291,16 @@
     daemon_reload: yes
     state: started
 
+- name: Create /etc/cron.d/slurm_accounts
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/slurm_accounts
+    dest: /etc/cron.d/slurm_accounts
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
 - name: Create /etc/cron.d/slurm_cloudwatch
   when: PrimaryController|bool
   template:
@@ -301,11 +311,11 @@
     mode: 0600
     force: yes
 
-- name: Create /etc/cron.d/slurm_accounts
+- name: Create /etc/cron.d/slurm_nodes_conf
   when: PrimaryController|bool
   template:
-    src:   etc/cron.d/slurm_accounts
-    dest: /etc/cron.d/slurm_accounts
+    src:   etc/cron.d/slurm_nodes_conf
+    dest: /etc/cron.d/slurm_nodes_conf
     owner: root
     group: root
     mode: 0600

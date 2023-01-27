@@ -2156,6 +2156,7 @@ class CdkSlurmStack(Stack):
                 iam.PolicyStatement(
                     effect = iam.Effect.ALLOW,
                     actions = [
+                        'ec2:DescribeAvailabilityZones',
                         'ec2:DescribeInstances',
                         'ec2:DescribeInstanceTypes',
                         'ec2:DescribeSpotPriceHistory',
