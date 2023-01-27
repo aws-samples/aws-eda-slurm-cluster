@@ -72,10 +72,14 @@
       set -ex
       cp {{INSTANCE_CONFIG_LOCAL_PATH}} {{INSTANCE_CONFIG_PATH}}
       cd {{SlurmScriptsDir}}
-      if ! ./slurm_ec2_create_node_conf.py --config-file {{INSTANCE_CONFIG_LOCAL_PATH}} --az-info-file {{SlurmConfigDir}}/AZInfo.json -o {{SlurmEtcDir}}/slurm_nodes.conf.new --instance-types-json {{SlurmConfigDir}}/InstanceTypes.json --instance-type-info-json {{SlurmConfigDir}}/instance-type-info.json; then
+      rm -f {{SlurmConfigDir}}/instance-type-info.new.json
+      rm -f {{SlurmEtcDir}}/slurm_nodes.conf.new
+      if ! ./slurm_ec2_create_node_conf.py --config-file {{INSTANCE_CONFIG_LOCAL_PATH}} --az-info-file {{SlurmConfigDir}}/AZInfo.json -o {{SlurmEtcDir}}/slurm_nodes.conf.new --instance-types-json {{SlurmConfigDir}}/InstanceTypes.json --instance-type-info-json {{SlurmConfigDir}}/instance-type-info.new.json; then
+          rm -f {{SlurmConfigDir}}/instance-type-info.new.json
           rm -f {{SlurmEtcDir}}/slurm_nodes.conf.new
           exit 1
       fi
+      mv {{SlurmConfigDir}}/instance-type-info.new.json {{SlurmConfigDir}}/instance-type-info.json
   tags:
     - slurm_nodes_conf
 
@@ -114,38 +118,6 @@
     backup: yes
   register: slurm_licenses_conf_result
 
-- name: Configure remote licenses
-  when: PrimaryController|bool and (AccountingStorageHost != '') and Licenses
-  shell:
-    cmd: |
-      set -ex
-      # Add or update configured licenses
-      declare -A licenses
-      {% for lic in Licenses -%}
-      license='{{lic}}'
-      # Using '@' for the port separator instead of ':' because sbatch doesn't work if ':' is in the server name.
-      server='{% if 'Server' in Licenses[lic] %}{{Licenses[lic].Server}}{% if 'Port' in Licenses[lic] %}@{{Licenses[lic].Port}}{% endif %}{% else %}slurmdb{% endif %}'
-      count='{{Licenses[lic].Count}}'
-      licenses["$license@$server"]="$count"
-      if ! {{SlurmBinDir}}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}} cluster={{ClusterName}} percentallowed=100; then
-          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server set{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}}
-
-      fi
-      {% endfor -%}
-
-      # Remove deleted licenses
-      configured_licenses_and_servers=( $({{SlurmBinDir}}/sacctmgr --noheader --parsable2 show resource Clusters={{ClusterName}} format=name,server) )
-      echo ${configured_licenses_and_servers[@]}
-      for configured_license_and_server in ${configured_licenses_and_servers[@]}; do
-          configured_license=$(echo $configured_license_and_server | cut -d '|' -f 1)
-          configured_server=$(echo $configured_license_and_server | cut -d '|' -f 2)
-          if [ -z ${licenses["$configured_license@$configured_server"]} ]; then
-              {{SlurmBinDir}}/sacctmgr -i delete resource name=$configured_license server=$configured_server
-          fi
-      done
-
-  register: remote_slurm_licenses_conf_result
-
 - name: Create slurm_tres.conf
   when: PrimaryController|bool
   template:
@@ -156,6 +128,18 @@
     mode: 0664
     backup: yes
   register: slurm_tres_conf_result
+
+- name: Create {{SLURM_CONF_OVERRIDES_PATH}}
+  when: PrimaryController|bool and SLURM_CONF_OVERRIDES_LOCAL_PATH is defined and SLURM_CONF_OVERRIDES_PATH is defined
+  copy:
+    dest: "{{SLURM_CONF_OVERRIDES_PATH}}"
+    remote_src: yes
+    src:  "{{SLURM_CONF_OVERRIDES_LOCAL_PATH}}"
+    owner: root
+    group: root
+    mode: 0644
+    backup: yes
+  register: slurm_conf_overrides_result
 
 - name: Create {{SlurmEtcDir}}/slurm.conf
   when: PrimaryController|bool
@@ -240,7 +224,7 @@
     timeout: 1800 # 30 minutes
 
 - name: Restart slurmctld
-  when: ansible_facts.services['slurmctld.service']['state'] == 'running' and (cgroup_conf_result.changed or slurm_licenses_conf_result.changed or slurm_tres_conf_result.changed or slurm_conf_result.changed or slurm_nodes_conf_result.changed or slurm_nodes_on_prem_conf_result.changed or sysconfig_slurmctld_result.changed or slurmctld_service_result.changed)
+  when: ansible_facts.services['slurmctld.service']['state'] == 'running' and (cgroup_conf_result.changed or slurm_licenses_conf_result.changed or slurm_tres_conf_result.changed or slurm_conf_result.changed or slurm_nodes_conf_result.changed or slurm_nodes_on_prem_conf_result.changed or slurm_conf_overrides_result.changed or sysconfig_slurmctld_result.changed or slurmctld_service_result.changed)
   systemd:
     name: slurmctld
     enabled: yes
@@ -265,6 +249,40 @@
     host: "127.0.0.1"
     port: "6817"
     timeout: 1800 # 30 minutes
+
+- name: Configure remote licenses
+  # This uses sacctmcr so must do this after slurmctld and slurmd are working.
+  when: PrimaryController|bool and (AccountingStorageHost != '') and Licenses
+  shell:
+    cmd: |
+      set -ex
+      # Add or update configured licenses
+      declare -A licenses
+      {% for lic in Licenses -%}
+      license='{{lic}}'
+      # Using '@' for the port separator instead of ':' because sbatch doesn't work if ':' is in the server name.
+      server='{% if 'Server' in Licenses[lic] %}{{Licenses[lic].Server}}{% if 'Port' in Licenses[lic] %}@{{Licenses[lic].Port}}{% endif %}{% else %}slurmdb{% endif %}'
+      count='{{Licenses[lic].Count}}'
+      licenses["$license@$server"]="$count"
+      if ! {{SlurmBinDir}}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}} cluster={{ClusterName}} percentallowed=100; then
+          # Exit 1: Nothing new added.
+          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server set{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}}
+
+      fi
+      {% endfor -%}
+
+      # Remove deleted licenses
+      configured_licenses_and_servers=( $({{SlurmBinDir}}/sacctmgr --noheader --parsable2 show resource Clusters={{ClusterName}} format=name,server) )
+      echo ${configured_licenses_and_servers[@]}
+      for configured_license_and_server in ${configured_licenses_and_servers[@]}; do
+          configured_license=$(echo $configured_license_and_server | cut -d '|' -f 1)
+          configured_server=$(echo $configured_license_and_server | cut -d '|' -f 2)
+          if [ -z ${licenses["$configured_license@$configured_server"]} ]; then
+              {{SlurmBinDir}}/sacctmgr -i delete resource name=$configured_license server=$configured_server
+          fi
+      done
+
+  register: remote_slurm_licenses_conf_result
 
 - name: Start slurm_down_nodes_clean
   when: PrimaryController|bool

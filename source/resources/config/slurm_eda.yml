@@ -29,6 +29,9 @@ slurm:
       AlmaLinux: {8: [x86_64, arm64]}
       CentOS:
         7: [x86_64]
+    # OnPremComputeNodes:
+    #   ConfigFile: '/path/slurm_nodes_on_prem.conf'
+    #   CIDR: 'x.x.x.x/16'
 
   # Use defaults from schema
   storage: {'zfs': {}}
