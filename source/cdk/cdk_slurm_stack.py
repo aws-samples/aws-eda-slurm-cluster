@@ -424,7 +424,7 @@ class CdkSlurmStack(Stack):
 
         if 'OnPremComputeNodes' in self.config['slurm']['InstanceConfig']:
             if not path.exists(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']):
-                logger.error(f"slurm/InstanceConfig/OnPremComputeNodes/ConfigFile: On-premises compute nodes config file not found: /{self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']}")
+                logger.error(f"slurm/InstanceConfig/OnPremComputeNodes/ConfigFile: On-premises compute nodes config file not found: {self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']}")
                 exit(1)
             self.on_prem_compute_nodes_config_file_asset = s3_assets.Asset(self, "OnPremComputeNodesConfigFile", path=self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile'])
             self.onprem_cidr = ec2.Peer.ipv4(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['CIDR'])
