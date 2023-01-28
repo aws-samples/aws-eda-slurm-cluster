@@ -143,6 +143,15 @@
     group: root
     mode: 0775
 
+- name: Create {{SlurmScriptsDir}}/update_slurm_nodes_conf.sh
+  when: PrimaryController|bool
+  template:
+    dest: "{{SlurmScriptsDir}}/update_slurm_nodes_conf.sh"
+    src:  opt/slurm/cluster/bin/update_slurm_nodes_conf.sh
+    owner: root
+    group: root
+    mode: 0775
+
 # Put a copy of slurm_ec2_create_node_conf.py on file system so can be run on any instance
 - name: Create {{SlurmScriptsDir}}/slurm_ec2_create_node_conf.py
   when: PrimaryController|bool
