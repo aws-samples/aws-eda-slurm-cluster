@@ -224,6 +224,8 @@ config_schema = Schema(
                 # SlurmConfOverrides:
                 #     File that will be included at end of slurm.conf to override configuration parameters.
                 Optional('SlurmConfOverrides'): str,
+                Optional('SlurmrestdUid', default=901): int,
+                Optional('SlurmrestdPort', default=6820): int,
             },
             #
             # The accounting database is required to enable fairshare scheduling

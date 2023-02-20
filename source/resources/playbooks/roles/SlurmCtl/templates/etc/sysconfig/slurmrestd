@@ -1,0 +1,6 @@
+# Set environment variables for slurmrestd
+# Included in /etc/systemd/system/slurmrestd.service
+
+LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+
+SLURMRESTD_OPTIONS=-u slurmrestd -g slurmrestd -a rest_auth/jwt

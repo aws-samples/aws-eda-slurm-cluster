@@ -953,6 +953,7 @@ class CdkSlurmStack(Stack):
         # egress
         self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name}")
         self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name}")
+        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name}")
         self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name} - ephemeral")
         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to other slurmnodes: 1024-65535')
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
@@ -996,6 +997,7 @@ class CdkSlurmStack(Stack):
             slurm_submitter_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to {self.slurmnode_sg_name} - srun")
             if self.slurmdbd_sg:
                 slurm_submitter_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(6819), f"{slurm_submitter_sg_name} to {self.slurmdbd_sg_name} - sacct")
+            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
             if self.onprem_cidr:
                 slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
             for compute_region, compute_region_cidr in self.remote_compute_regions.items():
@@ -2015,7 +2017,9 @@ class CdkSlurmStack(Stack):
             instance_template_vars["SlurmCtlBaseHostname"] = self.config['slurm']['SlurmCtl']['BaseHostname']
             instance_template_vars['SlurmNodeProfileArn'] = self.slurm_node_instance_profile.attr_arn
             instance_template_vars['SlurmNodeRoleName'] = self.slurm_node_role.role_name
-            instance_template_vars["SuspendAction"] = self.config['slurm']['SlurmCtl']['SuspendAction']
+            instance_template_vars['SlurmrestdPort'] = self.config['slurm']['SlurmCtl']['SlurmrestdPort']
+            instance_template_vars['SlurmrestdUid']  = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
+            instance_template_vars["SuspendAction"]  = self.config['slurm']['SlurmCtl']['SuspendAction']
             instance_template_vars["UseAccountingDatabase"] = self.useSlurmDbd
         elif 'SlurmNodeAmi':
             pass

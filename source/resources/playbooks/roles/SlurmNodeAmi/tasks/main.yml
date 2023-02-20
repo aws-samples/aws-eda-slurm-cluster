@@ -1,7 +1,7 @@
 ---
 # tasks file for ami_SlurmNode
 
-- name: Install slurm_node packages
+- name: Install slurm_node yum packages
   yum:
     state: present
     name:
