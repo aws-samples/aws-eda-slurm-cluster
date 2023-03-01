@@ -32,7 +32,7 @@ logger.addHandler(logger_streamHandler)
 logger.propagate = False
 logger.setLevel(logging.INFO)
 
-DEFAULT_SLURM_VERSION = '22.05.8'
+DEFAULT_SLURM_VERSION = '23.02.0'
 
 config = {}
 
