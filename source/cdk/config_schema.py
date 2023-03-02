@@ -200,6 +200,9 @@ config_schema = Schema(
                 # NumberOfControllers
                 #     For high availability configure multiple controllers
                 Optional('NumberOfControllers', default=1): And(Use(int), lambda n: 1 <= n <= 3),
+                Optional('SubnetIds'): [
+                    And(str, lambda subnetid: re.match('subnet-', subnetid))
+                ],
                 Optional('BaseHostname', default='slurmctl'): str,
                 Optional('architecture', default='arm64'): And(str, lambda s: s in architectures),
                 Optional('instance_type', default='c6g.large'): str,

@@ -2201,6 +2201,30 @@ class CdkSlurmStack(Stack):
                     )
                 )
 
+        if 'SubnetIds' in self.config['slurm']['SlurmCtl']:
+            slurmctl_subnets = []
+            logger.info(f"Checking SlurmCtl subnet ids")
+            for subnet_id in self.config['slurm']['SlurmCtl']['SubnetIds']:
+                logger.info(f"    Checking for {subnet_id} in {len(self.private_and_isolated_subnets)} private and isolated subnets")
+                slurmctl_subnet = None
+                for subnet in self.private_and_isolated_subnets:
+                    logger.info(f"    found {subnet.subnet_id}")
+                    # If this is a new VPC then the cdk.context.json will not have the VPC and will be refreshed after the bootstrap phase. Until then the subnet ids will be placeholders so just pick the first subnet. After the bootstrap finishes the vpc lookup will be done and then the info will be correct.
+                    if subnet.subnet_id in ['p-12345', 'p-67890']:
+                        logger.warning(f"    VPC {self.config['VpcId']} not in cdk.context.json and will be refreshed before synth.")
+                        slurmctl_subnet = subnet
+                        break
+                    if subnet.subnet_id == self.config['SubnetId']:
+                        slurmctl_subnet = subnet
+                        break
+                if not slurmctl_subnet:
+                    logger.error(f"SubnetId {subnet_id} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(self.private_and_isolated_subnets)}")
+                    exit(1)
+                slurmctl_subnets.append(slurmctl_subnet)
+        else:
+            slurmctl_subnets, slurmctl_subnet_ids = self.get_subnet_from_each_az(self.config['slurm']['SlurmCtl']['NumberOfControllers'])
+            logger.info(f"SlurmCtl subnet ids: {slurmctl_subnet_ids}")
+
         # Create the SlurmCtl Instance(s)
         distribution = 'Amazon'
         distribution_major_version = 2
@@ -2210,12 +2234,14 @@ class CdkSlurmStack(Stack):
         self.slurmctl_instances = []
         for instance_index in range(1, self.config['slurm']['SlurmCtl']['NumberOfControllers'] + 1):
             hostname = f"{self.config['slurm']['SlurmCtl']['BaseHostname']}{instance_index}"
+            slurmctl_subnet = slurmctl_subnets[min(instance_index - 1, len(slurmctl_subnets) - 1)]
+            logger.info(f"Creating {hostname} in subnet {slurmctl_subnet.subnet_id}")
             slurmctl_instance = ec2.Instance(self, f"SlurmCtlInstance{instance_index}",
                 machine_image=ec2.MachineImage.generic_linux({self.region: ami_id}),
                 instance_type=ec2.InstanceType(self.config['slurm']['SlurmCtl']['instance_type']),
                 key_name=self.config['SshKeyPair'],
                 vpc=self.vpc,
-                vpc_subnets = ec2.SubnetSelection(subnets=[self.subnet]),
+                vpc_subnets = ec2.SubnetSelection(subnets=[slurmctl_subnet]),
                 block_devices=[
                     ec2.BlockDevice(
                         device_name = root_device_name,
