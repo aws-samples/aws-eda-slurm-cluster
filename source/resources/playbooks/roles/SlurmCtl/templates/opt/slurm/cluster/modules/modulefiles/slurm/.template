@@ -130,7 +130,7 @@ if { [ module-info mode load ] || [ module-info mode display ] } {
         setenv SQUEUE_SORT_SET ""
     }
     if { ! ( [ info exists ::env(SQUEUE_FORMAT) ] || [ info exists ::env(SQUEUE_FORMAT2) ] ) } {
-        setenv SQUEUE_FORMAT2 "Cluster:16 ,Partition:15 ,JobArrayId:16 ,Priority:12 ,State:11 ,UserName:8 ,Name:16 ,NumNodes:.5 ,NumCPUs:.4 ,MinMemory:.10 ,Feature:15 ,Dependency:10 ,Licenses:8 ,ReasonList:30"
+        setenv SQUEUE_FORMAT2 "Cluster:16 ,Partition:15 ,JobArrayId:16 ,Priority:12 ,State:11 ,UserName:8 ,Name:16 ,NumNodes:.5 ,NumCPUs:.4 ,MinMemory:.10 ,Feature:15 ,Dependency:10 ,Licenses:8 ,ReasonList:35"
         #
         # Time and priority information
         #setenv SQUEUE_FORMAT2 "JobId:.6 ,Partition:9 ,State:7 ,UserName:8 ,Name:16 ,SubmitTime:16 ,PendingTime:12 ,TimeLimit:18 ,EndTime:18 ,ReasonList"

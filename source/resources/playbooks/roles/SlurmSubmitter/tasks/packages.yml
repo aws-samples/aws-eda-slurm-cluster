@@ -24,3 +24,36 @@
       - environment-modules
       - munge
       - python3
+
+- name: Install libjwt on non-Amazon arm64
+  when: not(distribution == 'Amazon' and Architecture == 'arm64')
+  yum:
+    state: present
+    name:
+      - libjwt
+
+- name: Install packages to build libjwt
+  when: distribution == 'Amazon' and Architecture == 'arm64'
+  yum:
+    state: present
+    name:
+      - autoconf
+      - automake
+      - git
+      - jansson-devel
+      - libtool
+      - openssl-devel
+
+- name: Install libjwt on Amazon arm64
+  when: distribution == 'Amazon' and Architecture == 'arm64'
+  shell: |
+    set -xe
+
+    cd /tmp
+    rm -rf libjwt
+    git clone --depth 1 --single-branch -b v1.12.0 https://github.com/benmcollins/libjwt.git libjwt
+    cd libjwt
+    autoreconf --force --install
+    ./configure --prefix=/usr/local
+    make -j
+    make install

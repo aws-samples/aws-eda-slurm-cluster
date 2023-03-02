@@ -311,7 +311,10 @@
       licenses["$license@$server"]="$count"
       if ! {{SlurmBinDir}}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}} cluster={{ClusterName}} percentallowed=100; then
           # Exit 1: Nothing new added.
-          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server set{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}}
+          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server set count={{Licenses[lic].Count}}
+
+          # This is required or else license count will stay at 0
+          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server cluster={{ClusterName}} set percentallowed=100
 
       fi
       {% endfor -%}

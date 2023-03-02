@@ -585,7 +585,8 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-DnsLookup",
             description="Lookup up FQDN in DNS",
             memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_7,
+            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
             timeout=Duration.minutes(3),
             log_retention=logs.RetentionDays.INFINITE,
             handler="DnsLookup.lambda_handler",
@@ -600,7 +601,8 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-CreateComputeNodeSG",
             description="Create ComputeNodeSG in other region",
             memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_7,
+            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
             timeout=Duration.minutes(3),
             log_retention=logs.RetentionDays.INFINITE,
             handler="CreateComputeNodeSG.lambda_handler",
@@ -630,13 +632,13 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-Route53HostedZoneAddVpc",
             description="Associated VPC with Route53 hosted zone",
             memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_7,
+            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
             timeout=Duration.minutes(3),
             log_retention=logs.RetentionDays.INFINITE,
             handler="Route53HostedZoneAddVpc.lambda_handler",
             code=aws_lambda.Code.from_bucket(routeRoute53ZoneAddVpcLambdaAsset.bucket, routeRoute53ZoneAddVpcLambdaAsset.s3_object_key)
         )
-
         self.route53_hosted_zone_add_vpc_lambda.add_to_role_policy(
             statement=iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
@@ -655,12 +657,12 @@ class CdkSlurmStack(Stack):
             description="Get the DNSName attribute of an Ontap SVM",
             memory_size=128,
             runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
             timeout=Duration.minutes(15),
             log_retention=logs.RetentionDays.INFINITE,
             handler="GetOntapSvmDNSName.lambda_handler",
             code=aws_lambda.Code.from_bucket(getOntapSvmDNSNameLambdaAsset.bucket, getOntapSvmDNSNameLambdaAsset.s3_object_key)
         )
-
         self.get_ontap_svm_dnsname_lambda.add_to_role_policy(
             statement=iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
@@ -671,6 +673,32 @@ class CdkSlurmStack(Stack):
                 )
             )
 
+        callSlurmRestApiLambdaAsset = s3_assets.Asset(self, "CallSlurmRestApiLambdaAsset", path="resources/lambdas/CallSlurmRestApi")
+        self.slurm_rest_api_lambda_sg = ec2.SecurityGroup(self, "SlurmRestLambdaSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmRestApiLambda to SlurmCtl Security Group")
+        self.slurm_rest_api_lambda_sg_name = f"{self.stack_name}-SlurmRestApiLambdaSG"
+        Tags.of(self.slurm_rest_api_lambda_sg).add("Name", self.slurm_rest_api_lambda_sg_name)
+        self.slurm_rest_api_lambda_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
+        self.call_slurm_rest_api_lambda = aws_lambda.Function(
+            self, "CallSlurmRestApiLambda",
+            function_name=f"{self.stack_name}-CallSlurmRestApiLambda",
+            description="Example showing how to call Slurm REST API",
+            memory_size=128,
+            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
+            timeout=Duration.minutes(1),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CallSlurmRestApi.lambda_handler",
+            code=aws_lambda.Code.from_bucket(callSlurmRestApiLambdaAsset.bucket, callSlurmRestApiLambdaAsset.s3_object_key),
+            vpc=self.vpc,
+            vpc_subnets = ec2.SubnetSelection(subnets=[self.subnet]),
+            security_groups = [self.slurm_rest_api_lambda_sg],
+            environment = {
+                'CLUSTER_NAME': f"{self.config['slurm']['ClusterName']}",
+                'SLURM_REST_API_VERSION': '0.0.38',
+                'SLURMRESTD_URL': f"http://slurmctl1.{self.config['Domain']}:{self.config['slurm']['SlurmCtl']['SlurmrestdPort']}"
+                }
+        )
+
         deconfigureClusterLambdaAsset = s3_assets.Asset(self, "DeconfigureClusterLambdaAsset", path="resources/lambdas/DeconfigureCluster")
         self.deconfigure_cluster_lambda = aws_lambda.Function(
             self, "DeconfigureClusterLambda",
@@ -678,6 +706,7 @@ class CdkSlurmStack(Stack):
             description="Unmount file system and remove user/group cron job",
             memory_size=128,
             runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
             timeout=Duration.minutes(15),
             log_retention=logs.RetentionDays.INFINITE,
             handler="DeconfigureCluster.lambda_handler",
@@ -690,7 +719,10 @@ class CdkSlurmStack(Stack):
                 actions=[
                     "ssm:SendCommand",
                 ],
-                resources=[f'arn:{Aws.PARTITION}:ssm:{Aws.REGION}::document/AWS-RunShellScript']
+                resources=[
+                    f'arn:{Aws.PARTITION}:ssm:{Aws.REGION}::document/AWS-RunShellScript',
+                    f'arn:{Aws.PARTITION}:ec2:{Aws.REGION}:{Aws.ACCOUNT_ID}:instance/*',
+                    ]
                 )
             )
 
@@ -937,7 +969,7 @@ class CdkSlurmStack(Stack):
             self.slurmctl_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6817), f'OnPremNodes to {self.slurmctl_sg_name}')
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
             self.slurmctl_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{self.slurmctl_sg_name} to {compute_region}")
-
+        self.slurmctl_sg.connections.allow_from(self.slurm_rest_api_lambda_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
         # slurmdbd connections
         # egress
         if self.slurmdbd_sg:
@@ -953,7 +985,7 @@ class CdkSlurmStack(Stack):
         # egress
         self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name}")
         self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name}")
-        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name}")
+        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
         self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name} - ephemeral")
         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to other slurmnodes: 1024-65535')
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
@@ -2017,13 +2049,14 @@ class CdkSlurmStack(Stack):
             instance_template_vars["SlurmCtlBaseHostname"] = self.config['slurm']['SlurmCtl']['BaseHostname']
             instance_template_vars['SlurmNodeProfileArn'] = self.slurm_node_instance_profile.attr_arn
             instance_template_vars['SlurmNodeRoleName'] = self.slurm_node_role.role_name
+            instance_template_vars['SlurmrestdJwtForRootParameter'] = self.jwt_token_for_root_ssm_parameter.parameter_name
+            instance_template_vars['SlurmrestdJwtForSlurmrestdParameter'] = self.jwt_token_for_slurmrestd_ssm_parameter.parameter_name
             instance_template_vars['SlurmrestdPort'] = self.config['slurm']['SlurmCtl']['SlurmrestdPort']
             instance_template_vars['SlurmrestdUid']  = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
             instance_template_vars["SuspendAction"]  = self.config['slurm']['SlurmCtl']['SuspendAction']
             instance_template_vars["UseAccountingDatabase"] = self.useSlurmDbd
         elif 'SlurmNodeAmi':
-            pass
-            # instance_template_vars['SlurmNodeRoleArn'] = self.slurm_node_role.role_arn
+            instance_template_vars['SlurmrestdPort'] = self.config['slurm']['SlurmCtl']['SlurmrestdPort']
         else:
             raise ValueError(f"Invalid instance role {instance_role}")
 
@@ -2066,6 +2099,20 @@ class CdkSlurmStack(Stack):
                 parameter_name = f"/{self.stack_name}/SlurmNodeEc2KeyPairs/{compute_region}",
                 string_value = region_dict['SshKeyPair']
             )
+
+        # Create an SSM parameter to store the JWT tokens for root and slurmrestd
+        self.jwt_token_for_root_ssm_parameter = ssm.StringParameter(
+            self, f"JwtTokenForRootParameter",
+            parameter_name = f"/{self.stack_name}/slurmrestd/jwt/root",
+            string_value = 'None'
+        )
+        self.jwt_token_for_root_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
+        self.jwt_token_for_slurmrestd_ssm_parameter = ssm.StringParameter(
+            self, f"JwtTokenForSlurmrestdParameter",
+            parameter_name = f"/{self.stack_name}/slurmrestd/jwt/slurmrestd",
+            string_value = 'None'
+        )
+        self.jwt_token_for_slurmrestd_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
 
         self.slurmctl_role = iam.Role(self, "SlurmCtlRole",
             assumed_by=iam.CompositePrincipal(
@@ -2262,6 +2309,9 @@ class CdkSlurmStack(Stack):
             for compute_region in self.compute_regions:
                 self.slurmnode_security_group_ssm_parameters[compute_region].grant_read(slurmctl_instance)
                 self.slurmnode_ec2_key_pair_ssm_parameters[compute_region].grant_read(slurmctl_instance)
+
+            self.jwt_token_for_root_ssm_parameter.grant_write(slurmctl_instance)
+            self.jwt_token_for_slurmrestd_ssm_parameter.grant_write(slurmctl_instance)
 
             name = f"{self.stack_name}-SlurmSlurmCtl{instance_index}"
             Tags.of(slurmctl_instance).add("Name", name)

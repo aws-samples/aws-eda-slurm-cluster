@@ -23,16 +23,19 @@ Unmount the slurm file system.
 '''
 import cfnresponse
 import boto3
+import json
 import logging
 from textwrap import dedent
 
 logging.getLogger().setLevel(logging.INFO)
+#logging.getLogger().setLevel(logging.DEBUG)
 
 def lambda_handler(event, context):
     try:
-        logging.info("event: {}".format(event))
+        logging.debug("event: {}".format(event))
         requestType = event['RequestType']
         if requestType != 'Delete':
+            logging.info(f"requestType={requestType} != Delete so nothing to do.")
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "")
             return
 
@@ -56,8 +59,10 @@ def lambda_handler(event, context):
         logging.info(f'cmd: {cmd}')
 
         targets = []
+        logging.info(f"submitter_instance_tags:\n{submitter_instance_tags}")
         for tag, values in submitter_instance_tags.items():
             targets.append({'Key': f'tag:{tag}', 'Values': values})
+        logging.info(f"Targets:\n{json.dumps(targets, indent=4)}")
         response = ssm_client.send_command(
             Targets = targets,
             DocumentName = 'AWS-RunShellScript',
