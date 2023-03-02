@@ -94,10 +94,19 @@
     group: root
     mode: 0755
 
-- name: Create {{SlurmVarDir}}/spool
+- name: Create {{SlurmrestdSocketDir}}
   when: PrimaryController|bool
   file:
-    path: "{{SlurmVarDir}}/spool"
+    path: "{{SlurmrestdSocketDir}}"
+    state: directory
+    owner: slurmrestd
+    group: slurmrestd
+    mode: 0755
+
+- name: Create {{SlurmSpoolDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmSpoolDir}}"
     state: directory
     owner: slurm
     group: slurm

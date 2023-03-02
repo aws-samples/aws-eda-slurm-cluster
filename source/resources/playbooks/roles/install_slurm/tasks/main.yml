@@ -38,17 +38,22 @@
   yum:
     state: present
     name:
+      - autoconf # To build libjwt
+      - automake # To build libjwt
       - bzip2
       - crudini
       - emacs
       - freeipmi-devel
       - fwknop
       - gcc
+      - git # To build libjwt
       - gtk2-devel
       - http-parser-devel
       - hwloc-devel
+      - jansson-devel # To build libjwt
       - json-c-devel
       - libcurl-devel
+      - libtool # To build libjwt
       - libyaml-devel
       - lua-devel
       - lz4-devel
@@ -60,6 +65,8 @@
       - munge-libs
       - mysql-devel
       - numactl-devel
+      - openmpi
+      - openssl-devel # To build libjwt
       - pam-devel
       - perl-devel
       - pmix-devel
@@ -76,12 +83,26 @@
     name:
       - hdf5-devel
 
-- name: Install libjwt-devel
+- name: Install libjwt-devel on non-Amazon arm64
   when: not(distribution == 'Amazon' and Architecture == 'arm64')
   yum:
     state: present
     name:
       - libjwt-devel
+
+- name: Install libjwt-devel on Amazon arm64
+  when: distribution == 'Amazon' and Architecture == 'arm64'
+  shell: |
+    set -xe
+
+    cd /tmp
+    rm -rf libjwt
+    git clone --depth 1 --single-branch -b v1.12.0 https://github.com/benmcollins/libjwt.git libjwt
+    cd libjwt
+    autoreconf --force --install
+    ./configure --prefix=/usr/local
+    make -j
+    make install
 
 - name: Download slurm source
   shell: |
@@ -104,7 +125,7 @@
     set -xe
 
     cd {{SlurmSrcDir}}/slurm-{{SlurmVersion}}
-    ./configure --prefix {{SlurmOSDir}}/ &> configure.log
+    ./configure --prefix {{SlurmOSDir}}/ --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{SlurmrestdPort}} &> configure.log
     make &> slurm-make.log
     make contrib &> slurm-make-contrib.log
 

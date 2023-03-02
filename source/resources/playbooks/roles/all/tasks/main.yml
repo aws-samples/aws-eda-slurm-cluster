@@ -51,7 +51,7 @@
       SlurmConfigDir:     {{SlurmConfigDir}}
       SlurmEtcDir:        {{SlurmEtcDir}}
       SlurmLogsDir:       {{SlurmLogsDir}}
-      SlurmVarDir:        {{SlurmVarDir}}
+      SlurmSpoolDir:      {{SlurmSpoolDir}}
       SlurmConf:          {{SlurmConf}}
 
 - name: Set timezone
