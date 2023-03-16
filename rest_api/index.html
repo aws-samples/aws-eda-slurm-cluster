@@ -115,7 +115,7 @@
             
             <li class="nav-item" data-level="1"><a href="#slurm-rest-api" class="nav-link">Slurm REST API</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="2"><a href="#host-to-use-the-rest-api" class="nav-link">Host to use the REST API</a>
+            <li class="nav-item" data-level="2"><a href="#how-to-use-the-rest-api" class="nav-link">How to use the REST API</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -127,16 +127,21 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="slurm-rest-api">Slurm REST API</h1>
-<p>The Slurm REST API give a programmatic way to access the features of Slurm.
+<p>The <a href="https://slurm.schedmd.com/rest_api.html">Slurm REST API</a> give a programmatic way to access the features of Slurm.
 The REST API can be used, for example, to use a Lambda function to submit jobs to the Slurm cluster.</p>
-<h2 id="host-to-use-the-rest-api">Host to use the REST API</h2>
+<h2 id="how-to-use-the-rest-api">How to use the REST API</h2>
 <p>The following shows how to run a simple REST call.</p>
 <pre><code>source /opt/slurm/{{ClusterName}}/config/slurm_config.sh
 unset SLURM_JWT
 . &lt;(scontrol token)
 wget --header &quot;X-SLURM-USER-TOKEN: $SLURM_JWT&quot; --header &quot;X-SLURM-USER-NAME: $USER&quot; -q $SLURMRESTD_URL/slurm/v0.0.38/diag/ -O -
 </code></pre>
-<p>The REST API is documented at <a href="https://slurm.schedmd.com/rest_api.html">https://slurm.schedmd.com/rest_api.html</a>.</p></div>
+<p>The REST API is documented at <a href="https://slurm.schedmd.com/rest_api.html">https://slurm.schedmd.com/rest_api.html</a>.</p>
+<p>The token returned by <code>scontrol token</code> has a default lifetime of 3600 seconds (1 hour).
+For automation, a cron job on the Slurm controller creates a new token for the <code>root</code> and <code>slurmrestd</code> users every 30 minutes and stores them in SSM Parameter Store at <code>/{{ClusterName}}/slurmrestd/jwt/{{user_name}}</code>.
+These tokens can be used by automations such as a Lambda function to access the REST API.
+An example Lambda function called <code>{{ClusterName}}-CallSlurmRestApiLambda</code> shows how to call various API functions.
+You can use this as a template to write functions that use your Slurm cluster for automations.</p></div>
             </div>
         </div>
 
