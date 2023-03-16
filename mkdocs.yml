@@ -13,6 +13,7 @@ nav:
   - 'federation.md'
   - 'multi-region.md'
   - 'plugin-integration.md'
+  - 'delete-cluster.md'
   - 'implementation.md'
   - 'debug.md'
 strict: true

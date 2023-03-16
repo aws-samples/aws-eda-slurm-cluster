@@ -13,12 +13,14 @@
 
 - name: Unmount SLURM file system
   mount:
-    backup: yes
     fstype: "{{FileSystemType}}"
-    opts: "{{FileSystemOptions}}"
     path: "{{FileSystemMountPath}}"
-    src: "{{FileSystemMountSrc}}"
     state: absent
+
+# For some reason the ansible module is leaving the file system mounted
+- name: Unmount SLURM file system
+  shell: |
+    umount -f {{FileSystemMountPath}}
 
 - name: Remove {{FileSystemMountPath}}
   file:

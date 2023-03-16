@@ -46,6 +46,7 @@
 - { include: user_slurm.yml, tags: users }
 - { include: slurm_directories.yml, tags: slurm_directories }
 - { include: slurm_scripts.yml, tags: slurm_scripts }
+- { include: slurmrestd.yml, tags: slurmrestd }
 - { include: slurm_accounting.yml, tags: slurm_accounting }
 - { include: munge.yml, tags: munge }
 - { include: slurm_modulefiles.yml, tags: slurm_modulefiles }
