@@ -8,7 +8,7 @@
         
         
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>SOCA Integration - EDA SLURM Cluster on AWS</title>
+        <title>Delete Cluster - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
@@ -53,8 +53,8 @@
                             <li class="navitem">
                                 <a href="../onprem/" class="nav-link">On-Premises Integration</a>
                             </li>
-                            <li class="navitem active">
-                                <a href="./" class="nav-link">SOCA Integration</a>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
@@ -68,8 +68,8 @@
                             <li class="navitem">
                                 <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
                             </li>
-                            <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Delete Cluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../implementation/" class="nav-link">Implementation Details</a>
@@ -86,17 +86,17 @@
                             </a>
                         </li>
                             <li class="nav-item">
-                                <a rel="prev" href="../onprem/" class="nav-link">
+                                <a rel="prev" href="../plugin-integration/" class="nav-link">
                                     <i class="fa fa-arrow-left"></i> Previous
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../f1-ami/" class="nav-link">
+                                <a rel="next" href="../implementation/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/soca_integration.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/delete-cluster.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
                             </li>
                     </ul>
                 </div>
@@ -116,8 +116,20 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#soca-integration" class="nav-link">SOCA Integration</a>
+            <li class="nav-item" data-level="1"><a href="#delete-cluster" class="nav-link">Delete Cluster</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#manually-delete-rds-database" class="nav-link">Manually Delete RDS Database</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#manually-delete-the-slurm-file-system" class="nav-link">Manually delete the Slurm file system</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#fsx-for-openzfs" class="nav-link">FSx for OpenZfs</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
               </ul>
             </li>
         </ul>
@@ -125,45 +137,50 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="soca-integration">SOCA Integration</h1>
-<p>Integration with SOCA is straightforward.</p>
-<p>Set the following parameters in your config file.</p>
-<table>
-<thead>
-<tr>
-<th>Parameter</th>
-<th>Description</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>VpcId</td>
-<td>VPC id for the SOCA cluster</td>
-<td>vpc-xxxxxx</td>
-</tr>
-<tr>
-<td>SubmitterSecurityGroupIds</td>
-<td>The ComputeNode security group name and id</td>
-<td><em>cluster-id</em>-<em>ComputeNodeSG</em>: sg-xxxxxxxx</td>
-</tr>
-<tr>
-<td>ExtraMounts</td>
-<td>Add the mount parameters for the /apps and /data directories. This is required for access to the home directory.</td>
-<td></td>
-</tr>
-</tbody>
-</table>
-<p>Deploy your slurm cluster.</p>
-<p>Connect to the SOCA Scheduler instance and run the commands in the <strong>MountCommand</strong> and <strong>ConfigureSyncSlurmUsersGroups</strong> outputs
-of the SLURM stack as root.
-These commands will mount the SLURM file system at <strong>/opt/slurm/{{ClusterName}}</strong> and then create
-a cron job that runs every 5 minutes and updates <strong>/opt/slurm/{{ClusterName}}/config/users_groups.json</strong>.</p>
-<p>Connect to a remote desktop instance and run the commands in the <strong>MountCommand</strong> and <strong>ConfigureSubmitterCommand</strong> outputs
-of the SLURM stack.
-If all users need to use the cluster then it is probably best to create a custom AMI that is configured with the configuration
-commands.</p>
-<p>You are now ready to run jobs.</p></div>
+<h1 id="delete-cluster">Delete Cluster</h1>
+<p>Most of the resources can be deleted by simply deleting the cluster's CloudFormation stack.
+However, there a couple of resources that must be manually deleted:</p>
+<ul>
+<li>The Slurm RDS database</li>
+<li>The Slurm file system</li>
+</ul>
+<p>The deletion of the CloudFormation stack will fail because of these 2 resources and some resources that are used
+by them will also fail to delete.
+Manually delete the resources and then retry deleting the CloudFormation stack.</p>
+<h2 id="manually-delete-rds-database">Manually Delete RDS Database</h2>
+<p>If the database contains production data then it is highly recommended that you back up the data.
+You could also keep the database and use it for creating new clusters.</p>
+<p>Even after deleting the database CloudFormation may say that it failed to delete.
+Confirm in the RDS console that it deleted and then ignore the resource when retrying the stack deletion.</p>
+<ul>
+<li>Go the the RDS console</li>
+<li>Select Databases on the left</li>
+<li>Remove deletion protection<ul>
+<li>Select the cluster's database</li>
+<li>Click <code>Modify</code></li>
+<li>Expand <code>Additional scaling configuration</code></li>
+<li>Uncheck <code>Scale the capacity to 0 ACIs when cluster is idle</code></li>
+<li>Uncheck <code>Enable deletion protection</code></li>
+<li>Click <code>Continue</code></li>
+<li>Select <code>Apply immediately</code></li>
+<li>Click <code>Modify cluster</code></li>
+</ul>
+</li>
+<li>Delete the database<ul>
+<li>Select the cluster's database</li>
+<li>Click <code>Actions</code> -&gt; <code>Delete</code></li>
+<li>Click <code>Delete DB cluster</code></li>
+</ul>
+</li>
+</ul>
+<h2 id="manually-delete-the-slurm-file-system">Manually delete the Slurm file system</h2>
+<h3 id="fsx-for-openzfs">FSx for OpenZfs</h3>
+<ul>
+<li>Go to the FSx console</li>
+<li>Select the cluster's file system</li>
+<li>Click <code>Actions</code> -&gt; <code>Delete file system</code></li>
+<li>Click <code>Delete file system</code></li>
+</ul></div>
             </div>
         </div>
 
