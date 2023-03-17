@@ -116,7 +116,7 @@ def retry_ec2_throttling(min_delay = 1, max_delay = 10 * 60, max_cumulative_dela
                     attempt += 1
                     return f(*args, **kwargs)
                 except ClientError as e:
-                    if e.response['Error']['Code'] in ['RequestLimitExceeded', 'InternalError']:
+                    if e.response['Error']['Code'] in ['RequestLimitExceeded', 'InternalError', 'ThrottlingException']:
                         pass
                     else:
                         logger.exception(f"Not retrying exception")

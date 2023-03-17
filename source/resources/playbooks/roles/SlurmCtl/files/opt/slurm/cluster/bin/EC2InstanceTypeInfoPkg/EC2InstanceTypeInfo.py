@@ -49,9 +49,9 @@ class EC2InstanceTypeInfo:
 
         if not regions:
             # Get a list of all AWS regions
-            ec2_client = boto3.client('ec2')
+            self.ec2_client = boto3.client('ec2')
             try:
-                regions = sorted([region["RegionName"] for region in ec2_client.describe_regions()["Regions"]])
+                regions = sorted([region["RegionName"] for region in self.describe_regions()["Regions"]])
             except ClientError as err:
                 logger.error(f"Unable to list all AWS regions. Make sure you have set your IAM credentials. {err}")
                 sys.exit(1)
@@ -77,7 +77,7 @@ class EC2InstanceTypeInfo:
                 continue
             region_name = self.get_region_name(region)
             logger.info(f'Getting EC2 instance info for {region} ({region_name})')
-            self.ec2 = boto3.client('ec2', region_name=region)
+            self.ec2_client = boto3.client('ec2', region_name=region)
             self.get_instance_type_info(region)
 
             # Save json after each successful region to speed up reruns
@@ -93,15 +93,15 @@ class EC2InstanceTypeInfo:
         region_name = self.get_region_name(region)
         logger.debug(f"region_name={region_name}")
         azs = []
-        for az_info in self.ec2.describe_availability_zones(Filters=[{'Name': 'region-name', 'Values': [region]}], AllAvailabilityZones=False)['AvailabilityZones']:
+        for az_info in self.describe_availability_zones(region)['AvailabilityZones']:
             if az_info['ZoneType'] != 'availability-zone':
                 continue
             azs.append(az_info['ZoneName'])
         azs = sorted(azs)
         instance_type_info = {}
         self.instance_type_info[region] = instance_type_info
-        describe_instance_types_paginator = self.ec2.get_paginator('describe_instance_types')
-        for result in describe_instance_types_paginator.paginate(**{'Filters': [{'Name': 'current-generation', 'Values': ['true']}]}):
+        describe_instance_types_paginator = self.get_paginator('describe_instance_types')
+        for result in self.paginate(describe_instance_types_paginator, {'Filters': [{'Name': 'current-generation', 'Values': ['true']}]}):
             for instanceTypeDict in result['InstanceTypes']:
                 #logger.debug(pp.pformat("instanceTypeDict:\n%s" % (pp.pformat(instanceTypeDict))))
                 instanceType = instanceTypeDict['InstanceType']
@@ -234,14 +234,7 @@ class EC2InstanceTypeInfo:
 
             # Get spot price for each AZ
             for az in azs:
-                result = self.ec2.describe_spot_price_history(
-                    AvailabilityZone = az,
-                    InstanceTypes = [instanceType],
-                    Filters = [
-                        {'Name': 'product-description', 'Values': ['Linux/UNIX']}
-                    ],
-                    StartTime = datetime.now()
-                )
+                result = self.describe_spot_price_history(az, instanceType)
                 if not result['SpotPriceHistory']:
                     continue
                 spotPriceHistory = result['SpotPriceHistory'][0]
@@ -343,6 +336,38 @@ class EC2InstanceTypeInfo:
             raise
         region_name = region_name.replace('Europe', 'EU')
         return region_name
+
+    @retry_boto3_throttling()
+    def describe_regions(self):
+        response = self.ec2_client.describe_regions()
+        return response
+
+    @retry_boto3_throttling()
+    def describe_availability_zones(self, region):
+        response = self.ec2_client.describe_availability_zones(Filters=[{'Name': 'region-name', 'Values': [region]}], AllAvailabilityZones=False)
+        return response
+
+    @retry_boto3_throttling()
+    def get_paginator(self, command):
+        paginator = self.ec2_client.get_paginator(command)
+        return paginator
+
+    @retry_boto3_throttling()
+    def paginate(self, paginator, kwargs):
+        response = paginator.paginate(**kwargs)
+        return response
+
+    @retry_boto3_throttling()
+    def describe_spot_price_history(self, az, instanceType):
+        response = self.ec2_client.describe_spot_price_history(
+            AvailabilityZone = az,
+            InstanceTypes = [instanceType],
+            Filters = [
+                {'Name': 'product-description', 'Values': ['Linux/UNIX']}
+            ],
+            StartTime = datetime.now()
+        )
+        return response
 
     @retry_boto3_throttling()
     def get_products(self, pricing_filter):
