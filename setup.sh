@@ -87,8 +87,8 @@ if [[ $version != $CDK_VERSION ]]; then
     echo "Uninstalling old version: npm uninstall -g aws-cdk"
     npm uninstall -g aws-cdk
     echo "npm install -g aws-cdk@$CDK_VERSION"
-    if ! npm install -g aws-cdk@$CDK_VERSION; then
-        sudo npm install -g aws-cdk@$CDK_VERSION
+    if ! npm install -g --force aws-cdk@$CDK_VERSION; then
+        sudo npm install -g --force aws-cdk@$CDK_VERSION
     fi
 fi
 
