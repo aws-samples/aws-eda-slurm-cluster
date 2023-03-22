@@ -1831,16 +1831,19 @@ class CdkSlurmStack(Stack):
                     label = instance_type,
                 ),
             )
-        self.licenses_widget = cloudwatch.GraphWidget(
-            title = "Licenses",
-            period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
-            stacked = False,
-            statistic = 'Maximum',
-        )
-        license_metric_names = {
-            'total': 'LicensesTotal',
-            'used': 'LicensesUsed'
-        }
+        if self.config['Licenses']:
+            self.licenses_widget = cloudwatch.GraphWidget(
+                title = "Licenses",
+                period = Duration.minutes(self.config['slurm']['SlurmCtl']['CloudWatchPeriod']),
+                stacked = False,
+                statistic = 'Maximum',
+            )
+            license_metric_names = {
+                'total': 'LicensesTotal',
+                'used': 'LicensesUsed'
+            }
+        else:
+            self.licenses_widget = None
         for license_name in self.config['Licenses']:
             full_license_name = license_name
             if 'SlurmDbd' in self.config['slurm']:
@@ -1966,35 +1969,37 @@ class CdkSlurmStack(Stack):
         #     )
         # )
 
+        widgets = [
+            [
+                self.job_count_widget,
+                self.running_instances_widget,
+                self.running_instances_by_type_stacked_widget,
+                self.running_instances_by_type_unstacked_widget,
+            ],
+            [
+                self.stopped_instances_widget,
+                self.active_nodes_widget,
+                self.idle_nodes_widget,
+                self.down_nodes_widget,
+            ],
+            [
+                self.insufficient_capacity_exceptions_widget,
+                # self.job_count_by_instance_type_widget,
+                # self.running_jobs_by_instance_type_widget,
+            ],
+            # [
+            #     # self.static_node_count_by_instance_type_widget,
+            #     # self.memory_used_percent_by_instance_type_widget,
+            #     # self.memory_stats_by_instance_type_widget,
+            #     # self.down_percent_by_node_type
+            # ]
+        ]
+        if self.config['Licenses']:
+            widgets[2].append(self.licenses_widget)
         self.slurm_dashboard = cloudwatch.Dashboard(
             self, 'SlurmDashboard',
             dashboard_name = f"{self.stack_name}-{self.config['slurm']['ClusterName']}",
-            widgets = [
-                [
-                    self.job_count_widget,
-                    self.running_instances_widget,
-                    self.running_instances_by_type_stacked_widget,
-                    self.running_instances_by_type_unstacked_widget,
-                ],
-                [
-                    self.stopped_instances_widget,
-                    self.active_nodes_widget,
-                    self.idle_nodes_widget,
-                    self.down_nodes_widget,
-                ],
-                [
-                    self.insufficient_capacity_exceptions_widget,
-                    self.licenses_widget,
-                    # self.job_count_by_instance_type_widget,
-                    # self.running_jobs_by_instance_type_widget,
-                ],
-                # [
-                #     # self.static_node_count_by_instance_type_widget,
-                #     # self.memory_used_percent_by_instance_type_widget,
-                #     # self.memory_stats_by_instance_type_widget,
-                #     # self.down_percent_by_node_type
-                # ]
-            ]
+            widgets = widgets
         )
 
     def get_instance_template_vars(self, instance_role):
