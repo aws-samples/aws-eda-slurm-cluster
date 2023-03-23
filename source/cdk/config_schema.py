@@ -36,7 +36,7 @@ DEFAULT_SLURM_VERSION = '23.02.0'
 
 config = {}
 
-# Determine all AWS regions available on the account. We do not display opt-out region
+# Determine all AWS regions available on the account.
 default_region = environ.get("AWS_DEFAULT_REGION", "us-east-1")
 ec2_client = boto3.client("ec2", region_name=default_region)
 try:
@@ -44,6 +44,24 @@ try:
 except ClientError as err:
     logger.error(f"{fg('red')}Unable to list all AWS regions. Make sure you have set your IAM credentials. {err} {attr('reset')}")
     exit(1)
+opt_out_regions = [
+    'af-south-1',
+    'ap-east-1',
+    'ap-south-2',
+    'ap-southeast-3',
+    'ap-southeast-4',
+    'ap-southeast-5',
+    'ap-southeast-6',
+    'ca-west-1',
+    'eu-central-2',
+    'eu-south-1',
+    'eu-south-2',
+    'il-central-1',
+    'me-central-1',
+    'me-south-1',
+    'mx-central-1',
+]
+valid_regions += opt_out_regions
 
 filesystem_lifecycle_policies = [
     'None',
