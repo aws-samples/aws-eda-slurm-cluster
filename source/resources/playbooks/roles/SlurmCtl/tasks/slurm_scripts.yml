@@ -35,6 +35,15 @@
     group: root
     mode: 0755
 
+- name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/get_savings_plans.py
+  when: PrimaryController|bool
+  copy:
+    dest: "{{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/get_savings_plans.py"
+    src: opt/slurm/cluster/bin/EC2InstanceTypeInfoPkg/get_savings_plans.py
+    owner: root
+    group: root
+    mode: 0755
+
 - name: Create {{SlurmScriptsDir}}/EC2InstanceTypeInfoPkg/retry_boto3_throttling.py
   when: PrimaryController|bool
   copy:

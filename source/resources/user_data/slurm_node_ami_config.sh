@@ -40,8 +40,8 @@ if [ -e /var/lib/cloud/instance/sem/ami.txt ]; then
     echo "First reboot after ami ($ami) created."
     chmod +x /root/WaitForAmi.py
     if ! /root/WaitForAmi.py --ami-id $ami --base-ssm-parameter $SlurmNodeAmiSsmParameterBaseName --instance-id $instance_id --compute-regions $ComputeRegions; then
-        echo "Could not wait for AMI. Assume it is bad and create a new one."
-        rm -f /var/lib/cloud/instance/sem/ami.txt
+        echo "Could not wait for AMI. Do not try to create a new one because it may be a problem with the WaitForAmi.py script."
+        exit 1
     else
         # Delete the semaphore so that if the instance reboots because of template changes then a new AMI will be created
         mv /var/lib/cloud/instance/sem/ami.txt /var/lib/cloud/instance/sem/$ami.txt
