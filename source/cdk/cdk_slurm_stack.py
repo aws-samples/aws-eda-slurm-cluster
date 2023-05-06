@@ -520,8 +520,7 @@ class CdkSlurmStack(Stack):
         eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), json_filename='/tmp/instance_type_info.json', debug=False)
 
         plugin = SlurmPlugin(slurm_config_file=None, region=self.region)
-        plugin.instance_type_info = eC2InstanceTypeInfo.instance_type_info
-        plugin.create_instance_family_info()
+        plugin.instance_type_and_family_info = eC2InstanceTypeInfo.instance_type_and_family_info
         self.az_info = plugin.get_az_info_from_instance_config(self.config['slurm']['InstanceConfig'])
         logger.info(f"{len(self.az_info.keys())} AZs configured: {sorted(self.az_info.keys())}")
 
@@ -2217,6 +2216,8 @@ class CdkSlurmStack(Stack):
                         'ec2:DescribeInstanceTypes',
                         'ec2:DescribeSpotPriceHistory',
                         'ec2:DescribeSubnets',
+                        'savingsplans:DescribeSavingsPlansOfferings',
+                        'savingsplans:DescribeSavingsPlansOfferingRates',
                     ],
                     # Does not support resource-level permissions and require you to choose All resources
                     resources = ["*"]

@@ -21,6 +21,8 @@ import boto3
 from botocore.exceptions import ClientError
 import csv
 from datetime import datetime
+from EC2InstanceTypeInfoPkg.get_savings_plans import SavingsPlanInfo
+from EC2InstanceTypeInfoPkg.retry_boto3_throttling import retry_boto3_throttling
 import json
 import logging
 from logging import error, info, warning, handlers
@@ -28,7 +30,6 @@ import os
 from os import environ, path
 from pkg_resources import resource_filename
 import pprint
-from EC2InstanceTypeInfoPkg.retry_boto3_throttling import retry_boto3_throttling
 import sys
 
 logger = logging.getLogger(__file__)
@@ -49,7 +50,7 @@ class EC2InstanceTypeInfo:
 
         if not regions:
             # Get a list of all AWS regions
-            self.ec2_client = boto3.client('ec2')
+            self.ec2_client = boto3.client('ec2', region_name='us-east-1')
             try:
                 regions = sorted([region["RegionName"] for region in self.describe_regions()["Regions"]])
             except ClientError as err:
@@ -62,17 +63,17 @@ class EC2InstanceTypeInfo:
         if json_filename:
             if path.exists(json_filename):
                 logger.info(f"Reading cached info from {json_filename}")
-                self.instance_type_info = json.loads(open(json_filename, 'r').read())
+                self.instance_type_and_family_info = json.loads(open(json_filename, 'r').read())
             else:
                 logger.info(f"{json_filename} doesn't exist so cannot be read")
         if not json_filename or not path.exists(json_filename):
-            self.instance_type_info = {}
+            self.instance_type_and_family_info = {}
 
         # Endpoints only supported in 2 regions: https://docs.aws.amazon.com/cli/latest/reference/pricing/index.html
         self.pricing_client = boto3.client('pricing', region_name='us-east-1')
 
         for region in self.regions:
-            if region in self.instance_type_info and json_filename:
+            if region in self.instance_type_and_family_info and json_filename:
                 logger.info(f'Using EC2 instance info from {json_filename} for {region}')
                 continue
             region_name = self.get_region_name(region)
@@ -84,7 +85,7 @@ class EC2InstanceTypeInfo:
             if json_filename:
                 logger.info(f"Saving instance type info for {region} in {json_filename}")
                 fh = open(json_filename, 'w')
-                print(json.dumps(self.instance_type_info, indent=4, sort_keys=True), file=fh)
+                print(json.dumps(self.instance_type_and_family_info, indent=4, sort_keys=True), file=fh)
                 fh.close()
 
         return
@@ -99,7 +100,11 @@ class EC2InstanceTypeInfo:
             azs.append(az_info['ZoneName'])
         azs = sorted(azs)
         instance_type_info = {}
-        self.instance_type_info[region] = instance_type_info
+        instance_family_info = {}
+        self.instance_type_and_family_info[region] = {
+            'instance_types': instance_type_info,
+            'instance_families': instance_family_info
+        }
         describe_instance_types_paginator = self.get_paginator('describe_instance_types')
         for result in self.paginate(describe_instance_types_paginator, {'Filters': [{'Name': 'current-generation', 'Values': ['true']}]}):
             for instanceTypeDict in result['InstanceTypes']:
@@ -111,17 +116,10 @@ class EC2InstanceTypeInfo:
                 architecture = instanceTypeDict['ProcessorInfo']['SupportedArchitectures'][0]
                 instance_type_info[instanceType]['architecture'] = architecture
                 instance_type_info[instanceType]['SustainedClockSpeedInGhz'] = instanceTypeDict['ProcessorInfo']['SustainedClockSpeedInGhz']
-                if 'ValidThreadsPerCore' in instanceTypeDict['VCpuInfo']:
-                    instance_type_info[instanceType]['ThreadsPerCore'] = max(instanceTypeDict['VCpuInfo']['ValidThreadsPerCore'])
-                else:
-                    if architecture == 'x86_64':
-                        instance_type_info[instanceType]['ThreadsPerCore'] = 2
-                    else:
-                        instance_type_info[instanceType]['ThreadsPerCore'] = 1
-                if 'ValidCores' in instanceTypeDict['VCpuInfo']:
-                    instance_type_info[instanceType]['CoreCount'] = int(max(instanceTypeDict['VCpuInfo']['ValidCores']))
-                else:
-                    instance_type_info[instanceType]['CoreCount'] = int(instanceTypeDict['VCpuInfo']['DefaultVCpus']/instance_type_info[instanceType]['ThreadsPerCore'])
+                instance_type_info[instanceType]['DefaultVCpus'] = instanceTypeDict['VCpuInfo']['DefaultVCpus']
+                instance_type_info[instanceType]['DefaultCores'] = instanceTypeDict['VCpuInfo']['DefaultCores']
+                instance_type_info[instanceType]['DefaultThreadsPerCore'] = instanceTypeDict['VCpuInfo']['DefaultThreadsPerCore']
+                instance_type_info[instanceType]['ValidThreadsPerCore'] = instanceTypeDict['VCpuInfo'].get('ValidThreadsPerCore', [instance_type_info[instanceType]['DefaultThreadsPerCore']])
                 instance_type_info[instanceType]['MemoryInMiB'] = instanceTypeDict['MemoryInfo']['SizeInMiB']
                 instance_type_info[instanceType]['SSDCount'] = instanceTypeDict.get('InstanceStorageInfo', {'Disks': [{'Count': 0}]})['Disks'][0]['Count']
                 instance_type_info[instanceType]['SSDTotalSizeGB'] = instanceTypeDict.get('InstanceStorageInfo', {'TotalSizeInGB': 0})['TotalSizeInGB']
@@ -134,24 +132,30 @@ class EC2InstanceTypeInfo:
                     instance_type_info[instanceType]['GpuMemoryMiB'] = instanceTypeDict['GpuInfo']['Gpus'][0].get('MemoryInfo', {}).get('SizeInMiB', 0)
                     instance_type_info[instanceType]['GpuTotalMemoryMiB'] = instanceTypeDict['GpuInfo'].get('TotalGpuMemoryInMiB', 0)
 
-                # (instance_family, instance_size) = instanceType.split('.')
-                # if instance_family not in instance_family_info:
-                #     instance_family_info[instance_family] = {}
-                #     instance_family_info[instance_family]['instance_types'] = [instanceType,]
-                #     instance_family_info[instance_family]['MaxInstanceType'] = instanceType
-                #     instance_family_info[instance_family]['MaxInstanceSize'] = instance_size
-                #     instance_family_info[instance_family]['MaxCoreCount'] = instance_type_info[instanceType]['CoreCount']
-                # else:
-                #     instance_family_info[instance_family]['instance_types'].append(instanceType)
-                #     if instance_type_info[instanceType]['CoreCount'] > instance_family_info[instance_family]['MaxCoreCount']:
-                #         instance_family_info[instance_family]['MaxInstanceType'] = instanceType
-                #         instance_family_info[instance_family]['MaxInstanceSize'] = instance_size
-                #         instance_family_info[instance_family]['MaxCoreCount'] = instance_type_info[instanceType]['CoreCount']
+                (instance_family, instance_size) = instanceType.split('.')
+                if instance_family not in instance_family_info:
+                    instance_family_info[instance_family] = {}
+                    instance_family_info[instance_family]['instance_types'] = [instanceType,]
+                    instance_family_info[instance_family]['architecture'] = instance_type_info[instanceType]['architecture']
+                else:
+                    instance_family_info[instance_family]['instance_types'].append(instanceType)
+                if instance_size != 'metal':
+                    if instance_type_info[instanceType]['DefaultCores'] > instance_family_info[instance_family].get('MaxCoreCount', 0):
+                        instance_family_info[instance_family]['MaxInstanceType'] = instanceType
+                        instance_family_info[instance_family]['MaxInstanceSize'] = instance_size
+                        instance_family_info[instance_family]['MaxCoreCount'] = instance_type_info[instanceType]['DefaultCores']
 
-        logger.debug("Getting pricing info for instances")
-        instance_types = instance_type_info.keys()
+        for instance_family in instance_family_info:
+            instance_family_info[instance_family]['instance_types'].sort()
+
+        instance_types = sorted(instance_type_info.keys())
+
+        logger.debug(f"Getting pricing info for {len(instance_types)} instance types:\n{json.dumps(instance_types, indent=4, sort_keys=True)}")
         logger.debug("{} instance types in {}".format(len(instance_types), region))
 
+        savingsPlanInfo = SavingsPlanInfo(region)
+
+        count = 1
         for instanceType in sorted(instance_types):
             logger.debug("instanceType: {}".format(instanceType))
             os = 'Linux'
@@ -174,6 +178,9 @@ class EC2InstanceTypeInfo:
             instance_type_info[instanceType]['pricing'] = {}
             instance_type_info[instanceType]['pricing']['Reserved'] = {}
             instance_type_info[instanceType]['pricing']['spot'] = {}
+            instance_type_info[instanceType]['pricing']['EC2SavingsPlan'] = {}
+            instance_type_info[instanceType]['pricing']['ComputeSavingsPlan'] = {}
+
             on_demand_price = 0
             ri_min_price = 0
             ri_min_price_terms = ''
@@ -183,7 +190,7 @@ class EC2InstanceTypeInfo:
             # instance_type_info[instanceType]['priceLists'] = []
             for priceListJson in priceLists:
                 priceList = json.loads(priceListJson)
-                logger.debug("pricelist:\n{}".format(pp.pformat(priceList)))
+                #logger.debug("pricelist:\n{}".format(pp.pformat(priceList)))
                 #instance_type_info[instanceType]['priceLists'].append(priceList)
                 if 'physicalProcessor' in priceList['product']['attributes']:
                     physicalProcessor = priceList['product']['attributes']['physicalProcessor']
@@ -204,7 +211,7 @@ class EC2InstanceTypeInfo:
                             ri_length = attributes['LeaseContractLength']
                             ri_class = attributes['OfferingClass']
                             ri_PurchaseOption = attributes['PurchaseOption']
-                            ri_terms = "{} {} {}".format(ri_length, ri_class, ri_PurchaseOption)
+                            ri_terms = "RI {} {} {}".format(ri_length, ri_class, ri_PurchaseOption)
                             ri_length_hours = float(ri_length.split('yr')[0]) * 365 * 24
                             ri_price = float(0)
                             for priceDimensionKey, priceDimension in ri_info['priceDimensions'].items():
@@ -225,10 +232,10 @@ class EC2InstanceTypeInfo:
                                 ri_min_price_terms = ri_terms
                     else:
                         raise RuntimeError("Invalid term {}".format(term))
-            instance_type_info[instanceType]['ri_min_price'] = ri_min_price
-            instance_type_info[instanceType]['ri_min_price_terms'] = ri_min_price_terms
-            instance_type_info[instanceType]['ri_max_price'] = ri_max_price
-            instance_type_info[instanceType]['ri_max_price_terms'] = ri_max_price_terms
+            instance_type_info[instanceType]['pricing']['Reserved_min'] = ri_min_price
+            instance_type_info[instanceType]['pricing']['Reserved_min_terms'] = ri_min_price_terms
+            instance_type_info[instanceType]['pricing']['Reserved_max'] = ri_max_price
+            instance_type_info[instanceType]['pricing']['Reserved_max_terms'] = ri_max_price_terms
             instance_type_info[instanceType]['pricing']['OnDemand'] = on_demand_price
             instance_type_info[instanceType]['physicalProcessor'] = physicalProcessor
 
@@ -243,6 +250,38 @@ class EC2InstanceTypeInfo:
                 instance_type_info[instanceType]['pricing']['spot']['min'] = min(spot_price, instance_type_info[instanceType]['pricing']['spot'].get('min', 999999999))
                 instance_type_info[instanceType]['pricing']['spot']['max'] = max(spot_price, instance_type_info[instanceType]['pricing']['spot'].get('max', 0))
 
+            min_ec2_sp_discount = 1.0
+            max_ec2_sp_discount = 0.0
+            min_compute_sp_discount = 1.0
+            max_compute_sp_discount = 0.0
+            for duration_years in SavingsPlanInfo.VALID_DURATIONS:
+                for payment_option in SavingsPlanInfo.VALID_PAYMENT_OPTIONS:
+                    term = f"EC2 SP {duration_years}yr {payment_option}"
+                    ec2_savings_plan_rate = savingsPlanInfo.get_ec2_savings_plan_rate(instanceType, duration_years, payment_option)
+                    if ec2_savings_plan_rate:
+                        logger.debug(f"    EC2     savings plan {term}     for {instanceType}: {ec2_savings_plan_rate}")
+                        instance_type_info[instanceType]['pricing']['EC2SavingsPlan'][term] = ec2_savings_plan_rate
+                        discount = (on_demand_price - ec2_savings_plan_rate)/on_demand_price
+                        min_ec2_sp_discount = min(min_ec2_sp_discount, discount)
+                        max_ec2_sp_discount = max(max_ec2_sp_discount, discount)
+                    else:
+                        logger.debug(f"    No EC2 savings plan {term} for {instanceType}")
+
+                    term = f"Compute SP {duration_years}yr {payment_option}"
+                    compute_savings_plan_rate = savingsPlanInfo.get_compute_savings_plan_rate(instanceType, duration_years, payment_option)
+                    if compute_savings_plan_rate:
+                        logger.debug(f"    Compute savings plan {term} for {instanceType}: {compute_savings_plan_rate}")
+                        instance_type_info[instanceType]['pricing']['ComputeSavingsPlan'][term] = compute_savings_plan_rate
+                        discount = (on_demand_price - compute_savings_plan_rate)/compute_savings_plan_rate
+                        min_compute_sp_discount = min(min_compute_sp_discount, discount)
+                        max_compute_sp_discount = max(max_compute_sp_discount, discount)
+                    else:
+                        logger.debug(f"    No Compute savings plan {term} for {instanceType}")
+            instance_type_info[instanceType]['pricing']['EC2SavingsPlan_min_discount'] = min_ec2_sp_discount
+            instance_type_info[instanceType]['pricing']['EC2SavingsPlan_max_discount'] = max_ec2_sp_discount
+            instance_type_info[instanceType]['pricing']['ComputeSavingsPlan_min_discount'] = min_compute_sp_discount
+            instance_type_info[instanceType]['pricing']['ComputeSavingsPlan_max_discount'] = max_compute_sp_discount
+            logger.debug(f"    instance_type_info:\n{json.dumps(instance_type_info[instanceType], indent=4, sort_keys=True)}")
 
     def print_csv(self, filename=""):
         if filename:
@@ -253,25 +292,56 @@ class EC2InstanceTypeInfo:
 
         # Get all ri_terms
         ri_terms_dict = {}
-        for region, instance_type_info in self.instance_type_info.items():
+        for region, instance_type_and_family_info in self.instance_type_and_family_info.items():
+            instance_type_info = instance_type_and_family_info['instance_types']
             for instanceType in instance_type_info.keys():
                 if 'pricing' in instance_type_info[instanceType]:
                     for ri_term in instance_type_info[instanceType]['pricing']['Reserved'].keys():
                         ri_terms_dict[ri_term] = 1
         ri_terms = sorted(ri_terms_dict.keys())
+        logger.debug(f"ri_terms: \n{json.dumps(ri_terms, indent=4)}")
+
+        # Get all Savings Plans terms
+        ec2_sp_terms_dict = {}
+        for region, instance_type_and_family_info in self.instance_type_and_family_info.items():
+            instance_type_info = instance_type_and_family_info['instance_types']
+            for instanceType in instance_type_info.keys():
+                if 'pricing' in instance_type_info[instanceType]:
+                    for sp_term in instance_type_info[instanceType]['pricing']['EC2SavingsPlan'].keys():
+                        ec2_sp_terms_dict[sp_term] = 1
+        ec2_sp_terms = sorted(ec2_sp_terms_dict.keys())
+        logger.debug(f"ec2_sp_terms: \n{json.dumps(ec2_sp_terms, indent=4)}")
+
+        compute_sp_terms_dict = {}
+        for region, instance_type_and_family_info in self.instance_type_and_family_info.items():
+            instance_type_info = instance_type_and_family_info['instance_types']
+            for instanceType in instance_type_info.keys():
+                if 'pricing' in instance_type_info[instanceType]:
+                    for sp_term in instance_type_info[instanceType]['pricing']['ComputeSavingsPlan'].keys():
+                        compute_sp_terms_dict[sp_term] = 1
+        compute_sp_terms = sorted(compute_sp_terms_dict.keys())
+        logger.debug(f"compute_sp_terms: \n{json.dumps(compute_sp_terms, indent=4)}")
 
         column_names = ["Region", "InstanceType", "Architecture", "CoreCount", "RealMemory(MiB)", "ClockSpeed(GHz)", "NetworkPerformance", "SSDCount", "SSDTotalSizeGB", "physicalProcessor", "GPU Count", "GPU", "GPU Memory (MiB)", "ODPrice", "MinSpotPrice", "MaxSpotDiscount", "MaxSpotPrice", "MinSpotDiscount"]
         for ri_term in ri_terms:
             column_names.append(ri_term)
             column_names.append(f"{ri_term} Discount")
+        for ec2_sp_term in ec2_sp_terms:
+            column_names.append(ec2_sp_term)
+            column_names.append(f"{ec2_sp_term} Discount")
+        for compute_sp_term in compute_sp_terms:
+            column_names.append(compute_sp_term)
+            column_names.append(f"{compute_sp_term} Discount")
         csv_writer.writerow(column_names)
-        for region, instance_type_info in self.instance_type_info.items():
+        for region, instance_type_and_family_info in self.instance_type_and_family_info.items():
+            instance_type_info = instance_type_and_family_info['instance_types']
             instance_types = sorted(instance_type_info.keys())
             for instanceType in instance_types:
                 if 'pricing' not in instance_type_info[instanceType]:
+                    logger.debug(f"Skipping {instanceType} because no pricing info.")
                     continue
                 architecture = instance_type_info[instanceType]['architecture']
-                coreCount = instance_type_info[instanceType]['CoreCount']
+                coreCount = instance_type_info[instanceType]['DefaultCores']
                 realMemory = int(int(instance_type_info[instanceType]['MemoryInMiB']))
                 clockSpeedInGHz = instance_type_info[instanceType]['SustainedClockSpeedInGhz']
                 networkPerformance = instance_type_info[instanceType]['NetworkPerformance']
@@ -297,13 +367,33 @@ class EC2InstanceTypeInfo:
                 columns = [region, instanceType, architecture, str(coreCount), str(realMemory), str(clockSpeedInGHz), networkPerformance, str(ssdCount), str(SSDTotalSizeGB), physicalProcessor, str(gpuCount), gpu, str(gpuTotalMemoryMiB), str(on_demand_price), str(min_spot_price), str(max_spot_discount), str(max_spot_price), str(min_spot_discount)]
 
                 for ri_term in ri_terms:
-                    if ri_term in instance_type_info[instanceType]['pricing']['Reserved']:
-                        ri_price = instance_type_info[instanceType]['pricing']['Reserved'][ri_term]
+                    ri_price = instance_type_info[instanceType]['pricing']['Reserved'].get(ri_term, None)
+                    if ri_price:
                         columns.append(str(ri_price))
                         ri_discount = (on_demand_price - ri_price) / on_demand_price
                         columns.append(ri_discount)
                     else:
-                        logger.debug(f"{instanceType} doesn't have {ri_term} RIs")
+                        logger.debug(f"{region} {instanceType} doesn't have {ri_term} RIs")
+                        columns.append('')
+                        columns.append('')
+                for ec2_sp_term in ec2_sp_terms:
+                    esp_price = instance_type_info[instanceType]['pricing']['EC2SavingsPlan'].get(ec2_sp_term, None)
+                    if esp_price:
+                        columns.append(str(esp_price))
+                        esp_discount = (on_demand_price - esp_price) / on_demand_price
+                        columns.append(esp_discount)
+                    else:
+                        logger.debug(f"{region} {instanceType} doesn't have {ec2_sp_term} ESPs")
+                        columns.append('')
+                        columns.append('')
+                for compute_sp_term in compute_sp_terms:
+                    csp_price = instance_type_info[instanceType]['pricing']['ComputeSavingsPlan'].get(compute_sp_term, None)
+                    if csp_price:
+                        columns.append(str(csp_price))
+                        csp_discount = (on_demand_price - csp_price) / on_demand_price
+                        columns.append(csp_discount)
+                    else:
+                        logger.debug(f"{region} {instanceType} doesn't have {compute_sp_term} CSPs")
                         columns.append('')
                         columns.append('')
 

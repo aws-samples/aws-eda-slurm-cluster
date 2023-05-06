@@ -363,7 +363,7 @@ class SlurmPlugin:
                 return
             logger.debug(f"valid hostnames: {self.hostnames}")
 
-            self.get_instance_type_info()
+            self.get_instance_type_and_family_info()
 
             self.get_hostinfo(self.hostnames)
         except:
@@ -371,32 +371,10 @@ class SlurmPlugin:
             self.publish_cw_metrics(self.CW_UNHANDLED_SUSPEND_RESUME_EXCEPTION, 1, [])
             raise
 
-    def get_instance_type_info(self):
-        logger.debug(f"get_instance_type_info()")
+    def get_instance_type_and_family_info(self):
+        logger.debug(f"get_instance_type_and_family_info()")
         eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions, json_filename=self.config['InstanceTypeInfoFile'])
-        self.instance_type_info = eC2InstanceTypeInfo.instance_type_info
-        self.create_instance_family_info()
-
-    def create_instance_family_info(self):
-        self.instance_family_info = {}
-        for region in self.instance_type_info.keys():
-            instance_type_info = self.instance_type_info[region]
-            self.instance_family_info[region] = {}
-            for instance_type in instance_type_info:
-                (instance_family, instance_size) = instance_type.split(r'.')
-                if instance_family not in self.instance_family_info[region]:
-                    self.instance_family_info[region][instance_family] = {}
-                    self.instance_family_info[region][instance_family]['instance_types'] = [instance_type,]
-                    self.instance_family_info[region][instance_family]['MaxInstanceType'] = instance_type
-                    self.instance_family_info[region][instance_family]['MaxInstanceSize'] = instance_size
-                    self.instance_family_info[region][instance_family]['MaxCoreCount'] = instance_type_info[instance_type]['CoreCount']
-                    self.instance_family_info[region][instance_family]['architecture'] = instance_type_info[instance_type]['architecture']
-                else:
-                    self.instance_family_info[region][instance_family]['instance_types'].append(instance_type)
-                    if instance_type_info[instance_type]['CoreCount'] > self.instance_family_info[region][instance_family]['MaxCoreCount']:
-                        self.instance_family_info[region][instance_family]['MaxInstanceType'] = instance_type
-                        self.instance_family_info[region][instance_family]['MaxInstanceSize'] = instance_size
-                        self.instance_family_info[region][instance_family]['MaxCoreCount'] = instance_type_info[instance_type]['CoreCount']
+        self.instance_type_and_family_info = eC2InstanceTypeInfo.instance_type_and_family_info
 
     def get_instance_family(self, instanceType):
         instance_family = instanceType.split(r'.')[0]
@@ -431,34 +409,34 @@ class SlurmPlugin:
         return instance_size
 
     def get_instance_families(self, region):
-        return sorted(self.instance_family_info[region].keys())
+        return sorted(self.instance_type_and_family_info[region]['instance_families'].keys())
 
     def get_max_instance_type(self, region, instance_family):
-        return self.instance_family_info[region][instance_family]['MaxInstanceType']
+        return self.instance_type_and_family_info[region]['instance_families'][instance_family]['MaxInstanceType']
 
     def get_instance_types(self, region):
-        return sorted(self.instance_type_info[region].keys())
+        return sorted(self.instance_type_and_family_info[region]['instance_types'].keys())
 
     def get_architecture(self, region, instance_type):
-        return self.instance_type_info[region][instance_type]['architecture']
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['architecture']
 
     def get_SustainedClockSpeedInGhz(self, region, instance_type):
-        return self.instance_type_info[region][instance_type]['SustainedClockSpeedInGhz']
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['SustainedClockSpeedInGhz']
 
     def get_CoreCount(self, region, instance_type):
-        return self.instance_type_info[region][instance_type]['CoreCount']
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['DefaultCores']
 
-    def get_ThreadsPerCore(self, region, instance_type):
-        return self.instance_type_info[region][instance_type]['ThreadsPerCore']
+    def get_DefaultThreadsPerCore(self, region, instance_type):
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['DefaultThreadsPerCore']
 
     def get_MemoryInMiB(self, region, instance_type):
-        return self.instance_type_info[region][instance_type]['MemoryInMiB']
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['MemoryInMiB']
 
     def get_SSDCount(self, region, instance_type):
-        return self.instance_type_info[region][instance_type]['SSDCount']
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['SSDCount']
 
     def get_SSDTotalSizeGB(self, region, instance_type):
-        return self.instance_type_info[region][instance_type]['SSDTotalSizeGB']
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['SSDTotalSizeGB']
 
     def get_hostinfo(self, hostnames):
         '''
@@ -599,7 +577,7 @@ class SlurmPlugin:
 
         hostinfo['spot'] = spot
 
-        hostinfo['coreCount'] = self.instance_type_info[hostinfo['region']][instance_type]['CoreCount']
+        hostinfo['coreCount'] = self.instance_type_and_family_info[hostinfo['region']]['instance_types'][instance_type]['DefaultCores']
 
         hostinfo['instanceId'] = None
 
@@ -847,7 +825,7 @@ class SlurmPlugin:
                     ],
                     'BlockDeviceMappings': [],
                 }
-                if self.get_ThreadsPerCore(region, hostinfo['instance_type']) > 1:
+                if self.get_DefaultThreadsPerCore(region, hostinfo['instance_type']) > 1:
                     kwargs['CpuOptions'] = {'CoreCount': hostinfo['coreCount'], 'ThreadsPerCore': 1}
                 if hostinfo['spot']:
                     kwargs['InstanceMarketOptions'] = {
@@ -858,7 +836,7 @@ class SlurmPlugin:
                         }
                     }
                 drive_letter = 'c'
-                for ephemeral_index in range(0, self.instance_type_info[region][hostinfo['instance_type']]['SSDCount']):
+                for ephemeral_index in range(0, self.instance_type_and_family_info[region]['instance_types'][hostinfo['instance_type']]['SSDCount']):
                     kwargs['BlockDeviceMappings'].append({'DeviceName': '/dev/sd'+drive_letter, 'VirtualName': 'ephemeral'+str(ephemeral_index)})
                     drive_letter = chr(ord(drive_letter) + 1)
                 logger.debug(f"run_instances kwargs:\n{pp.pformat(kwargs)}")
@@ -1217,7 +1195,7 @@ class SlurmPlugin:
                 self.publish_cw_metrics(self.CW_SLURM_TERMINATE_OLD_INSTANCES_FAILED, 1, [])
                 return 1
 
-            self.get_instance_type_info()
+            self.get_instance_type_and_family_info()
             self.get_hostinfo([])
             self.terminate_old_instances()
         except:
@@ -1626,8 +1604,7 @@ class SlurmPlugin:
                 fh.write(json.dumps(az_info, indent=4))
 
             eC2InstanceTypeInfo = EC2InstanceTypeInfo(compute_regions, json_filename=self.args.instance_type_info_json, debug=self.args.debug > 1)
-            self.instance_type_info = eC2InstanceTypeInfo.instance_type_info
-            self.create_instance_family_info()
+            self.instance_type_and_family_info = eC2InstanceTypeInfo.instance_type_and_family_info
 
             instance_types = self.get_instance_types_from_instance_config(instance_config, compute_regions, eC2InstanceTypeInfo)
             logger.debug(f"instance_types:\n{pp.pformat(instance_types)}")
@@ -1657,7 +1634,7 @@ class SlurmPlugin:
                     max_priority = priority
                     max_priority_az = az
                 az_id = az_info[az]['id']
-                instance_type_info = eC2InstanceTypeInfo.instance_type_info[region]
+                instance_type_info = eC2InstanceTypeInfo.instance_type_and_family_info[region]['instance_types']
                 node_sets[az] = {}
 
                 for distribution, distribution_dict in instance_config['BaseOsArchitecture'].items():
@@ -1687,7 +1664,7 @@ class SlurmPlugin:
                                 # Each node has an ondemand and spot variant. The node_prefix is common between the two.
                                 node_prefix = f"{az_id}-{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}"
 
-                                coreCount = instance_type_info[instanceType]['CoreCount']
+                                coreCount = instance_type_info[instanceType]['DefaultCores']
                                 realMemory = instance_type_info[instanceType]['MemoryInMiB']
                                 if realMemory > 650:
                                     realMemory -= 650
@@ -1710,9 +1687,11 @@ class SlurmPlugin:
                                 }
 
                                 if instance_config['UseSpot']:
+                                    if az not in instance_type_info[instanceType]['pricing']['spot']:
+                                        continue
+                                    spot_price = instance_type_info[instanceType]['pricing']['spot'][az]
                                     spot_node = f"{node_prefix}-sp-[0-{max_node_index}]"
                                     spot_feature_list = f"{base_featureList},spot"
-                                    spot_price = instance_type_info[instanceType]['pricing']['spot'][az]
                                     spot_weight = int(float(spot_price) * 10000)
                                     spot_node_line = "NodeName={:39s} CPUs={:2s} RealMemory={:7s} Feature={:103s} Weight={}".format(
                                         spot_node, str(coreCount), str(realMemory), spot_feature_list, spot_weight)
@@ -1963,7 +1942,7 @@ class SlurmPlugin:
 
             region_instance_types = []
 
-            for instance_family in sorted(self.instance_family_info[region].keys()):
+            for instance_family in sorted(self.instance_type_and_family_info[region]['instance_families'].keys()):
                 logger.debug(f"Considering {instance_family} family exclusions")
                 exclude = False
                 for instance_family_re in instance_config_re.get('Exclude', {}).get('InstanceFamilies', {}):
@@ -1989,7 +1968,7 @@ class SlurmPlugin:
                         logger.debug(f"{instance_family} family not included. Will check for instance type inclusions.")
 
                 # Check the family's instance types for exclusion and inclusion. MaxSizeOnly is a type of exclusion.
-                instance_family_info = self.instance_family_info[region][instance_family]
+                instance_family_info = self.instance_type_and_family_info[region]['instance_families'][instance_family]
                 for instance_type in instance_family_info['instance_types']:
                     logger.debug(f"Checking {instance_type} for instance type exclusions")
                     if instance_config.get('Include', {}).get('MaxSizeOnly', False) and instance_type != instance_family_info['MaxInstanceType']:
@@ -2058,7 +2037,7 @@ class SlurmPlugin:
                 self.publish_cw_metrics(self.CW_SLURM_PUBLISH_CW_FAILED, 1, [])
                 return 1
 
-            self.get_instance_type_info()
+            self.get_instance_type_and_family_info()
             self.get_hostinfo([])
 
             # Get number of jobs in each state
