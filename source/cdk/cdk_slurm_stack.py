@@ -517,7 +517,7 @@ class CdkSlurmStack(Stack):
                 self.compute_region_cidrs_dict[compute_region] = compute_region_cidr
         logger.info(f"{len(self.compute_regions.keys())} regions configured: {sorted(self.compute_regions.keys())}")
 
-        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), json_filename='/tmp/instance_type_info.json', debug=False)
+        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), get_savings_plans=False, json_filename='/tmp/instance_type_info.json', debug=False)
 
         plugin = SlurmPlugin(slurm_config_file=None, region=self.region)
         plugin.instance_type_and_family_info = eC2InstanceTypeInfo.instance_type_and_family_info
