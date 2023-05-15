@@ -150,7 +150,7 @@ class EC2InstanceTypeInfo:
                     instance_family_info[instance_family]['architecture'] = instance_type_info[instanceType]['architecture']
                 else:
                     instance_family_info[instance_family]['instance_types'].append(instanceType)
-                if instance_size != 'metal' or len(instance_family_info[instance_family]['instance_types']) == 1:
+                if instance_size != 'metal':
                     if instance_type_info[instanceType]['DefaultCores'] > instance_family_info[instance_family].get('MaxCoreCount', 0):
                         instance_family_info[instance_family]['MaxInstanceType'] = instanceType
                         instance_family_info[instance_family]['MaxInstanceSize'] = instance_size
