@@ -373,7 +373,7 @@ class SlurmPlugin:
 
     def get_instance_type_and_family_info(self):
         logger.debug(f"get_instance_type_and_family_info()")
-        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions, json_filename=self.config['InstanceTypeInfoFile'])
+        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions, get_savings_plans=False, json_filename=self.config['InstanceTypeInfoFile'])
         self.instance_type_and_family_info = eC2InstanceTypeInfo.instance_type_and_family_info
 
     def get_instance_family(self, instanceType):
@@ -1603,7 +1603,7 @@ class SlurmPlugin:
                 logger.info(f"Writing AZ info to {self.args.az_info_file}")
                 fh.write(json.dumps(az_info, indent=4))
 
-            eC2InstanceTypeInfo = EC2InstanceTypeInfo(compute_regions, json_filename=self.args.instance_type_info_json, debug=self.args.debug > 1)
+            eC2InstanceTypeInfo = EC2InstanceTypeInfo(compute_regions, get_savings_plans=False, json_filename=self.args.instance_type_info_json, debug=self.args.debug > 1)
             self.instance_type_and_family_info = eC2InstanceTypeInfo.instance_type_and_family_info
 
             instance_types = self.get_instance_types_from_instance_config(instance_config, compute_regions, eC2InstanceTypeInfo)

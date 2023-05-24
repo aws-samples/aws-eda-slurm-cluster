@@ -3,6 +3,7 @@
 import argparse
 import boto3
 from botocore.exceptions import NoCredentialsError
+from EC2InstanceTypeInfoPkg.retry_boto3_throttling import retry_boto3_throttling
 import json
 import logging
 from sys import exit
@@ -47,29 +48,29 @@ class SavingsPlanInfo:
         assert payment_option in SavingsPlanInfo.VALID_PAYMENT_OPTIONS
 
         instance_family = instance_type.split('.')[0]
-        response = self._savingsplans_client.describe_savings_plans_offerings(
-            productType = 'EC2',
-            planTypes=['EC2Instance'],
-            currencies=['USD'],
-            filters=[
+        response = self.describe_savings_plans_offerings({
+            'productType': 'EC2',
+            'planTypes': ['EC2Instance'],
+            'currencies': ['USD'],
+            'filters': [
                 {'name': 'region', 'values': [self._region]},
                 {'name': 'instanceFamily', 'values': [instance_family]},
             ],
-            durations=[duration_years * 365 * 24 * 60 * 60],
-            paymentOptions=[payment_option],
-        )['searchResults']
+            'durations': [duration_years * 365 * 24 * 60 * 60],
+            'paymentOptions': [payment_option],
+        })['searchResults']
         logger.debug(f"offerIDs:\n{json.dumps(response, indent=4)}")
         if not response:
             return None
         offeringId = response[0]['offeringId']
 
-        response = self._savingsplans_client.describe_savings_plans_offering_rates(
-            savingsPlanOfferingIds=[offeringId],
-            products=['EC2'],
-            serviceCodes=['AmazonEC2'], # 'Compute'
-            savingsPlanTypes=['EC2Instance'],
-            savingsPlanPaymentOptions=[payment_option],
-            filters=[
+        response = self.describe_savings_plans_offering_rates({
+            'savingsPlanOfferingIds': [offeringId],
+            'products': ['EC2'],
+            'serviceCodes': ['AmazonEC2'], # 'Compute'
+            'savingsPlanTypes': ['EC2Instance'],
+            'savingsPlanPaymentOptions': [payment_option],
+            'filters': [
                 {'name': 'region', 'values': [self._region]},
                 {'name': 'instanceType', 'values': [instance_type]},
                 {'name': 'productDescription', 'values': ['Linux/UNIX']},
@@ -78,7 +79,7 @@ class SavingsPlanInfo:
             # usageTypes=[
             #     'string',
             # ],
-        )['searchResults']
+        })['searchResults']
         logger.debug(json.dumps(response, indent=4))
         if not response:
             return None
@@ -98,32 +99,40 @@ class SavingsPlanInfo:
         assert duration_years in SavingsPlanInfo.VALID_DURATIONS
         assert payment_option in SavingsPlanInfo.VALID_PAYMENT_OPTIONS
 
-        response = self._savingsplans_client.describe_savings_plans_offerings(
-            planTypes=['Compute'],
-            currencies=['USD'],
-            durations=[duration_years * 365 * 24 * 60 * 60],
-            paymentOptions=[payment_option],
-        )['searchResults']
+        response = self.describe_savings_plans_offerings({
+            'planTypes': ['Compute'],
+            'currencies': ['USD'],
+            'durations': [duration_years * 365 * 24 * 60 * 60],
+            'paymentOptions': [payment_option],
+        })['searchResults']
         if not response:
             return None
         logger.debug(f"offerings:\n{json.dumps(response, indent=4)}")
         offeringId = response[0]['offeringId']
 
-        response = self._savingsplans_client.describe_savings_plans_offering_rates(
-            savingsPlanOfferingIds=[offeringId],
-            serviceCodes=['AmazonEC2'],
-            savingsPlanPaymentOptions=[payment_option],
-            filters=[
+        response = self.describe_savings_plans_offering_rates({
+            'savingsPlanOfferingIds': [offeringId],
+            'serviceCodes': ['AmazonEC2'],
+            'savingsPlanPaymentOptions': [payment_option],
+            'filters': [
                 {'name': 'region', 'values': [self._region]},
                 {'name': 'instanceType', 'values': [instance_type]},
                 {'name': 'productDescription', 'values': ['Linux/UNIX']},
                 {'name': 'tenancy', 'values': ['shared']},
             ],
-        )['searchResults']
+        })['searchResults']
         logger.debug(f"rates:\n{json.dumps(response, indent=4)}")
         if not response:
             return None
         return float(response[0]['rate'])
+
+    @retry_boto3_throttling()
+    def describe_savings_plans_offerings(self, kwargs):
+        return self._savingsplans_client.describe_savings_plans_offerings(**kwargs)
+
+    @retry_boto3_throttling()
+    def describe_savings_plans_offering_rates(self, kwargs):
+        return self._savingsplans_client.describe_savings_plans_offering_rates(**kwargs)
 
 def main():
     try:
