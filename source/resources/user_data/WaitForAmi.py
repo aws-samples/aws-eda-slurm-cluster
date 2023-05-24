@@ -89,7 +89,8 @@ def main():
                 Name = f"{ami_name}",
                 Encrypted = True,
                 SourceImageId = args.ami_id,
-                SourceRegion = main_region
+                SourceRegion = main_region,
+                CopyImageTags = True
             )['ImageId']
             logger.info(f"Created {remote_ami_ids[region]} in {region}")
         for region, remote_ami_id in remote_ami_ids.items():
