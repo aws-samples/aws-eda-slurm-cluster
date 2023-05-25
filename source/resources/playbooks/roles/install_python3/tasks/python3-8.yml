@@ -1,0 +1,132 @@
+---
+# boto3 requires python > 3.6
+# That is the latest version on CentOS 7 and the default on RHEL 8.
+# So need to install an alternative.
+# The current latest, python 3.11.2, requires a new version of openssl and that seemed to break
+# cloudformation deployment if the openssl installation went awry.
+# So going to python3.8.16 which is available in the RHEL8 yum repo.
+# It will need to be built on Amazon Linux 2, CentOS 7, and RHEL 7.
+#
+# I had problems getting python3 to default to python3.7 using alternatives on Alma 8 so
+# I just changed all of my python scripts to explicitly use python3.7 instead of python3.
+
+- name: Set python and openssl versions to use for Python build
+  set_fact:
+    python_version: 3.8.16
+    python_minor_version: 3.8
+    # openssl_version: 1.1.1t # EOL September 2023
+    # openssl_version: 3.1.0 # Failed to build python ssl module
+
+- name: Install epel from amazon-linux-extras
+  when: amazonlinux2
+  shell:
+    cmd: amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel
+  when: centos7
+  yum:
+    state: present
+    name:
+      - epel-release
+
+- name: Install python {{python_minor_version}} from yum for rhel8 or rhel8clone
+  when: rhel8 or rhel8clone
+  yum:
+    state: present
+    name:
+      - 'python{{python_minor_version}}'
+
+- name: Install Development Tools package
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    cmd: |
+      yum groups mark convert
+      yum -y groupinstall 'Development Tools'
+
+- name: Install packages for building Python
+  when: amazonlinux2 or centos7 or rhel7
+  yum:
+    state: present
+    name:
+      - bzip2-devel
+      - bison
+      - byacc
+      - cscope
+      - ctags
+      - cvs
+      - diffstat
+      - doxygen
+      - flex
+      - gcc
+      - gcc-c++
+      - gcc-gfortran
+      - gettext
+      - git
+      - indent
+      - intltool
+      - libffi-devel
+      - libtool
+      - openssl-devel
+      - patch
+      - patchutils
+      - rcs
+      - readline-devel
+      - redhat-rpm-config
+      - rpm-build
+      - sqlite-devel
+      - subversion
+      - swig
+      - systemtap
+      - wget
+      - xz-devel
+      - zlib-devel
+
+- name: Build and install python {{python_version}} on Amazon, CentOS 7, and RHEL7
+  #
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    creates: /usr/local/bin/python{{python_minor_version}}
+    cmd: |
+      set -xe
+
+      python_version={{python_version}}
+      cd /usr/local/src
+      rm -f Python-${python_version}.tgz
+      rm -rf Python-${python_version}
+      wget https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz
+      tar xvf Python-${python_version}.tgz
+      rm -f Python-${python_version}.tgz
+      cd Python-${python_version}
+      # I get an error on CentOS 7 if I have --enable-optimizations
+      ./configure --prefix /usr/local
+      make &> make.log
+      make altinstall
+
+- name: Create /usr/local/bin/pip{{python_minor_version}}
+  template:
+    src:   usr/local/bin/pip
+    dest: /usr/local/bin/pip{{python_minor_version}}
+    owner: root
+    group: root
+    mode:  0755
+
+# - name: Make /usr/bin/python{{python_minor_version}} the default version of python3
+#   when: rhel8 or rhel8clone
+#   alternatives:
+#     name: python3
+#     path: /usr/bin/python{{python_minor_version}}
+#     link: /usr/bin/python3
+
+# - name: Make /usr/local/bin/python{{python_minor_version}} the default version of python3
+#   when: amazonlinux2 or centos7 or rhel7
+#   alternatives:
+#     name: python3
+#     path: /usr/local/bin/python{{python_minor_version}}
+#     link: /usr/bin/python3
+
+# - name: Make /usr/local/bin/pip{{python_minor_version}} the default version of pip3
+#   alternatives:
+#     name: pip3
+#     path: /usr/local/bin/pip{{python_minor_version}}
+#     link: /usr/bin/pip3

@@ -31,10 +31,16 @@ if ! yum list installed epel-release &> /dev/null; then
 fi
 
 # Install ansible
-if ! yum list installed ansible &> /dev/null; then
-    if [[ $DISTRIBUTION == 'Amazon' ]]; then
-        amazon-linux-extras install -y epel
-    else
+if [ $DISTRIBUTION == 'AlmaLinux' ] || ([ $DISTRIBUTION == 'RedHat' ] && [ $DISTRIBUTION_MAJOR_VERSION == '8' ]); then
+    if ! yum list installed ansible-core &> /dev/null; then
+        yum -y install ansible-core ansible-collection-ansible-posix ansible-collection-community-general
+    fi
+elif [ $DISTRIBUTION == 'Amazon' ]; then
+    if ! yum list installed ansible &> /dev/null; then
+        amazon-linux-extras install -y ansible2
+    fi
+else
+    if ! yum list installed ansible &> /dev/null; then
         yum -y install ansible
     fi
 fi

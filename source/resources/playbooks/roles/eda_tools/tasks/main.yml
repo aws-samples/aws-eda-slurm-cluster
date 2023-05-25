@@ -59,30 +59,15 @@
       rm -f awscliv2.zip
       rm -rf aws
 
-- name: Remove old python packages
-  when: distribution == 'Amazon'
-  tags:
-    - python
-    - packages
-  yum:
-    state: removed
-    name:
-      - python34
-      - python34-pip
-      - python36
-      - python36-pip
-
 - name: Install python3
   tags:
     - python
     - packages
-    - pip
   yum:
     state: present
     disablerepo: "{{yum_disablerepo|default(omit)}}"
     name:
       - python3
-      - python3-pip
 
 - name: Install packages required by python packages
   when: (rhel8 or rhel8clone) and Architecture == 'arm64'
@@ -95,42 +80,6 @@
     name:
       - gcc-c++
       - platform-python-devel
-
-- name: Install cython, numpy
-  when: (rhel8 or rhel8clone) and Architecture == 'arm64'
-  tags:
-    - python
-    - packages
-  pip:
-    executable: /usr/bin/pip3
-    state: present
-    name:
-      - cython
-      - numpy
-
-- name: Install EDA pip3 packages
-  tags:
-    - python
-    - packages
-  pip:
-    executable: /usr/bin/pip3
-    state: present
-    name:
-      - boto3
-      - git-review
-      - python-hostlist
-      - requests
-      - virtualenv
-
-- name: Install pandas
-  tags:
-    - python
-    - packages
-  pip:
-    executable: /usr/bin/pip3
-    state: present
-    name:
-      - pandas
 
 # The amazon repo only has the 64 bit of compat-libstdc++-33 and
 # tools need both the 32 and 64 bit versions.

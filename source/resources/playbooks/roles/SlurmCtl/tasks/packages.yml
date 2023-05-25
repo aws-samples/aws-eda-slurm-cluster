@@ -10,14 +10,12 @@
   when: ansible_facts['distribution'] == 'CentOS'
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
     name:
       - epel-release
 
 - name: Install Slurm controller packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
     name:
       - crudini
       - emacs
@@ -32,7 +30,6 @@
       - munge-libs
       - munge-devel
       - ncurses-compat-libs
-      - python3
       - rng-tools
 
 - name: Install libjwt on non-Amazon arm64
@@ -46,7 +43,6 @@
   when: distribution == 'Amazon' and Architecture == 'arm64'
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
     name:
       - autoconf
       - automake
@@ -71,7 +67,7 @@
 
 - name: Install pip3 packages
   pip:
-    executable: /usr/bin/pip3
+    executable: /usr/=local/bin/pip{{python_minor_version}}
     state: present
     name:
       - boto3
@@ -81,7 +77,7 @@
 
 - name: Install latest awscli
   pip:
-    executable: /usr/bin/pip3
+    executable: /usr/=local/bin/pip{{python_minor_version}}
     state: latest
     name:
       - awscli

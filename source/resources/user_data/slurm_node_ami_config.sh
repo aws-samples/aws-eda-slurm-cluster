@@ -61,19 +61,6 @@ fi
 export PATH=/usr/local/bin:$PATH
 
 # Configure using ansible
-if ! yum list installed epel-release &> /dev/null; then
-    amazon-linux-extras install -y epel || yum -y install epel-release || yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-fi
-if ! yum list installed ansible &> /dev/null; then
-    amazon-linux-extras install -y ansible2 || yum -y install ansible
-fi
-if ! aws --version &> /dev/null; then
-    export PATH=/usr/local/bin:$PATH
-fi
-if ! yum list installed unzip &> /dev/null; then
-    yum -y install unzip
-fi
-
 PLAYBOOKS_PATH=/root/playbooks
 if [ -e $PLAYBOOKS_ZIP_PATH ]; then
     rm -rf $PLAYBOOKS_PATH

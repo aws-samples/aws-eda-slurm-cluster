@@ -70,7 +70,6 @@
       - pam-devel
       - perl-devel
       - pmix-devel
-      - python3
       - readline-devel
       - rng-tools
       - rrdtool-devel

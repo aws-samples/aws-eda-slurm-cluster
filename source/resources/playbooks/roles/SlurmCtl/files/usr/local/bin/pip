@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python{{python_minor_version}} -m pip $@

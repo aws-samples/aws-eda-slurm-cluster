@@ -9,6 +9,7 @@
     - lustre-client
     - mount_slurm_fs
     - mount_extra_fs
+    - install_python3
     - install_slurm
     - SlurmNodeAmi
     - eda_tools

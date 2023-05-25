@@ -1,0 +1,179 @@
+---
+# boto3 requires python > 3.6
+# That is the latest version on CentOS 7 and the default on RHEL 8.
+# So need to install an alternative and I picked the latest: python 3.11.2
+#
+# Python 3.11 requires a newer version of openssl so installed 1.1.1t.
+# I tried 3.1.0, but python3.11.2 failed to build the ssl module.
+# I uninstalled the default version of openssl and installed 1.1.1t from source code
+# and linked the shared objects in /usr/lib64 so from the custom openssl directory.
+#
+# I had problems getting python3 to default to python3.11 using alternatives on Alma 8 so
+# I just changed all of my python scripts to explicitly use python3.11 instead of python3.
+
+- name: Set python and openssl versions to use for Python build
+  set_fact:
+    python_version: 3.11.2
+    python_minor_version: 3.11
+    openssl_version: 1.1.1t # EOL September 2023
+    # openssl_version: 3.1.0 # Failed to build python ssl module
+
+- name: Install epel from amazon-linux-extras
+  when: ansible_facts['distribution'] == 'Amazon'
+  shell:
+    cmd: amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel
+  when: ansible_facts['distribution'] == 'CentOS'
+  yum:
+    state: present
+    name:
+      - epel-release
+
+- name: Install python {{python_minor_version}} from yum for rhel8 or rhel8clone
+  when: rhel8 or rhel8clone
+  yum:
+    state: present
+    name:
+      - 'python{{python_minor_version}}'
+      - 'python{{python_minor_version}}-pip'
+
+- name: Install perl, perl-core for openssl build
+  when: amazonlinux2 or centos7 or rhel7
+  yum:
+    state: present
+    name:
+      - perl
+      - perl-core
+
+- name: Build openssl {{openssl_version}} for Amazon, CentOS 7, and RHEL 7
+  # https://computingforgeeks.com/how-to-install-openssl-1-1-on-centos-rhel-7/
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    creates: /usr/local/src/openssl-{{openssl_version}}/bin/openssl
+    cmd: |
+      set -xe
+
+      openssl_version='{{openssl_version}}' # EOL September 2023
+      yum -y groupinstall "Development Tools"
+      cd /usr/local/src
+      wget https://www.openssl.org/source/openssl-${openssl_version}.tar.gz
+      tar xvf openssl-${openssl_version}.tar.gz
+      rm -f openssl-${openssl_version}.tar.gz
+      cd openssl-${openssl_version}
+      mkdir -p /usr/local/openssl-${openssl_version}
+      ./config --prefix=/usr/local/openssl-${openssl_version} --openssldir=/usr/local/openssl-${openssl_version}
+      make -j $(nproc)
+
+- name: Install openssl {{openssl_version}} for Amazon, CentOS 7, and RHEL 7
+  # https://computingforgeeks.com/how-to-install-openssl-1-1-on-centos-rhel-7/
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    creates: /usr/local/openssl-{{openssl_version}}/bin/openssl
+    cmd: |
+      set -xe
+
+      openssl_version='{{openssl_version}}' # EOL September 2023
+      cd /usr/local/src/openssl-${openssl_version}
+      make install
+
+- name: Call ldconfig to add openssl {{openssl_version}} for Amazon, CentOS 7, and RHEL 7
+  # https://computingforgeeks.com/how-to-install-openssl-1-1-on-centos-rhel-7/
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    creates: /usr/local/openssl-{{openssl_version}}/bin/openssl
+    cmd: |
+      set -xe
+
+      openssl_version='{{openssl_version}}' # EOL September 2023
+      ldconfig /usr/local/openssl-${openssl_version}/lib
+
+- name: Make openssl-{{openssl_version}} the default
+  template:
+    src:   etc/profile.d/openssl.sh
+    dest: /etc/profile.d/openssl.sh
+    owner: root
+    group: root
+    mode:  075
+
+- name: Uninstall original openssl for Amazon, CentOS 7, and RHEL 7
+  when: amazonlinux2 or centos7 or rhel7
+  yum:
+    state: absent
+    name:
+      - openssl
+      - openssl-devel
+
+- name: Call ldconfig for Amazon, CentOS 7, and RHEL 7
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    cmd: |
+      set -xe
+
+      ldconfig
+
+- name: Test openssl version for Amazon, CentOS 7, and RHEL 7
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    cmd: |
+      set -xe
+
+      openssl version
+
+- name: Create test for python openssl module
+  template:
+    src:   usr/local/bin/test_python_openssl_version.py
+    dest: /usr/local/bin/test_python_openssl_version.py
+    owner: root
+    group: root
+    mode:  0755
+
+- name: Build and install python {{python_version}} on CentOS and Amazon
+  # https://computingforgeeks.com/install-python-3-on-centos-rhel-7/
+  when: amazonlinux2 or centos7 or rhel7
+  shell:
+    creates: /usr/local/bin/python{{python_minor_version}}
+    cmd: |
+      set -xe
+
+      python_version={{python_version}}
+      cd /usr/local/src
+      rm -f Python-${python_version}.tgz
+      rm -rf Python-${python_version}
+      wget https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz
+      tar xvf Python-${python_version}.tgz
+      rm -f Python-${python_version}.tgz
+      cd Python-${python_version}
+      LDFLAGS="${LDFLAGS} -Wl,-rpath=/usr/local/openssl-{{openssl_version}}/lib" ./configure --with-openssl=/usr/local/openssl-{{openssl_version}} --prefix /usr/local --enable-optimizations
+      make
+      make altinstall
+      /usr/local/bin/test_python_openssl_version.py
+
+- name: Create /usr/local/bin/pip{{python_minor_version}}
+  template:
+    src:   usr/local/bin/pip
+    dest: /usr/local/bin/pip{{python_minor_version}}
+    owner: root
+    group: root
+    mode:  0755
+
+# - name: Make /usr/bin/python{{python_minor_version}} the default version of python3
+#   when: rhel8 or rhel8clone
+#   alternatives:
+#     name: python3
+#     path: /usr/bin/python{{python_minor_version}}
+#     link: /usr/bin/python3
+
+# - name: Make /usr/local/bin/python{{python_minor_version}} the default version of python3
+#   when: amazonlinux2 or centos7 or rhel7
+#   alternatives:
+#     name: python3
+#     path: /usr/local/bin/python{{python_minor_version}}
+#     link: /usr/bin/python3
+
+# - name: Make /usr/local/bin/pip{{python_minor_version}} the default version of pip3
+#   alternatives:
+#     name: pip3
+#     path: /usr/local/bin/pip{{python_minor_version}}
+#     link: /usr/bin/pip3

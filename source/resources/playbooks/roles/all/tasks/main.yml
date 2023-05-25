@@ -58,46 +58,6 @@
   timezone:
     name: "{{TimeZone}}"
 
-# CentOS pip 19.3.1 is broken. Developers recommend using "python3 -m pip" but the ansible
-# pip task breaks when you use an executable with spaces.
-# Create my own pip3 wrapper instead.
-- name: Create pip3 wrapper script
-  template:
-    src: usr/bin/pip3
-    dest: /usr/bin/pip3
-    backup: yes
-    mode: 0755
-    owner: root
-    group: root
-
-- name: Install python3
-  yum:
-    state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
-    name:
-      - python3
-
-# Required for the selinux module
-- name: Install libselinux-python
-  when: not(rhel8 or rhel8clone)
-  yum:
-    state: present
-    name:
-      - libselinux-python
-
-- name: Install python3-libselinux
-  when: rhel8 or rhel8clone
-  yum:
-    state: present
-    name:
-      - python3-libselinux
-
-# Selinux breaks ssh
-- name: Set Selinux mode to disabled
-  when: not(rhel8 or rhel8clone)
-  selinux:
-    state: disabled
-
 # Getting an error from ansible on AlmaLinux 8
 # Failed to import the required Python library (libselinux-python)
 # Can't figure out how to resolve

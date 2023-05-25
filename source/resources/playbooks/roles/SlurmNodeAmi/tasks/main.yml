@@ -12,7 +12,7 @@
 
 - name: Install slurm_node python packages
   pip:
-    executable: /usr/bin/pip3
+    executable: /usr/local/bin/pip{{python_minor_version}}
     state: latest
     name:
       - boto3

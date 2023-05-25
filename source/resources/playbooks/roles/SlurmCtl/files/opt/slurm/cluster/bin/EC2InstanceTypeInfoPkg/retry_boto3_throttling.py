@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.8
 
 from botocore.exceptions import ClientError
 from functools import wraps

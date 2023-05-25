@@ -8,4 +8,5 @@
     # File system must be mounted first because that's where slurm is installed
     - lustre-client
     - mount_slurm_fs
+    - install_python3
     - SlurmCtl
