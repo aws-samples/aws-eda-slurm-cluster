@@ -11,9 +11,9 @@
       - munge
 
 - name: Install slurm_node python packages
+  # Do not install latest version. Latest urllib3 requires a newer version of openssl.
   pip:
     executable: /usr/bin/pip3
-    state: latest
     name:
       - boto3
       - botocore
