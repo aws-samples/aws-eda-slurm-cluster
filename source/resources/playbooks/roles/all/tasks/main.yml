@@ -1,7 +1,7 @@
 ---
 # tasks file for all
 
-- debug: var=ansible_facts
+#- debug: var=ansible_facts
 
 - name: Show vars set in inventories/groupvars/all
   debug:

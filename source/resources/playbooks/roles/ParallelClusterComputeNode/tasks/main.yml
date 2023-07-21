@@ -1,0 +1,19 @@
+---
+# tasks file for ParallelCluster Compute nodes
+
+- name: Install slurm_node yum packages
+  yum:
+    state: present
+    name:
+      - emacs
+      - hwloc-libs
+      - mailx
+
+- name: Create/Update Users
+  template:
+    src: ../../ParallelClusterHeadNode/templates/etc/cron.d/slurm_users_groups
+    dest: /etc/cron.d/slurm_users_groups
+    owner: root
+    group: root
+    mode: 0600
+    force: yes

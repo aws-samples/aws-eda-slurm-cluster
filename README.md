@@ -1,25 +1,61 @@
 # AWS EDA Slurm Cluster
 
 This repository contains an AWS Cloud Development Kit (CDK) application that creates a Slurm cluster that is suitable for running production EDA workloads on AWS.
-Key features are:
+
+The original version of this repo used a custom Python plugin to integrate Slurm with AWS.
+The latest version of the repo uses AWS ParallelCluster for the core Slurm infrastructure and AWS integration.
+The big advantage of moving to AWS ParallelCluster is that it is a supported AWS service.
+Currently, some of the features of the legacy version are not supported in the ParallelCluster version, but
+work continues to add features to ParallelCluster so that those features can be supported in the future.
+
+Key features are supported by both versions are:
 
 * Automatic scaling of AWS EC2 instances based on demand
 * Use any AWS EC2 instance type including Graviton2
 * Use of spot instances
+* Handling of spot terminations
+* Handling of insufficient capacity exceptions
 * Batch and interactive partitions (queues)
 * Managed tool licenses as a consumable resource
 * User and group fair share scheduling
 * Slurm accounting database
 * CloudWatch dashboard
 * Job preemption
-* Multi-cluster federation
 * Manage on-premises compute nodes
 * Configure partitions (queues) and nodes that are always on to support reserved instances RIs and savings plans.
+
+Features in the legacy version and not in the ParallelCluster version:
+
+* Multi-AZ support. Supported by ParallelCluster, but not implemented.
 * AWS Fault Injection Simulator (FIS) templates to test spot terminations
+* Heterogenous cluster with mixed OSes and CPU architectures on compute nodes.
+* Support for MungeKeySsmParameter
+* Multi-cluster federation
+* Multi-region support
+
+ParallelCluster Limitations
+
+* Number of "Compute Resources" is limited to 50 which limits the number of instance types allowed in a cluster.
+* All Slurm instances must have the same OS and CPU architecture.
+* Stand-alone Slurm database daemon instance. Prevents federation.
+* Multi-region support. This is unlikely to change because multi-region services run against our archiectural philosophy. Federation may be a better option
+
+Slurm Limitations
+
+* Job preemption based on licenses
+* Federation doesn't support prioritizing federated clusters for job scheduling. Result is jobs scattered across the federated clusters.
 
 ## Operating System and Processor Architecture Support
 
 This Slurm cluster supports the following OSes:
+
+ParallelCluster:
+
+* Amazon Linux 2
+* CentOS 7
+* RedHat 7 and 8
+
+Legacy:
 
 * Alma Linux 8
 * Amazon Linux 2
@@ -29,13 +65,25 @@ This Slurm cluster supports the following OSes:
 
 RedHat stopped supporting CentOS 8, so for a similar RedHat 8 binary compatible distribution we support Alma Linux and
 Rocky Linux as replacements for CentOS.
+These RHEL 8 downstreams are not currently supported by ParallelCluster.
 
 This Slurm cluster supports both Intel/AMD (x86_64) based instances and ARM Graviton2 (arm64/aarch64) based instances.
 
-[Graviton 2 instances require](https://github.com/aws/aws-graviton-getting-started/blob/main/os.md) Amazon Linux 2, RedHat 8, AlmaLinux 8, or RockyLinux 8 operating systems.
+[Graviton instances require](https://github.com/aws/aws-graviton-getting-started/blob/main/os.md) Amazon Linux 2, RedHat 8, AlmaLinux 8, or RockyLinux 8 operating systems.
 RedHat 7 and CentOS 7 do not support Graviton 2.
 
 This provides the following different combinations of OS and processor architecture.
+
+ParallelCluster:
+
+* Amazon Linux 2 and arm64
+* Amazon Linux 2 and x86_64
+* CentOS 7 and x86_64
+* RedHat 7 and x86_64
+* RedHat 8 and arm64
+* RedHat 8 and x86_64
+
+Legacy:
 
 * Alma Linux 8 and arm64
 * Alma Linux 8 and x86_64
@@ -47,6 +95,8 @@ This provides the following different combinations of OS and processor architect
 * RedHat 8 and x86_64
 * Rocky Linux 8 and arm64
 * Rocky Linux 8 and x86_64
+
+Note that in the ParallelCluster version all compute nodes must have the same OS and architecture.
 
 ## Documentation
 

@@ -4,6 +4,16 @@ localgroup:
     local:
       ansible_host: 127.0.0.1
       ansible_connection: local
+ParallelClusterComputeNode:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
+ParallelClusterHeadNode:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
 SlurmCtl:
   hosts:
     local:

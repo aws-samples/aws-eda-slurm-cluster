@@ -18,8 +18,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import boto3
 from botocore.client import ClientError
+import json
 import logging
 from os import environ
+from packaging.version import parse as parse_version
 import re
 from schema import And, Schema, Optional, Or, Regex, Use, SchemaError
 from sys import exit
@@ -32,36 +34,70 @@ logger.addHandler(logger_streamHandler)
 logger.propagate = False
 logger.setLevel(logging.INFO)
 
-DEFAULT_SLURM_VERSION = '23.02.1'
+# MIN_PARALLEL_CLUSTER_VERSION
+# 3.3.0:
+#     * Add support for multiple instance types in a compute resource
+# 3.4.0:
+#     * Add support for launching nodes across multiple availability zones to increase capacity availability
+#     * Add support for specifying multiple subnets for each queue to increase capacity availability
+#     * Add possibility to specify a custom script to be executed in the head node during the update of the cluster. The script can be specified with OnNodeUpdated parameter when using Slurm as scheduler.
+# 3.5.0:
+#     * Add logging of compute node console output to CloudWatch on compute node bootstrap failure.
+# 3.6.0:
+#     * Add support for RHEL8.7.
+#     * Add support for customizing the cluster Slurm configuration via the ParallelCluster configuration YAML file.
+#     * Increase the limit on the maximum number of queues per cluster from 10 to 50. Compute resources can be distributed
+#       flexibly across the various queues as long as the cluster contains a maximum of 50 compute resources.
+#     * Allow to specify a sequence of multiple custom actions scripts per event for OnNodeStart, OnNodeConfigured and OnNodeUpdated parameters.
+#     * Upgrade Slurm to version 23.02.2.
+# 3.7.0b1:
+#     * Login Nodes
+#     * Add support for configurable node weights within queue
+MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
+DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.6.1')
+DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION = '3.9.16'
+DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS = {
+    '3.7.0b1': str(DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION),
+}
+DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION = '23-02-3-1'
+DEFAULT_PARALLEL_CLUSTER_SLURM_VERSIONS = {
+    '3.7.0b1': DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION,
+}
+def get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config):
+    parallel_cluster_version = config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Version', DEFAULT_PARALLEL_CLUSTER_VERSION)
+    python_version = DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS.get(parallel_cluster_version, str(DEFAULT_PARALLEL_CLUSTER_VERSION))
+    return python_version
 
-config = {}
+PARALLEL_CLUSTER_ALLOWED_OSES = ['alinux2', 'centos7', 'rhel8', 'ubuntu2004', 'ubuntu2204']
+
+DEFAULT_SLURM_VERSION = '23.02.1'
+def get_DEFAULT_SLURM_VERSION(config):
+    if config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Enable', False):
+        parallel_cluster_version = config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Version', DEFAULT_PARALLEL_CLUSTER_VERSION)
+        slurm_version = DEFAULT_PARALLEL_CLUSTER_SLURM_VERSIONS.get(parallel_cluster_version, DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION)
+    else:
+        slurm_version = DEFAULT_SLURM_VERSION
+    return slurm_version
+
+DEFAULT_SLURM_REST_API_VERSION = '0.0.39'
+DEFAULT_SLURM_REST_API_VERSIONs = {
+    '23.02.1': '0.0.39',
+    '23-02-3-1': '0.0.39',
+}
+def get_default_slurm_rest_api_version(config):
+    slurm_version = config.get('slurm', {}).get('SlurmVersion', get_DEFAULT_SLURM_VERSION(config))
+    default_slurm_rest_api_version = DEFAULT_SLURM_REST_API_VERSIONs.get(slurm_version, DEFAULT_SLURM_REST_API_VERSION)
+    return default_slurm_rest_api_version
 
 # Determine all AWS regions available on the account.
 default_region = environ.get("AWS_DEFAULT_REGION", "us-east-1")
 ec2_client = boto3.client("ec2", region_name=default_region)
 try:
-    valid_regions = [region["RegionName"] for region in ec2_client.describe_regions()["Regions"]]
+    # describe_regions only describes the regions that are enabled for your account unless AllRegions is set.
+    valid_regions = [region["RegionName"] for region in ec2_client.describe_regions(AllRegions=True)["Regions"]]
 except ClientError as err:
     logger.error(f"{fg('red')}Unable to list all AWS regions. Make sure you have set your IAM credentials. {err} {attr('reset')}")
     exit(1)
-opt_out_regions = [
-    'af-south-1',
-    'ap-east-1',
-    'ap-south-2',
-    'ap-southeast-3',
-    'ap-southeast-4',
-    'ap-southeast-5',
-    'ap-southeast-6',
-    'ca-west-1',
-    'eu-central-2',
-    'eu-south-1',
-    'eu-south-2',
-    'il-central-1',
-    'me-central-1',
-    'me-south-1',
-    'mx-central-1',
-]
-valid_regions += opt_out_regions
 
 filesystem_lifecycle_policies = [
     'None',
@@ -162,7 +198,8 @@ os_distributions = [
 
 # The config file is used in the installer and the CDK app.
 # Some configuration values are required in the CDK app but are optional so that they can be set by the installer.
-config_schema = Schema(
+def get_config_schema(config):
+    return Schema(
     {
         # termination_protection:
         #     Enable Cloudformation Stack termination protection
@@ -197,10 +234,72 @@ config_schema = Schema(
         Optional('HostedZoneId'): str,
         Optional('TimeZone', default='US/Central'): str,
         'slurm': {
+            Optional('ParallelClusterConfig'): {
+                'Enable': bool,
+                Optional('Version', default=str(DEFAULT_PARALLEL_CLUSTER_VERSION)): And(str, lambda s: parse_version(s) >= MIN_PARALLEL_CLUSTER_VERSION),
+                Optional('PythonVersion', default=get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config)): str,
+                Optional('Image', default={'Os': 'centos7'}): {
+                    Optional('Os', default='centos7'): And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES)
+                },
+                Optional('Architecture', default='arm64'): And(str, lambda s: s in ['arm64', 'x86_64']),
+                Optional('ComputeNodeAmi'): And(str, lambda s: s.startswith('ami-')),
+                Optional('DisableSimultaneousMultithreading', default=True): bool,
+                # Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group
+                # See https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster
+                Optional('EnableEfa', default=False): bool,
+                Optional('Database'): {
+                    Optional('DatabaseStackName'): str,
+                    Optional('EdaSlurmClusterStackName'): str,
+                    Optional('FQDN'): str,
+                    Optional('Port'): int,
+                    Optional('AdminUserName'): str,
+                    Optional('AdminPasswordSecretArn'): And(str, lambda s: s.startswith('arn:')),
+                    Optional('ClientSecurityGroup'): {str: And(str, lambda s: re.match('sg-', s))},
+                },
+                Optional('Dcv', default={}): {
+                    Optional('Enable', default=False): bool,
+                    Optional('Port', default=8443): int,
+                    Optional('AllowedIps', default='10.0.0.0/32'): str
+                },
+                Optional('LoginNodes'): {
+                    'Pools': [
+                        {
+                            'Name': str,
+                            Optional('Image'): {
+                                'CustomAmi': And(str, lambda s: s.startswith('ami-'))
+                            },
+                            'Count': int,
+                            'InstanceType': str,
+                            Optional('Networking'): {
+                                Optional('SubnetIds'): [ # Only 1 subnet supported for the MVP. Default to slurm subnet
+                                    And(str, lambda s: s.startswith('subnet-'))
+                                ],
+                                Optional('SecurityGroups'): [
+                                    And(str, lambda s: s.startswith('sg-'))
+                                ],
+                                Optional('AdditionalSecurityGroups'): [
+                                    And(str, lambda s: s.startswith('sg-'))
+                                ],
+                            },
+                            Optional('Ssh'): {
+                                'KeyName': str # default value: same ssh key used for the Head Node
+                            },
+                            Optional('Iam'): {
+                                'InstanceRole': str,
+                                'InstanceProfile': str,
+                                'AdditionalIamPolicies': [
+                                    {'Policy': str}
+                                ]
+                            },
+                            Optional('GracetimePeriod'): And(int, lambda s: s > 0 and s <= 120) # optional, default value: 60 mins (max 120 mins)
+                        }
+                    ]
+                }
+            },
             # SlurmVersion:
             #     Latest tested version
             #     Critical security fix released in 21.08.8. Must be later than that.
-            Optional('SlurmVersion', default=DEFAULT_SLURM_VERSION): str,
+            Optional('SlurmVersion', default=get_DEFAULT_SLURM_VERSION(config)): str,
             #
             # ClusterName:
             #     Default to the StackName
@@ -217,6 +316,10 @@ config_schema = Schema(
             'SlurmCtl': {
                 # NumberOfControllers
                 #     For high availability configure multiple controllers
+                Optional('SlurmctldPort', default='6817'): str, # Needs to be a string because it can be a range of ports.
+                Optional('SlurmctldPortMin', default=6817): int,
+                Optional('SlurmctldPortMax', default=6817): int,
+                Optional('SlurmdPort', default=6818): int,
                 Optional('NumberOfControllers', default=1): And(Use(int), lambda n: 1 <= n <= 3),
                 Optional('SubnetIds'): [
                     And(str, lambda subnetid: re.match('subnet-', subnetid))
@@ -247,6 +350,7 @@ config_schema = Schema(
                 Optional('SlurmConfOverrides'): str,
                 Optional('SlurmrestdUid', default=901): int,
                 Optional('SlurmrestdPort', default=6820): int,
+                Optional('SlurmRestApiVersion', default=get_default_slurm_rest_api_version(config)): str,
             },
             #
             # The accounting database is required to enable fairshare scheduling
@@ -255,6 +359,7 @@ config_schema = Schema(
             #
             # SlurmDbd:
             #     It is recommended to get the basic cluster configured and working before enabling the accounting database
+            Optional('SlurmdbdPort', default=6819): int,
             Optional('SlurmDbd'): {
                 Optional('UseSlurmDbd', default=True): bool,
                 Optional('Hostname', default='slurmdbd'): str,
@@ -276,6 +381,9 @@ config_schema = Schema(
                 Optional('StackName'): str,
                 Optional('SecurityGroup'): {str: And(str, lambda s: re.match('sg-', s))},
                 Optional('HostnameFQDN'): str,
+                Optional('Port', default=3306): int,
+                Optional('UserName'): str,
+                Optional('PasswordSecretArn'): And(str, lambda s: s.startswith('arn:')),
             },
             Optional('Federation'): {
                 'Name': str,
@@ -326,10 +434,6 @@ config_schema = Schema(
                 # UseSpot:
                 #     Configure spot instances
                 Optional('UseSpot', default=True): bool,
-                #
-                # NodesPerInstanceType:
-                #     The number of nodes that will be defined for each instance type.
-                'NodesPerInstanceType': int,
                 'BaseOsArchitecture': {
                     And(str, lambda s: s in os_distributions): { # Distribution
                         And(int, lambda n: n in [2, 7, 8]): [ # distribution_major_version
@@ -353,6 +457,16 @@ config_schema = Schema(
                     Optional('MaxSizeOnly', default=False): bool,
                     Optional('InstanceFamilies', default=default_eda_instance_families): [str],
                     Optional('InstanceTypes', default=default_eda_instance_types): [str]
+                },
+                'NodeCounts': {
+                    Optional('DefaultMinCount', default=0): And(int, lambda s: s >= 0),
+                    'DefaultMaxCount': And(int, lambda s: s >= 0),
+                    Optional('ComputeResourceCounts', default={}): {
+                        Optional(str): {
+                            Optional('MinCount', default=0): And(int, lambda s: s >= 0),
+                            'MaxCount': And(int, lambda s: s >= 0)
+                        }
+                    }
                 },
                 Optional('Regions'): {
                     str: {
@@ -413,17 +527,17 @@ config_schema = Schema(
             #     http://{{EsDomain}}.{{Region}}.es.amazonaws.com/slurm/_doc
             Optional('JobCompLoc'): str,
             Optional('SlurmUid', default=900): int,
-            'storage': {
+            Optional('storage'): {
                 #
                 # mount_path:
                 # Default is /opt/slurm/{{cluster_name}}
                 Optional('mount_path'): str,
-                'provider': And(str, lambda s: s in ('efs', 'ontap', 'zfs')),
+                Optional('provider'): And(str, lambda s: s in ('efs', 'ontap', 'zfs')),
                 #
                 # removal_policy:
                 # RETAIN will preserve the EFS even if you delete the stack.
                 # Any other value will delete EFS if you delete the CFN stack
-                Optional('removal_policy', default='RETAIN'): And(str, lambda s: s in ('DESTROY', 'RETAIN', 'SNAPSHOT')),
+                Optional('removal_policy'): And(str, lambda s: s in ('DESTROY', 'RETAIN', 'SNAPSHOT')),
                 Optional('kms_key_arn'): str,
                 Optional('efs'): {
                     Optional('enable_automatic_backups', default=False): bool,
@@ -470,7 +584,10 @@ config_schema = Schema(
                         'dest': str,
                         'src': str,
                         'type': str,
-                        'options': str
+                        'options': str,
+                        Optional('StorageType'): And(str, lambda s: s in ('Efs', 'FsxLustre', 'FsxOntap', 'FsxOpenZfs')),
+                        Optional('FileSystemId'): And(str, lambda s: s.startswith('fs-')),
+                        Optional('VolumeId'): And(str, lambda s: s.startswith('fsvol-')),
                     }
                 ],
                 # ExtraMountSecurityGroups
@@ -514,7 +631,6 @@ config_schema = Schema(
 
 def check_schema(config_in):
     # Validate config against schema
-    global config
-    config = config_in
-    validated_config = config_schema.validate(config)
+    config_schema = get_config_schema(config_in)
+    validated_config = config_schema.validate(config_in)
     return validated_config

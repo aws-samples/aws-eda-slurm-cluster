@@ -22,7 +22,7 @@
 - name: Configure kernel parameter to allow over commit of virtual memory
   sysctl:
     name: vm.overcommit_memory
-    value: 1
+    value: "1"
     sysctl_file: /etc/sysctl.d/slurmd.conf
 
 # Use "state: present" instead of latest so that the package versions

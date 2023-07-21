@@ -1,0 +1,162 @@
+---
+
+- name: Install libjwt-devel on non-Amazon arm64
+  when: not(distribution == 'Amazon' and Architecture == 'arm64')
+  yum:
+    state: present
+    name:
+      - libjwt-devel
+
+- name: Install libjwt-devel on Amazon arm64
+  when: distribution == 'Amazon' and Architecture == 'arm64'
+  shell: |
+    set -xe
+
+    cd /tmp
+    rm -rf libjwt
+    git clone --depth 1 --single-branch -b v1.12.0 https://github.com/benmcollins/libjwt.git libjwt
+    cd libjwt
+    autoreconf --force --install
+    ./configure --prefix=/usr/local
+    make -j
+    make install
+
+- name: Build {{SlurmSbinDir}}/slurmrestd
+  when: PrimaryController|bool
+  args:
+    creates: "{{SlurmSbinDir}}/slurmrestd"
+  shell:
+    cmd: |
+      set -ex
+
+      source /opt/parallelcluster/pyenv/versions/{{ParallelClusterPythonVersion}}/envs/cookbook_virtualenv/bin/activate
+
+      cd /etc/chef/local-mode-cache/cache/slurm-slurm-{{SlurmVersion}}
+      ./configure --prefix /opt/slurm --with-pmix=/opt/pmix --with-slurmrestd --enable-slurmrestd &> configure.log
+      CORES=$(grep processor /proc/cpuinfo | wc -l)
+      make -j $CORES         &> make_all.log
+      make -j $CORES contrib &> make_contrib.log
+      make install           &> make_install.log
+      make install-contrib   &> make_install-contrib.log
+
+- name: Create slurmrestd user
+  user:
+    name: slurmrestd
+    system: yes
+    uid: '{{SlurmrestdUid}}'
+    create_home: no
+
+- name: Create {{SlurmrestdSocketDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmrestdSocketDir}}"
+    state: directory
+    owner: slurmrestd
+    group: slurmrestd
+    mode: 0755
+
+- name: Create {{SlurmSpoolDir}}
+  when: PrimaryController|bool
+  file:
+    path: "{{SlurmSpoolDir}}"
+    state: directory
+    owner: slurmrestd
+    group: slurmrestd
+    mode: 0755
+
+- name: Create jwt key for slurmrestd
+  when: PrimaryController|bool
+  args:
+    creates: "{{SlurmSpoolDir}}/jwt_hs256.key"
+  shell:
+    cmd: |
+      set -ex
+
+      dd if=/dev/random of={{SlurmSpoolDir}}/jwt_hs256.key bs=32 count=1
+      chown slurm:slurm {{SlurmSpoolDir}}/jwt_hs256.key
+      chmod 0600 {{SlurmSpoolDir}}/jwt_hs256.key
+
+- name: Create /etc/sysconfig/slurmrestd
+  template:
+    dest: /etc/sysconfig/slurmrestd
+    src:  ../../SlurmCtl/templates/etc/sysconfig/slurmrestd
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+  register: sysconfig_slurmrestd_result
+
+- name: Create /opt/slurm/config/bin/update_slurmrestd_jwt_parameter.sh
+  when: PrimaryController|bool
+  template:
+    dest: /opt/slurm/config/bin/update_slurmrestd_jwt_parameter.sh
+    src:   ../../SlurmCtl/templates/opt/slurm/cluster/bin/update_slurmrestd_jwt_parameter.sh
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Cron to update slurmrestd JWT for root
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/update_slurmrestd_jwt_for_root
+    dest: /etc/cron.d/update_slurmrestd_jwt_for_root
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
+- name: Cron to update slurmrestd JWT for slurmrestd
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/update_slurmrestd_jwt_for_slurmrestd
+    dest: /etc/cron.d/update_slurmrestd_jwt_for_slurmrestd
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
+- name: Update /etc/systemd/system/slurmrestd.service
+  template:
+    dest: /etc/systemd/system/slurmrestd.service
+    src:  ../../SlurmCtl/templates/etc/systemd/system/slurmrestd.service
+    owner: root
+    group: root
+    mode: 0644
+  register: slurmrestd_service_result
+
+- name: Get service facts
+  service_facts:
+
+- name: Restart slurmrestd
+  when: ansible_facts.services['slurmrestd.service']['state'] == 'running' and (sysconfig_slurmrestd_result.changed or slurmrestd_service_result.changed)
+  systemd:
+    name: slurmrestd
+    enabled: yes
+    daemon_reload: yes
+    state: restarted
+  register: slurmrestd_restarted
+
+- name: Start slurmrestd
+  service:
+    name: slurmrestd
+    enabled: yes
+    state: started
+  register: slurmrestd_started
+
+- name: Wait for {{SlurmBinDir}}/scontrol
+  wait_for:
+    path: "{{SlurmBinDir}}/scontrol"
+    timeout: 1800 # 30 minutes
+
+- name: Wait for slurmctld to accept requests on port {{SlurmctldPortMin}}
+  wait_for:
+    host: "127.0.0.1"
+    port: "{{SlurmctldPortMin}}"
+    timeout: 1800 # 30 minutes
+
+- name: Test scontrol token
+  when: PrimaryController|bool
+  shell: |
+    set -xe
+
+    {{SlurmBinDir}}/scontrol token

@@ -21,4 +21,5 @@ userid=$1
 parameter_name=$2
 
 . <({{SlurmBinDir}}/scontrol token)
+# SLURM_JWT set by scontrol token command
 aws ssm put-parameter --region {{Region}} --name $parameter_name --type String --value "$SLURM_JWT" --overwrite

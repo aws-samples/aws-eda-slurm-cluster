@@ -429,6 +429,9 @@ class SlurmPlugin:
     def get_DefaultThreadsPerCore(self, region, instance_type):
         return self.instance_type_and_family_info[region]['instance_types'][instance_type]['DefaultThreadsPerCore']
 
+    def get_EfaSupported(self, region, instance_type):
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['EfaSupported']
+
     def get_MemoryInMiB(self, region, instance_type):
         return self.instance_type_and_family_info[region]['instance_types'][instance_type]['MemoryInMiB']
 
@@ -1586,8 +1589,8 @@ class SlurmPlugin:
             # Set defaults for missing fields
             if 'UseSpot' not in instance_config:
                 raise ValueError(f"InstanceConfig missing UseSpot")
-            if 'NodesPerInstanceType' not in instance_config:
-                raise ValueError(f"InstanceConfig missing NodesPerInstanceType")
+            if 'NodeCounts' not in instance_config:
+                raise ValueError(f"InstanceConfig missing NodeCounts")
             if 'Exclude' not in instance_config:
                 raise ValueError(f"InstanceConfig missing Exclude")
             if 'Include' not in instance_config:
@@ -1660,7 +1663,7 @@ class SlurmPlugin:
                                 logger.debug(f"{pp.pformat(instance_type_info[instanceType])}")
                                 instance_family = self.get_instance_family(instanceType)
                                 short_instance_size = self.get_short_instance_size(instanceType)
-                                max_node_index = instance_config['NodesPerInstanceType'] - 1
+                                max_node_index = instance_config['NodeCounts']['DefaultMaxCount'] - 1
                                 # Each node has an ondemand and spot variant. The node_prefix is common between the two.
                                 node_prefix = f"{az_id}-{os_prefix}{distribution_major_version}-{architecture_prefix}-{instance_family}-{short_instance_size}"
 

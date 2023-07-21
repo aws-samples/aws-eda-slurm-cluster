@@ -6,10 +6,6 @@ ansible_ssh_user: ec2-user
 
 ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null"
 
-SlurmUid: "{{SlurmUid}}"
-
-SlurmVersion: '{{SlurmVersion}}'
-
 ansible_architecture: "{{ansible_facts['architecture']}}"
 distribution: "{{ansible_facts['distribution']}}"
 distribution_major_version: "{{ansible_facts['distribution_major_version']}}"

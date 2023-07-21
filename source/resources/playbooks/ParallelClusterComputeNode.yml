@@ -1,0 +1,12 @@
+---
+- name: Configure ParallelCluster Compute Node
+  hosts: ParallelClusterComputeNode
+  connection: local
+  become_user: root
+  become: yes
+  roles:
+    - all
+    - eda_tools
+    - security_updates
+    - bug_fixes
+    - ParallelClusterComputeNode
