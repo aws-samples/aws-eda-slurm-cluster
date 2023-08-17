@@ -165,7 +165,7 @@ class LaunchInstanceThread(threading.Thread):
                 if matches:
                     encoded_message = matches.group(1)
                     logger.error(f"Encoded message:\n{encoded_message}")
-                    sts_client = boto3.client('sts', region_name=self.region)
+                    sts_client = plugin.sts_client[self.region]
                     decoded_message = json.loads(sts_client.decode_authorization_message(EncodedMessage=encoded_message)['DecodedMessage'])
                     logger.error(f"decoded_message:\n{json.dumps(decoded_message, indent=4)}")
         except Exception as e:
@@ -300,16 +300,19 @@ class SlurmPlugin:
 
         self.instance_types = None
 
+        # Create all of the boto3 clients in one place so can make sure that all client api calls get throttling retries.
         # Create first so that can publish metrics for unhandled exceptions
         self.cw = boto3.client('cloudwatch')
-        self.ssm = boto3.client('ssm')
 
         try:
+            self.ssm_client = boto3.client('ssm')
             self.ec2 = {}
             self.ec2_describe_instances_paginator = {}
+            self.sts_client = {}
             for region in self.compute_regions:
                 self.ec2[region] = boto3.client('ec2', region_name=region)
                 self.ec2_describe_instances_paginator[region] = self.ec2[region].get_paginator('describe_instances')
+                self.sts_client[region] = boto3.client('sts', region_name=region)
         except:
             logger.exception('Unhandled exception in SlurmPlugin constructor')
             self.publish_cw_metrics(self.CW_UNHANDLED_PLUGIN_CONSTRUCTOR_EXCEPTION, 1, [])
@@ -563,7 +566,7 @@ class SlurmPlugin:
 
         ssm_parameter_name = f"/{self.config['STACK_NAME']}/SlurmNodeAmis/{distribution}/{distribution_major_version}/{architecture}/{hostinfo['region']}"
         try:
-            hostinfo['ami'] = self.ssm.get_parameter(Name=ssm_parameter_name)["Parameter"]["Value"]
+            hostinfo['ami'] = self.get_ssm_parameter(ssm_parameter_name)
         except Exception as e:
             logging.exception(f"Error getting ami from SSM parameter {ssm_parameter_name}")
             # Don't have a way of handling this.
@@ -787,8 +790,8 @@ class SlurmPlugin:
                 az = self.az_ids[az_id]
                 region = self.az_info[az]['region']
                 subnet = self.az_info[az]['subnet']
-                security_group_id = self.ssm.get_parameter(Name=f"/{self.config['STACK_NAME']}/SlurmNodeSecurityGroups/{region}")['Parameter']['Value']
-                key_name = self.ssm.get_parameter(Name=f"/{self.config['STACK_NAME']}/SlurmNodeEc2KeyPairs/{region}")['Parameter']['Value']
+                security_group_id = self.get_ssm_parameter(f"/{self.config['STACK_NAME']}/SlurmNodeSecurityGroups/{region}")
+                key_name = self.get_ssm_parameter(f"/{self.config['STACK_NAME']}/SlurmNodeEc2KeyPairs/{region}")
                 ami = hostinfo['ami']
                 userData = userDataTemplate.render({
                         'DOMAIN': self.config['DOMAIN'],
@@ -1304,7 +1307,7 @@ class SlurmPlugin:
                 if matches:
                     encoded_message = matches.group(1)
                     logger.error(f"Encoded message:\n{encoded_message}")
-                    sts_client = boto3.client('sts', region_name=region)
+                    sts_client = self.sts_client[region]
                     decoded_message = json.loads(sts_client.decode_authorization_message(EncodedMessage=encoded_message)['DecodedMessage'])
                     logger.error(f"decoded_message:\n{json.dumps(decoded_message, indent=4)}")
             else:
@@ -1351,7 +1354,7 @@ class SlurmPlugin:
                 if matches:
                     encoded_message = matches.group(1)
                     logger.error(f"Encoded message:\n{encoded_message}")
-                    sts_client = boto3.client('sts', region_name=region)
+                    sts_client = self.sts_client[region]
                     decoded_message = json.loads(sts_client.decode_authorization_message(EncodedMessage=encoded_message)['DecodedMessage'])
                     logger.error(f"decoded_message:\n{json.dumps(decoded_message, indent=4)}")
             else:
@@ -1904,10 +1907,10 @@ class SlurmPlugin:
         az_info = {}
         for region, region_dict in instance_config['Regions'].items():
             logger.debug(f"region: {region}")
-            ec2_client = boto3.client('ec2', region_name=region)
+            ec2_client = self.ec2[region]
             for az_dict in region_dict['AZs']:
                 subnet = az_dict['Subnet']
-                subnet_info = ec2_client.describe_subnets(SubnetIds=[subnet])['Subnets'][0]
+                subnet_info = self.describe_subnets(ec2_client, {'SubnetIds': [subnet]})['Subnets'][0]
                 az = subnet_info['AvailabilityZone']
                 az_id = subnet_info['AvailabilityZoneId']
                 az_info[az] = {
@@ -2117,6 +2120,11 @@ class SlurmPlugin:
         return 0
 
     @retry_ec2_throttling()
+    def describe_subnets(self, ec2_client, kwargs):
+        result = ec2_client.describe_subnets(**kwargs)
+        return result
+
+    @retry_ec2_throttling()
     def paginate(self, paginator, kwargs):
         result = paginator.paginate(**kwargs)
         return result
@@ -2135,3 +2143,8 @@ class SlurmPlugin:
     def terminate_instances(self, region, kwargs):
         result = self.ec2[region].terminate_instances(**kwargs)
         return result
+
+    @retry_ec2_throttling()
+    def get_ssm_parameter(self, ssm_parameter_name):
+        value = self.ssm_client.get_parameter(Name=ssm_parameter_name)["Parameter"]["Value"]
+        return value
