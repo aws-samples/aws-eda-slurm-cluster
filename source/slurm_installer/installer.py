@@ -399,6 +399,7 @@ class SlurmInstaller():
                 else:
                     quoted_args.append(arg)
             print(f"Original command:\n./install.sh {' '.join(quoted_args)}")
+            # Delete --prompt arg
             while '--prompt' in cmdline_args:
                 arg_index = cmdline_args.index('--prompt')
                 del cmdline_args[arg_index]
@@ -408,10 +409,8 @@ class SlurmInstaller():
                     quoted_args.append(f"'{arg}'")
                 else:
                     quoted_args.append(arg)
-            print(f"quoted_args: {quoted_args}")
-            arg_index = quoted_args.index('--cdk-cmd')
-            print(f"arg_index: {arg_index}")
-            quoted_args[arg_index + 1] = 'update'
+            if '--cdk-cmd' not in quoted_args:
+                quoted_args.extend(['--cdk-cmd', 'synth'])
             new_cmd = f"./install.sh {' '.join(quoted_args)}"
             print(f"\nCommand line to update the stack without prompts:\n{new_cmd}")
 

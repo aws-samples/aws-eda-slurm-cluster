@@ -1,0 +1,4 @@
+MAILTO=''
+SLURM_ROOT={{SlurmRoot}}
+PATH="{{SlurmConfigDir}}/bin:{{SlurmScriptsDir}}:{{SlurmBinDir}}:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+*/30 * * * * root {{SlurmConfigDir}}/bin/update_slurmrestd_jwt_parameter.sh slurmrestd {{SlurmrestdJwtForSlurmrestdParameter}}

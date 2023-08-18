@@ -1,0 +1,17 @@
+---
+
+- name: Create/Update Users
+  when: PrimaryController|bool
+  template:
+    src:   etc/cron.d/slurm_users_groups
+    dest: /etc/cron.d/slurm_users_groups
+    owner: root
+    group: root
+    mode: 0600
+    force: yes
+
+- name: Test create_users_groups.py
+  shell: |
+    set -ex
+
+    {{SlurmConfigDir}}/bin//create_users_groups.py -i {{SlurmConfigDir}}/users_groups.json

@@ -126,10 +126,10 @@
 
     cd {{SlurmSrcDir}}/slurm-{{SlurmVersion}}
     ./configure --prefix {{SlurmOSDir}}/ --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{SlurmrestdPort}} &> configure.log
-    make &> slurm-make.log
-    make contrib &> slurm-make-contrib.log
+    make                 &> slurm-make-all.log
+    make contrib         &> slurm-make-contrib.log
 
-    make install &> slurm-make-install.log
+    make install         &> slurm-make-install.log
     make install-contrib &> slurm-make-install-contrib.log
 
 - name: Create {{SlurmEtcDir}}

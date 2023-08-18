@@ -136,6 +136,7 @@ class EC2InstanceTypeInfo:
                 instance_type_info[instanceType]['SSDTotalSizeGB'] = instanceTypeDict.get('InstanceStorageInfo', {'TotalSizeInGB': 0})['TotalSizeInGB']
                 instance_type_info[instanceType]['Hypervisor'] = instanceTypeDict.get('Hypervisor', '')
                 instance_type_info[instanceType]['NetworkPerformance'] = instanceTypeDict['NetworkInfo']['NetworkPerformance']
+                instance_type_info[instanceType]['EfaSupported'] = instanceTypeDict['NetworkInfo']['EfaSupported']
                 if 'GpuInfo' in instanceTypeDict and 'Gpus' in instanceTypeDict['GpuInfo']:
                     instance_type_info[instanceType]['GpuCount'] = int(instanceTypeDict['GpuInfo']['Gpus'][0].get('Count', 0))
                     instance_type_info[instanceType]['GpuManufacturer'] = instanceTypeDict['GpuInfo']['Gpus'][0].get('Manufacturer', "")

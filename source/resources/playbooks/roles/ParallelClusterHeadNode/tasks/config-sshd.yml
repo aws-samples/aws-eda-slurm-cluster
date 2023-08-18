@@ -1,0 +1,15 @@
+---
+
+- name: Allow X11 forwarding to the head node
+  shell:
+    cmd: |
+      set -ex
+
+      grep -v X11Forwarding /etc/ssh/sshd_config > /etc/ssh/sshd_config.new
+      echo "X11Forwarding yes" >> /etc/ssh/sshd_config.new
+      if diff /etc/ssh/sshd_config /etc/ssh/sshd_config.new; then
+          rm -f /etc/ssh/sshd_config.new
+      else
+          mv -f /etc/ssh/sshd_config.new /etc/ssh/sshd_config
+          systemctl restart sshd
+      fi

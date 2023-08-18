@@ -1,0 +1,38 @@
+---
+
+- name: Configure remote licenses
+  # This uses sacctmcr so must do this after slurmctld and slurmd are working.
+  when: PrimaryController|bool and (AccountingStorageHost != '') and Licenses
+  shell:
+    cmd: |
+      set -ex
+      # Add or update configured licenses
+      declare -A licenses
+      {% for lic in Licenses -%}
+      license='{{lic}}'
+      # Using '@' for the port separator instead of ':' because sbatch doesn't work if ':' is in the server name.
+      server='{% if 'Server' in Licenses[lic] %}{{Licenses[lic].Server}}{% if 'Port' in Licenses[lic] %}@{{Licenses[lic].Port}}{% endif %}{% else %}slurmdb{% endif %}'
+      count='{{Licenses[lic].Count}}'
+      licenses["$license@$server"]="$count"
+      if ! {{SlurmBinDir}}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}} cluster={{ClusterName}} percentallowed=100; then
+          # Exit 1: Nothing new added.
+          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server set count={{Licenses[lic].Count}}
+
+          # This is required or else license count will stay at 0
+          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server cluster={{ClusterName}} set percentallowed=100
+
+      fi
+      {% endfor -%}
+
+      # Remove deleted licenses
+      configured_licenses_and_servers=( $({{SlurmBinDir}}/sacctmgr --noheader --parsable2 show resource Clusters={{ClusterName}} format=name,server) )
+      echo ${configured_licenses_and_servers[@]}
+      for configured_license_and_server in ${configured_licenses_and_servers[@]}; do
+          configured_license=$(echo $configured_license_and_server | cut -d '|' -f 1)
+          configured_server=$(echo $configured_license_and_server | cut -d '|' -f 2)
+          if [ -z ${licenses["$configured_license@$configured_server"]} ]; then
+              {{SlurmBinDir}}/sacctmgr -i delete resource name=$configured_license server=$configured_server
+          fi
+      done
+
+  register: remote_slurm_licenses_conf_result

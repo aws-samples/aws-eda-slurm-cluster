@@ -31,7 +31,9 @@ from aws_cdk import (
     aws_opensearchservice as opensearch,
     aws_rds as rds,
     aws_route53 as route53,
+    aws_s3 as s3,
     aws_s3_assets as s3_assets,
+    aws_secretsmanager as secretsmanager,
     aws_sns as sns,
     aws_sns_subscriptions as subs,
     aws_sqs as sqs,
@@ -55,7 +57,9 @@ import json
 import logging
 from os import path
 from os.path import dirname, realpath
+from packaging.version import parse as parse_version
 from pprint import PrettyPrinter
+import re
 import subprocess
 from subprocess import check_output
 import sys
@@ -85,6 +89,8 @@ class CdkSlurmStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        self.onprem_cidr = None
+
         self.principals_suffix = {
             "backup": f"backup.{Aws.URL_SUFFIX}",
             "cloudwatch": f"cloudwatch.{Aws.URL_SUFFIX}",
@@ -109,31 +115,45 @@ class CdkSlurmStack(Stack):
 
         self.check_config()
 
-        # Create VPC before lambdas so that lambdas can access the VPC.
-        self.create_vpc()
+        if self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
+            self.create_vpc()
 
-        self.check_regions_config()
+            self.check_regions_config()
 
-        # Must be called after check_regions_config so that 'Regions' is set in the InstanceConfig.
-        # Assets must be created before setting instance_template_vars so the playbooks URL exists
-        self.create_assets()
+            self.create_security_groups()
 
-        self.create_remote_vpcs()
+            self.create_parallel_cluster_lambdas()
 
-        self.create_lambdas()
-        self.create_security_groups()
-        if 'ElasticSearch' in self.config['slurm']:
-            self.create_elasticsearch()
-        self.create_file_system()
-        if 'SlurmDbd' in self.config['slurm']:
-            self.create_db()
-        self.create_cw()
-        self.create_slurm_nodes()
-        self.create_slurmctl()
-        if 'SlurmDbd' in self.config['slurm']:
-            self.create_slurmdbd()
-        self.create_slurm_node_ami()
-        self.create_fault_injection_templates()
+            self.create_parallel_cluster_assets()
+
+            self.create_parallel_cluster_config()
+        else:
+            # Create VPC object before lambdas so that lambdas can access the VPC.
+            self.create_vpc()
+
+            self.check_regions_config()
+
+            # Must be called after check_regions_config so that 'Regions' is set in the InstanceConfig.
+            # Assets must be created before setting instance_template_vars so the playbooks URL exists
+            self.create_assets()
+
+            self.create_remote_vpcs()
+
+            self.create_security_groups()
+            # Lambdas might need security group if use VPC
+            self.create_lambdas()
+            if 'ElasticSearch' in self.config['slurm']:
+                self.create_elasticsearch()
+            self.create_file_system()
+            if 'SlurmDbd' in self.config['slurm']:
+                self.create_db()
+            self.create_cw()
+            self.create_slurm_nodes()
+            self.create_slurmctl()
+            if 'SlurmDbd' in self.config['slurm']:
+                self.create_slurmdbd()
+            self.create_slurm_node_ami()
+            self.create_fault_injection_templates()
 
     def get_config(self, context_var, default_path):
         default_config_file_path = realpath(f"{dirname(realpath(__file__))}/../resources/config/")
@@ -265,6 +285,7 @@ class CdkSlurmStack(Stack):
         '''
         Check config, set defaults, and sanity check the configuration
         '''
+        config_errors = 0
         if self.stack_name:
             if 'StackName' not in self.config:
                 logger.info(f"config/StackName set from command line: {self.stack_name}")
@@ -273,7 +294,7 @@ class CdkSlurmStack(Stack):
             self.config['StackName'] = self.stack_name
         if 'StackName' not in self.config:
             logger.error(f"You must provide --stack-name on the command line or StackName in the config file.")
-            exit(1)
+            config_errors += 1
 
         error_sns_topic_arn = self.node.try_get_context('ErrorSnsTopicArn')
         if error_sns_topic_arn:
@@ -291,15 +312,20 @@ class CdkSlurmStack(Stack):
             self.config['slurm']['ClusterName'] = self.stack_name
             logger.info(f"slurm/ClusterName defaulted to {self.config['StackName']}")
 
-        if 'mount_path' not in self.config['slurm']['storage']:
-            self.config['slurm']['storage']['mount_path'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}"
-        storage_provider = self.config['slurm']['storage']['provider']
-        if storage_provider not in self.config['slurm']['storage']:
-            self.config['slurm']['storage'][storage_provider] = {}
+        if not self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
+            if 'mount_path' not in self.config['slurm']['storage']:
+                self.config['slurm']['storage']['mount_path'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}"
+            if 'provider' not in self.config['slurm']['storage']:
+                self.config['slurm']['storage']['provider'] = 'zfs'
+            storage_provider = self.config['slurm']['storage']['provider']
+            if storage_provider not in self.config['slurm']['storage']:
+                self.config['slurm']['storage'][storage_provider] = {}
+            if 'removal_policy' not in self.config['slurm']['storage']:
+                self.config['slurm']['storage']['removal_policy'] = 'RETAIN'
 
         if 'SlurmDbd' in self.config['slurm'] and 'ExistingSlurmDbd' in self.config['slurm']:
             logger.error(f"Cannot specify both slurm/SlurmDbd and slurm/ExistingSlurmDbd")
-            exit(1)
+            config_errors += 1
 
         self.useSlurmDbd = False
         self.slurmDbdFQDN = ''
@@ -311,10 +337,16 @@ class CdkSlurmStack(Stack):
             if 'StackName' in self.config['slurm']['ExistingSlurmDbd']:
                 if 'SecurityGroup' in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Cannot specify slurm/ExistingSlurmDbd/SecurityGroup if slurm/ExistingSlurmDbd/StackName set")
-                    exit(1)
+                    config_errors += 1
                 if 'HostnameFQDN' in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Cannot specify slurm/ExistingSlurmDbd/HostnameFQDN if slurm/ExistingSlurmDbd/StackName set")
-                    exit(1)
+                    config_errors += 1
+                if 'UserName' in self.config['slurm']['ExistingSlurmDbd']:
+                    logger.error("Cannot specify slurm/ExistingSlurmDbd/UserName if slurm/ExistingSlurmDbd/StackName set")
+                    config_errors += 1
+                if 'PasswordSecretArn' in self.config['slurm']['ExistingSlurmDbd']:
+                    logger.error("Cannot specify slurm/ExistingSlurmDbd/PasswordSecretArn if slurm/ExistingSlurmDbd/StackName set")
+                    config_errors += 1
                 slurmdbd_stack_name = self.config['slurm']['ExistingSlurmDbd']['StackName']
                 slurmDbdSG = None
                 cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
@@ -326,28 +358,46 @@ class CdkSlurmStack(Stack):
                                 slurmDbdSG = resource['PhysicalResourceId']
                 if not slurmDbdSG:
                     logger.error(f"SlurmDbdSG resource not found in {slurmdbd_stack_name} stack")
-                    exit(1)
+                    config_errors += 1
                 self.config['slurm']['ExistingSlurmDbd']['SecurityGroup'] = {f"{slurmdbd_stack_name}-SlurmDbdSG": slurmDbdSG}
                 # Find FQDN output
                 stack_outputs = cfn_client.describe_stacks(StackName=slurmdbd_stack_name)['Stacks'][0]['Outputs']
                 for output in stack_outputs:
                     if output['OutputKey'] == 'SlurmDbdFQDN':
                         self.slurmDbdFQDN = output['OutputValue']
-                        break
+                        self.config['slurm']['ExistingSlurmDbd']['HostnameFQDN'] = self.slurmDbdFQDN
+                        continue
+                    if output['OutputKey'] == 'DatabasePort':
+                        self.config['slurm']['ExistingSlurmDbd']['Port'] = output['OutputValue']
+                        continue
+                    if output['OutputKey'] == 'DatabaseAdminUser':
+                        self.config['slurm']['ExistingSlurmDbd']['UserName'] = output['OutputValue']
+                        continue
+                    if output['OutputKey'] == 'DatabaseAdminPasswordSecretArn':
+                        self.config['slurm']['ExistingSlurmDbd']['PasswordSecretArn'] = output['OutputValue']
+                        continue
                 if not self.slurmDbdFQDN:
                     logger.error(f"SlurmDbdFQDN output not found in {slurmdbd_stack_name} stack")
-                    exit(1)
+                    config_errors += 1
+                if 'UserName' not in self.config['slurm']['ExistingSlurmDbd']:
+                    logger.error(f"DatabaseAdminUser output not found in {slurmdbd_stack_name} stack")
+                    config_errors += 1
+                if 'PasswordSecretArn' not in self.config['slurm']['ExistingSlurmDbd']:
+                    logger.error(f"DatabaseAdminPasswordSecretArn output not found in {slurmdbd_stack_name} stack")
+                    config_errors += 1
             else:
                 if 'SecurityGroup' not in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Must specify slurm/ExistingSlurmDbd/SecurityGroup if slurm/ExistingSlurmDbd/StackName is not set.")
-                    exit(1)
+                    config_errors += 1
                 if len(self.config['slurm']['SlurmDbd']['ExistingSlurmDbd']['SecurityGroup']) != 1:
                     logger.error(f"slurm/ExistingSlurmDbd/SecurityGroup dictionary must have only 1 entry")
-                    exit(1)
+                    config_errors += 1
                 if 'HostnameFQDN' not in self.config['slurm']['ExistingSlurmDbd']:
                     logger.error("Must specify slurm/ExistingSlurmDbd/HostnameFQDN if slurm/ExistingSlurmDbd/StackName is not set.")
-                    exit(1)
-                self.slurmDbdFQDN = self.config['slurm']['ExistingSlurmDbd']['HostnameFQDN']
+                    config_errors += 1
+                if 'UserName' not in self.config['slurm']['ExistingSlurmDbd']:
+                    logger.error("Must specify slurm/ExistingSlurmDbd/UserName if slurm/ExistingSlurmDbd/StackName is not set.")
+                    config_errors += 1
 
         if 'Federation' in self.config['slurm']:
             if 'FederatedClusterStackNames' in self.config['slurm']['Federation']:
@@ -360,7 +410,7 @@ class CdkSlurmStack(Stack):
                     stacks = cfn_client.describe_stacks(StackName=federated_stack_name)['Stacks']
                     if len(stacks) != 1:
                         logger.error(f"Federated cluseter {federated_stack_name} does not exist.")
-                        exit(1)
+                        config_errors += 1
                     slurmCtlSG = None
                     slurmNodeSG = None
                     for page in cfn_client.get_paginator('list_stack_resources').paginate(StackName=federated_stack_name):
@@ -374,23 +424,221 @@ class CdkSlurmStack(Stack):
                                     slurmNodeSG = resource['PhysicalResourceId']
                     if not slurmCtlSG:
                         logger.error(f"SlurmCtlSG not found in {federated_stack_name} stack")
-                        exit(1)
+                        config_errors += 1
                     if not slurmNodeSG:
                         logger.error(f"SlurmNodeSG not found in {federated_stack_name} stack")
-                        exit(1)
+                        config_errors += 1
                     self.config['slurm']['Federation']['SlurmCtlSecurityGroups'][f"{federated_stack_name}-SlurmCtlSG"] = slurmCtlSG
                     self.config['slurm']['Federation']['SlurmNodeSecurityGroups'][f"{federated_stack_name}-SlurmNodeSG"] = slurmNodeSG
 
         if 'JobCompLoc' in self.config['slurm']:
             if self.config['slurm']['JobCompType'] == 'jobcomp/filetxt':
                 logger.error("Can't specify slurm/JobCompType==jobcomp/filetxt and slurm/JobCompLoc.")
-                exit(1)
+                config_errors += 1
         else:
             self.config['slurm']['JobCompLoc'] = ''
             if self.config['slurm']['JobCompType'] == 'jobcomp/elasticsearch':
                 if not self.config['slurm']['ElasticSearch']:
                     logger.error(f"Must specify existing ElasticSearch domain in slurm/JobCompLoc when slurm/JobCompType == jobcomp/elasticsearch and slurm/ElasticSearch is not set.")
-                    exit(1)
+                    config_errors += 1
+
+        if self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
+            self.PARALLEL_CLUSTER_VERSION = parse_version(self.config['slurm']['ParallelClusterConfig']['Version'])
+
+            if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0b1'):
+                if 'LoginNodes' in self.config['slurm']['ParallelClusterConfig']:
+                    logger.error(f"slurm/ParallelClusterConfig/LoginNodes not supported before version 3.7.0b1")
+                    config_errors += 1
+
+            # Check for unsupported legacy config file options
+            if 'HostedZoneId' in self.config:
+                logger.error(f"Config 'HostedZoneId' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'MungeKeySsmParameter' in self.config['slurm']:
+                logger.warning(f"Config 'slurm/MungeKeySsmParameter' is not used with /slurm/ParallelClusterConfig/Enable.")
+            if 'NumberOfControllers' in self.config['slurm']:
+                logger.error(f"Config 'slurm/SlurmCtl/NumberOfControllers' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'SubnetIds' in self.config['slurm']['SlurmCtl']:
+                logger.error(f"Config 'slurm/SlurmCtl/SubnetIds' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'BaseHostname' in self.config['slurm']['SlurmCtl']:
+                logger.warning(f"Config 'slurm/SlurmCtl/BaseHostname' is not used with /slurm/ParallelClusterConfig/Enable.")
+            if 'architecture' in self.config['slurm']['SlurmCtl']:
+                logger.warning(f"Config 'slurm/SlurmCtl/architecture' is not used with /slurm/ParallelClusterConfig/Enable.")
+            if 'SuspendAction' in self.config['slurm']['SlurmCtl']:
+                logger.warning(f"Config 'slurm/SlurmCtl/SuspendAction' is not used with /slurm/ParallelClusterConfig/Enable.")
+            if 'MaxStoppedDuration' in self.config['slurm']['SlurmCtl']:
+                logger.warning(f"Config 'slurm/SlurmCtl/MaxStoppedDuration' is not used with /slurm/ParallelClusterConfig/Enable.")
+            if 'CloudWatchPeriod' in self.config['slurm']['SlurmCtl']:
+                logger.warning(f"Config 'slurm/SlurmCtl/CloudWatchPeriod' is not used with /slurm/ParallelClusterConfig/Enable.")
+            if 'SlurmDbd' in self.config['slurm']:
+                logger.error(f"Config 'slurm/SlurmDbd' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'ExistingSlurmDbd' in self.config['slurm']:
+                logger.error(f"Config 'slurm/ExistingSlurmDbd' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'Federation' in self.config['slurm']:
+                logger.error(f"Config 'slurm/Federation' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'SlurmNodeAmis' in self.config['slurm']:
+                logger.warning(f"Config 'slurm/SlurmNodeAmis' is not used with /slurm/ParallelClusterConfig/Enable.")
+            if 'BaseOsArchitecture' in self.config['slurm']['InstanceConfig']:
+                logger.warning(f"Config 'slurm/InstanceConfig/BaseOsArchitecture' is not used with /slurm/ParallelClusterConfig/Enable. Use 'slurm/ParallelClusterConfig/Image/Os instead.")
+            if 'Regions' in self.config['slurm']['InstanceConfig']:
+                logger.error(f"Config 'slurm/InstanceConfig/Regions' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'AlwaysOnNodes' in self.config['slurm']['InstanceConfig'] and self.config['slurm']['InstanceConfig']['AlwaysOnNodes']:
+                logger.error(f"Config 'slurm/InstanceConfig/AlwaysOnNodes' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'AlwaysOnPartitions' in self.config['slurm']['InstanceConfig'] and self.config['slurm']['InstanceConfig']['AlwaysOnPartitions']:
+                logger.error(f"Config 'slurm/InstanceConfig/AlwaysOnPartitions' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'ElasticSearch' in self.config['slurm']:
+                logger.error(f"Config 'slurm/Regions' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'JobCompType' in self.config['slurm']['JobCompType']:
+                logger.error(f"Config 'slurm/JobCompType' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'JobCompLoc' in self.config['slurm']['JobCompLoc']:
+                logger.error(f"Config 'slurm/JobCompLoc' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                config_errors += 1
+            if 'storage' in self.config['slurm']:
+                allowed_keys = ['ExtraMounts', 'ExtraMountSecurityGroups']
+                for key in self.config['slurm']['storage']:
+                    if key in allowed_keys:
+                        continue
+                    if not self.config['slurm']['storage'][key]: # empty default key value
+                        continue
+                    logger.error(f"Config 'slurm/storage/{key}={self.config['slurm']['storage'][key]}' is not supported with /slurm/ParallelClusterConfig/Enable.")
+                    config_errors += 1
+
+            # Make sure that slurm ports are the same as ParallelCluster
+            if self.config['slurm']['SlurmCtl']['SlurmctldPortMin'] != 6820:
+                logger.warning(f"SlurmctldPortMin overridden to 6820 from {self.config['slurm']['SlurmCtl']['SlurmctldPortMin']} to match ParallelCluster.")
+            self.config['slurm']['SlurmCtl']['SlurmctldPortMin'] = 6820
+            if self.config['slurm']['SlurmCtl']['SlurmctldPortMax'] != 6829:
+                logger.warning(f"SlurmctldPortMax overridden to 6829 from {self.config['slurm']['SlurmCtl']['SlurmctldPortMax']} to match ParallelCluster.")
+            self.config['slurm']['SlurmCtl']['SlurmctldPortMax'] = 6829
+            if self.config['slurm']['SlurmCtl']['SlurmctldPort'] != '6820-6829':
+                logger.warning(f"SlurmctldPort overridden to '6820-6829' to match ParallelCluster.")
+            self.config['slurm']['SlurmCtl']['SlurmctldPort'] = '6820-6829'
+            if self.config['slurm']['SlurmCtl']['SlurmrestdPort'] != 6830:
+                logger.warning(f"SlurmrestdPort overridden to 6830 to match ParallelCluster.")
+            self.config['slurm']['SlurmCtl']['SlurmrestdPort'] = 6830
+
+            domain = f"{self.config['slurm']['ClusterName']}.pcluster"
+            if 'Domain' in self.config:
+                logger.warning(f"Domain overridden to {domain}")
+            self.config['Domain'] = domain
+
+            if 'SlurmDbd' in self.config['slurm']:
+                logger.error(f"Cannot specify slurm/SlurmDbd and /slurm/ParallelClusterConfig/Enable")
+                config_errors += 1
+            if 'ExistingSlurmDbd' in self.config['slurm']:
+                logger.error(f"Cannot specify slurm/ExistingSlurmDbd and /slurm/ParallelClusterConfig/Enable")
+                config_errors += 1
+            if 'Database' in self.config['slurm']['ParallelClusterConfig']:
+                if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database'] and 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
+                    logger.error(f"Cannot specify both slurm/ParallelClusterConfig/Database/DatabaseStackName and slurm/ParallelClusterConfig/Database/EdaSlurmClusterStackName")
+                    config_errors += 1
+                required_keys = ['ClientSecurityGroup', 'FQDN', 'Port', 'AdminUserName', 'AdminPasswordSecretArn']
+                if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database'] or 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
+                    invalid_keys = []
+                    for database_key in self.config['slurm']['ParallelClusterConfig']['Database']:
+                        if database_key in ['DatabaseStackName', 'EdaSlurmClusterStackName']:
+                            continue
+                        if database_key in required_keys:
+                            logger.error(f"Cannot specify slurm/ParallelClusterConfig/Database/{database_key} and slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName")
+                            invalid_keys.append(database_key)
+                            config_errors += 1
+                    for database_key in invalid_keys:
+                        del self.config['slurm']['ParallelClusterConfig']['Database'][database_key]
+                if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
+                    cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
+                    stack_outputs = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks'][0]['Outputs']
+                    output_to_key_map = {
+                        'DatabaseHost': 'FQDN',
+                        'DatabasePort': 'Port',
+                        'DatabaseAdminUser': 'AdminUserName',
+                        'DatabaseSecretArn': 'AdminPasswordSecretArn',
+                        'DatabaseClientSecurityGroup': 'ClientSecurityGroup'
+                    }
+                    for output in stack_outputs:
+                        if output['OutputKey'] in output_to_key_map:
+                            database_key = output_to_key_map[output['OutputKey']]
+                            if database_key == 'Port':
+                                value = int(output['OutputValue'])
+                            else:
+                                value = output['OutputValue']
+                            if database_key == 'ClientSecurityGroup':
+                                self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = {f"{self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}-DatabaseClientSG": value}
+                            else:
+                                self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = value
+                    for output, database_key in output_to_key_map.items():
+                        if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
+                            logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'] stack to set slurm/ParallelClusterConfig/Database/{database_key}")
+                elif 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
+                    cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
+                    stack_outputs = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['EdaSlurmClusterStackName'])['Stacks'][0]['Outputs']
+                    output_to_key_map = {
+                        'DatabaseHost': 'FQDN',
+                        'DatabasePort': 'Port',
+                        'DatabaseAdminUser': 'AdminUserName',
+                        'DatabaseAdminPasswordSecretArn': 'AdminPasswordSecretArn',
+                        'SlurmDbdSecurityGroup': 'ClientSecurityGroup'
+                    }
+                    for output in stack_outputs:
+                        if output['OutputKey'] in output_to_key_map:
+                            database_key = output_to_key_map[output['OutputKey']]
+                            if database_key == 'Port':
+                                value = int(output['OutputValue'])
+                            else:
+                                value = output['OutputValue']
+                            if database_key == 'ClientSecurityGroup':
+                                self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = {f"{self.config['slurm']['ParallelClusterConfig']['Database']['EdaSlurmClusterStackName']}-SlurmDbdSG": value}
+                            else:
+                                self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = value
+                    for output, database_key in output_to_key_map.items():
+                        if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
+                            logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Database']['EdaSlurmClusterStackName'] stack to set slurm/ParallelClusterConfig/Database/{database_key}")
+                else:
+                    for database_key in required_keys:
+                        if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
+                            logger.error(f"Must specify slurm/ParallelClusterConfig/Database/{database_key} when slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName not set")
+                            config_errors += 1
+
+            for extra_mount_dict in self.config['slurm']['storage']['ExtraMounts']:
+                mount_dir = extra_mount_dict['dest']
+                if 'StorageType' not in extra_mount_dict:
+                    logger.error(f"ParallelCluster requires StorageType for {mount_dir} in slurm/storage/ExtraMounts")
+                    config_errors += 1
+                    continue
+                storage_type = extra_mount_dict['StorageType']
+                if storage_type == 'Efs':
+                    if 'FileSystemId' not in extra_mount_dict:
+                        logger.error(f"ParallelCluster requires FileSystemId for {mount_dir} in slurm/storage/ExtraMounts")
+                        config_errors += 1
+                elif storage_type == 'FsxLustre':
+                    if 'FileSystemId' not in extra_mount_dict:
+                        logger.error(f"ParallelCluster requires FileSystemId for {mount_dir} in slurm/storage/ExtraMounts")
+                        config_errors += 1
+                elif storage_type == 'FsxOntap':
+                    if 'VolumeId' not in extra_mount_dict:
+                        logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
+                        config_errors += 1
+                elif storage_type == 'FsxOpenZfs':
+                    if 'VolumeId' not in extra_mount_dict:
+                        logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
+                        config_errors += 1
+        else:
+            # Not ParallelCluster
+            if 'storage' not in self.config['slurm']:
+                logger.error(f"Config 'slurm/storage' is required if not using ParallelCluster.")
+                config_errors += 1
+
+        if config_errors:
+            exit(1)
 
         # Validate updated config against schema
         from config_schema import check_schema
@@ -419,7 +667,7 @@ class CdkSlurmStack(Stack):
         )
 
         fh = NamedTemporaryFile()
-        yaml.dump(self.config['slurm']['InstanceConfig'], fh, encoding='utf-8')
+        yaml.dump(self.config['slurm']['InstanceConfig'], fh, encoding='utf-8', sort_keys=False)
         self.instance_config_asset = s3_assets.Asset(self, "InstanceConfigAsset", path=fh.name)
 
         if 'OnPremComputeNodes' in self.config['slurm']['InstanceConfig']:
@@ -439,6 +687,87 @@ class CdkSlurmStack(Stack):
             self.slurm_conf_overrides_file_asset = s3_assets.Asset(self, "SlurmConfOverridesFile", path=self.config['slurm']['SlurmCtl']['SlurmConfOverrides'])
         else:
             self.slurm_conf_overrides_file_asset = None
+
+    def create_parallel_cluster_assets(self):
+        self.parallel_cluster_asset_read_policy = iam.ManagedPolicy(
+            self, "ParallelClusterAssetReadPolicy",
+            managed_policy_name = f"{self.stack_name}-ParallelClusterAssetReadPolicy",
+        )
+
+        self.parallel_cluster_jwt_write_policy = iam.ManagedPolicy(
+            self, "ParallelClusterJwtWritePolicy",
+            managed_policy_name = f"{self.stack_name}-ParallelClusterJwtWritePolicy",
+        )
+        self.jwt_token_for_root_ssm_parameter.grant_write(self.parallel_cluster_jwt_write_policy)
+        self.jwt_token_for_slurmrestd_ssm_parameter.grant_write(self.parallel_cluster_jwt_write_policy)
+
+        self.playbooks_asset = s3_assets.Asset(self, 'Playbooks',
+            path = 'resources/playbooks',
+            follow_symlinks = SymlinkFollowMode.ALWAYS
+        )
+        self.playbooks_asset.grant_read(self.parallel_cluster_asset_read_policy)
+        self.playbooks_s3_url = self.playbooks_asset.s3_object_url
+
+        self.assets_bucket = self.playbooks_asset.s3_bucket_name
+        self.assets_base_key = self.config['slurm']['ClusterName']
+
+        s3_client = boto3.client('s3', region_name=self.config['Region'])
+
+        template_vars = {
+            'assets_bucket': self.assets_bucket,
+            'assets_base_key': self.assets_base_key,
+            'playbooks_s3_url': self.playbooks_s3_url,
+        }
+        files_to_upload = [
+            'config/bin/create_users_groups_json.py',
+            'config/bin/create_users_groups.py',
+            'config/users_groups.json',
+            'config/bin/on_head_node_start.sh',
+            'config/bin/on_head_node_configured.sh',
+            'config/bin/on_head_node_updated.sh',
+            'config/bin/on_compute_node_start.sh',
+            'config/bin/on_compute_node_configured.sh',
+        ]
+        self.custom_action_s3_urls = {}
+        for file_to_upload in files_to_upload:
+            local_template_file = f"resources/parallel-cluster/{file_to_upload}"
+            s3_key = f"{self.assets_base_key}/{file_to_upload}"
+            self.custom_action_s3_urls[file_to_upload] = f"s3://{self.assets_bucket}/{s3_key}"
+            local_template = Template(open(local_template_file, 'r').read())
+            local_file_content = local_template.render(**template_vars)
+            s3_client.put_object(
+                Bucket = self.assets_bucket,
+                Key    = s3_key,
+                Body   = local_file_content
+            )
+
+        ansible_head_node_template_vars = self.get_instance_template_vars('ParallelClusterHeadNode')
+        fh = NamedTemporaryFile('w', delete=False)
+        fh.write('---\n')
+        for name, value in sorted(ansible_head_node_template_vars.items()):
+            fh.write(f"{name:35}: {value}\n")
+        fh.close()
+        local_file = fh.name
+        s3_key = f"{self.assets_base_key}/config/ansible/ansible_head_node_vars.yml"
+        s3_client.upload_file(
+            local_file,
+            self.assets_bucket,
+            s3_key)
+
+        ansible_compute_node_template_vars = self.get_instance_template_vars('ParallelClusterComputeNode')
+        fh = NamedTemporaryFile('w', delete=False)
+        fh.write('---\n')
+        for name, value in sorted(ansible_compute_node_template_vars.items()):
+            fh.write(f"{name:20}: {value}\n")
+        fh.close()
+        local_file = fh.name
+        s3_key = f"{self.assets_base_key}/config/ansible/ansible_compute_node_vars.yml"
+        s3_client.upload_file(
+            local_file,
+            self.assets_bucket,
+            s3_key)
+
+        self.create_munge_ssm_parameter()
 
     def create_vpc(self):
         logger.info(f"VpcId: {self.config['VpcId']}")
@@ -517,11 +846,11 @@ class CdkSlurmStack(Stack):
                 self.compute_region_cidrs_dict[compute_region] = compute_region_cidr
         logger.info(f"{len(self.compute_regions.keys())} regions configured: {sorted(self.compute_regions.keys())}")
 
-        eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), get_savings_plans=False, json_filename='/tmp/instance_type_info.json', debug=False)
+        self.eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions.keys(), get_savings_plans=False, json_filename='/tmp/instance_type_info.json', debug=False)
 
-        plugin = SlurmPlugin(slurm_config_file=None, region=self.region)
-        plugin.instance_type_and_family_info = eC2InstanceTypeInfo.instance_type_and_family_info
-        self.az_info = plugin.get_az_info_from_instance_config(self.config['slurm']['InstanceConfig'])
+        self.plugin = SlurmPlugin(slurm_config_file=None, region=self.region)
+        self.plugin.instance_type_and_family_info = self.eC2InstanceTypeInfo.instance_type_and_family_info
+        self.az_info = self.plugin.get_az_info_from_instance_config(self.config['slurm']['InstanceConfig'])
         logger.info(f"{len(self.az_info.keys())} AZs configured: {sorted(self.az_info.keys())}")
 
         az_partitions = []
@@ -529,16 +858,28 @@ class CdkSlurmStack(Stack):
             az_partitions.append(f"{az}_all")
         self.default_partition = ','.join(az_partitions)
 
-        self.instance_types = plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], self.compute_regions, eC2InstanceTypeInfo)
+        self.region_instance_types = self.plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], self.compute_regions, self.eC2InstanceTypeInfo)
+        self.instance_types = []
         for compute_region in self.compute_regions:
-            region_instance_types = self.instance_types[compute_region]
+            region_instance_types = self.region_instance_types[compute_region]
             if len(region_instance_types) == 0:
                 logger.error(f"No instance types found in region {compute_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{region_instance_types}")
                 sys.exit(1)
             logger.info(f"{len(region_instance_types)} instance types configured in {compute_region}:\n{pp.pformat(region_instance_types)}")
             for instance_type in region_instance_types:
-                self.instance_types[instance_type] = 1
-        self.instance_types = sorted(self.instance_types.keys())
+                self.instance_types.append(instance_type)
+        self.instance_types = sorted(self.instance_types)
+
+        if self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
+            # Filter the instance types by architecture due to PC limitation to x86
+            x86_instance_types = []
+            for instance_type in self.instance_types:
+                architecture = self.plugin.get_architecture(self.config['Region'], instance_type)
+                if architecture != self.config['slurm']['ParallelClusterConfig']['Architecture']:
+                    continue
+                x86_instance_types.append(instance_type)
+            self.instance_types = x86_instance_types
+            logger.info(f"ParallelCluster configured to use {len(self.instance_types)} instance types :\n{pp.pformat(self.instance_types)}")
 
         # Validate updated config against schema
         from config_schema import check_schema
@@ -672,31 +1013,7 @@ class CdkSlurmStack(Stack):
                 )
             )
 
-        callSlurmRestApiLambdaAsset = s3_assets.Asset(self, "CallSlurmRestApiLambdaAsset", path="resources/lambdas/CallSlurmRestApi")
-        self.slurm_rest_api_lambda_sg = ec2.SecurityGroup(self, "SlurmRestLambdaSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmRestApiLambda to SlurmCtl Security Group")
-        self.slurm_rest_api_lambda_sg_name = f"{self.stack_name}-SlurmRestApiLambdaSG"
-        Tags.of(self.slurm_rest_api_lambda_sg).add("Name", self.slurm_rest_api_lambda_sg_name)
-        self.slurm_rest_api_lambda_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
-        self.call_slurm_rest_api_lambda = aws_lambda.Function(
-            self, "CallSlurmRestApiLambda",
-            function_name=f"{self.stack_name}-CallSlurmRestApiLambda",
-            description="Example showing how to call Slurm REST API",
-            memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_8,
-            architecture=aws_lambda.Architecture.ARM_64,
-            timeout=Duration.minutes(1),
-            log_retention=logs.RetentionDays.INFINITE,
-            handler="CallSlurmRestApi.lambda_handler",
-            code=aws_lambda.Code.from_bucket(callSlurmRestApiLambdaAsset.bucket, callSlurmRestApiLambdaAsset.s3_object_key),
-            vpc=self.vpc,
-            vpc_subnets = ec2.SubnetSelection(subnets=[self.subnet]),
-            security_groups = [self.slurm_rest_api_lambda_sg],
-            environment = {
-                'CLUSTER_NAME': f"{self.config['slurm']['ClusterName']}",
-                'SLURM_REST_API_VERSION': '0.0.38',
-                'SLURMRESTD_URL': f"http://slurmctl1.{self.config['Domain']}:{self.config['slurm']['SlurmCtl']['SlurmrestdPort']}"
-                }
-        )
+        self.create_callSlurmRestApiLambda()
 
         deconfigureClusterLambdaAsset = s3_assets.Asset(self, "DeconfigureClusterLambdaAsset", path="resources/lambdas/DeconfigureCluster")
         self.deconfigure_cluster_lambda = aws_lambda.Function(
@@ -725,7 +1042,56 @@ class CdkSlurmStack(Stack):
                 )
             )
 
+    def create_parallel_cluster_lambdas(self):
+        self.create_callSlurmRestApiLambda()
+
+    def create_callSlurmRestApiLambda(self):
+        callSlurmRestApiLambdaAsset = s3_assets.Asset(self, "CallSlurmRestApiLambdaAsset", path="resources/lambdas/CallSlurmRestApi")
+        self.call_slurm_rest_api_lambda = aws_lambda.Function(
+            self, "CallSlurmRestApiLambda",
+            function_name=f"{self.stack_name}-CallSlurmRestApiLambda",
+            description="Example showing how to call Slurm REST API",
+            memory_size=128,
+            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
+            timeout=Duration.minutes(1),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CallSlurmRestApi.lambda_handler",
+            code=aws_lambda.Code.from_bucket(callSlurmRestApiLambdaAsset.bucket, callSlurmRestApiLambdaAsset.s3_object_key),
+            vpc=self.vpc,
+            vpc_subnets = ec2.SubnetSelection(subnets=[self.subnet]),
+            security_groups = [self.slurm_rest_api_lambda_sg],
+            environment = {
+                'CLUSTER_NAME': f"{self.config['slurm']['ClusterName']}",
+                'SLURM_REST_API_VERSION': self.config['slurm']['SlurmCtl']['SlurmRestApiVersion'],
+                'SLURMRESTD_URL': f"http://slurmctl1.{self.config['Domain']}:{self.config['slurm']['SlurmCtl']['SlurmrestdPort']}"
+                }
+        )
+
+        # Create an SSM parameter to store the JWT tokens for root and slurmrestd
+        self.jwt_token_for_root_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/root"
+        self.jwt_token_for_root_ssm_parameter = ssm.StringParameter(
+            self, f"JwtTokenForRootParameter",
+            parameter_name = self.jwt_token_for_root_ssm_parameter_name,
+            string_value = 'None'
+        )
+        self.jwt_token_for_root_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
+
+        self.jwt_token_for_slurmrestd_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/slurmrestd"
+        self.jwt_token_for_slurmrestd_ssm_parameter = ssm.StringParameter(
+            self, f"JwtTokenForSlurmrestdParameter",
+            parameter_name = self.jwt_token_for_slurmrestd_ssm_parameter_name,
+            string_value = 'None'
+        )
+        self.jwt_token_for_slurmrestd_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
+
     def create_security_groups(self):
+        slurmctld_port_min = self.config['slurm']['SlurmCtl']['SlurmctldPortMin']
+        slurmctld_port_max = self.config['slurm']['SlurmCtl']['SlurmctldPortMax']
+        slurmd_port = self.config['slurm']['SlurmCtl']['SlurmdPort']
+        slurmdbd_port = self.config['slurm']['SlurmdbdPort']
+        slurmrestd_port = self.config['slurm']['SlurmCtl']['SlurmrestdPort']
+
         self.nfs_sg = ec2.SecurityGroup(self, "NfsSG", vpc=self.vpc, allow_all_outbound=False, description="Nfs Security Group")
         Tags.of(self.nfs_sg).add("Name", f"{self.stack_name}-NfsSG")
         self.suppress_cfn_nag(self.nfs_sg, 'W29', 'Egress port range used to block all egress')
@@ -735,11 +1101,12 @@ class CdkSlurmStack(Stack):
         Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
         self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
 
-	    # Compute nodes may use lustre file systems so create a security group with the required ports.
+        # Compute nodes may use lustre file systems so create a security group with the required ports.
         self.lustre_sg = ec2.SecurityGroup(self, "LustreSG", vpc=self.vpc, allow_all_outbound=False, description="Lustre Security Group")
         Tags.of(self.lustre_sg).add("Name", f"{self.stack_name}-LustreSG")
         self.suppress_cfn_nag(self.lustre_sg, 'W29', 'Egress port range used to block all egress')
 
+        # These are the security groups that have client access to mount the extra file systems
         self.extra_mount_security_groups = {}
         for fs_type in self.config['slurm']['storage']['ExtraMountSecurityGroups'].keys():
             self.extra_mount_security_groups[fs_type] = {}
@@ -752,9 +1119,13 @@ class CdkSlurmStack(Stack):
                     allow_all_ipv6_outbound = allow_all_ipv6_outbound
                 )
 
-        self.database_sg = ec2.SecurityGroup(self, "DatabaseSG", vpc=self.vpc, allow_all_outbound=False, description="Database Security Group")
-        Tags.of(self.database_sg).add("Name", f"{self.stack_name}-DatabaseSG")
-        self.suppress_cfn_nag(self.database_sg, 'W29', 'Egress port range used to block all egress')
+        if 'SlurmDbd' in self.config['slurm']:
+            self.database_sg = ec2.SecurityGroup(self, "DatabaseSG", vpc=self.vpc, allow_all_outbound=False, description="Database Security Group")
+            self.database_sg_name = f"{self.stack_name}-DatabaseSG"
+            Tags.of(self.database_sg).add("Name", self.database_sg_name)
+            self.suppress_cfn_nag(self.database_sg, 'W29', 'Egress port range used to block all egress')
+        else:
+            self.database_sg = None
 
         self.slurmctl_sg = ec2.SecurityGroup(self, "SlurmCtlSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmCtl Security Group")
         self.slurmctl_sg_name = f"{self.stack_name}-SlurmCtlSG"
@@ -796,9 +1167,9 @@ class CdkSlurmStack(Stack):
                     allow_all_ipv6_outbound = allow_all_ipv6_outbound
                 )
                 self.federated_slurmctl_sgs[federated_slurmctl_sg_name] = federated_slurmctl_sg
-                federated_slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{federated_slurmctl_sg_name} to {self.slurmnode_sg_name}")
+                federated_slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(slurmd_port), f"{federated_slurmctl_sg_name} to {self.slurmnode_sg_name}")
                 if self.onprem_cidr:
-                    federated_slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f"{federated_slurmctl_sg_name} to OnPremNodes")
+                    federated_slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(slurmd_port), f"{federated_slurmctl_sg_name} to OnPremNodes")
 
         self.federated_slurmnode_sgs = {}
         if 'Federation' in self.config['slurm']:
@@ -827,7 +1198,15 @@ class CdkSlurmStack(Stack):
                 allow_all_ipv6_outbound = allow_all_ipv6_outbound
             )
 
+        self.slurm_rest_api_lambda_sg = ec2.SecurityGroup(self, "SlurmRestLambdaSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmRestApiLambda to SlurmCtl Security Group")
+        self.slurm_rest_api_lambda_sg_name = f"{self.stack_name}-SlurmRestApiLambdaSG"
+        Tags.of(self.slurm_rest_api_lambda_sg).add("Name", self.slurm_rest_api_lambda_sg_name)
+        self.slurm_rest_api_lambda_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description=f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - TLS")
+
         # Security Group Rules
+
+        if self.database_sg:
+            self.database_sg.connections.allow_from(self.slurmdbd_sg, ec2.Port.tcp(self.config['slurm']['SlurmDbd']['database']['port']), description=f"{{self.slurmdbd_sg_name}} - Database")
 
         # NFS Connections
         fs_client_sgs = {
@@ -944,13 +1323,13 @@ class CdkSlurmStack(Stack):
 
         # slurmctl connections
         # egress
-        self.slurmctl_sg.connections.allow_from(self.slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmctl_sg_name} to {self.slurmctl_sg_name}")
-        self.slurmctl_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmctl_sg_name} to {self.slurmctl_sg_name}")
-        self.slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmctl_sg_name} to {self.slurmnode_sg_name}")
+        self.slurmctl_sg.connections.allow_from(self.slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{self.slurmctl_sg_name} to {self.slurmctl_sg_name}")
+        self.slurmctl_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{self.slurmctl_sg_name} to {self.slurmctl_sg_name}")
+        self.slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(slurmd_port), f"{self.slurmctl_sg_name} to {self.slurmnode_sg_name}")
         if self.slurmdbd_sg:
-            self.slurmctl_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(6819), f"{self.slurmctl_sg_name} to {self.slurmdbd_sg_name} - Write job information")
+            self.slurmctl_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(slurmdbd_port), f"{self.slurmctl_sg_name} to {self.slurmdbd_sg_name} - Write job information")
         if 'ExistingSlurmDbd' in self.config['slurm']:
-            self.slurmdbd_sg.connections.allow_from(self.slurmctl_sg, ec2.Port.tcp(6819), f"{self.slurmctl_sg_name} to {self.slurmdbd_sg_name} - Write job information")
+            self.slurmdbd_sg.connections.allow_from(self.slurmctl_sg, ec2.Port.tcp(slurmdbd_port), f"{self.slurmctl_sg_name} to {self.slurmdbd_sg_name} - Write job information")
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
             self.slurmctl_sg.connections.allow_to(slurm_submitter_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmctl_sg_name} to {slurm_submitter_sg_name} - srun")
             self.suppress_cfn_nag(slurm_submitter_sg, 'W27', 'Port range ok. slurmctl requires requires ephemeral ports to submitter for srun: 1024-65535')
@@ -959,20 +1338,20 @@ class CdkSlurmStack(Stack):
         self.slurmctl_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
         self.suppress_cfn_nag(self.slurmctl_sg, 'W5', 'Egress to internet required to install packages and slurm software')
         for federated_slurmctl_sg_name, federated_slurmctl_sg in self.federated_slurmctl_sgs.items():
-            self.slurmctl_sg.connections.allow_from(federated_slurmctl_sg, ec2.Port.tcp(6817), f"{federated_slurmctl_sg_name} to {self.slurmctl_sg_name}")
-            self.slurmctl_sg.connections.allow_to(federated_slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmctl_sg_name} to {federated_slurmctl_sg_name}")
+            self.slurmctl_sg.connections.allow_from(federated_slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{federated_slurmctl_sg_name} to {self.slurmctl_sg_name}")
+            self.slurmctl_sg.connections.allow_to(federated_slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{self.slurmctl_sg_name} to {federated_slurmctl_sg_name}")
         for federated_slurmnode_sg_name, federated_slurmnode_sg in self.federated_slurmnode_sgs.items():
-            self.slurmctl_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmctl_sg_name} to {federated_slurmnode_sg_name}")
+            self.slurmctl_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(slurmd_port), f"{self.slurmctl_sg_name} to {federated_slurmnode_sg_name}")
         if self.onprem_cidr:
-            self.slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f'{self.slurmctl_sg_name} to OnPremNodes')
-            self.slurmctl_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6817), f'OnPremNodes to {self.slurmctl_sg_name}')
+            self.slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(slurmd_port), f'{self.slurmctl_sg_name} to OnPremNodes')
+            self.slurmctl_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f'OnPremNodes to {self.slurmctl_sg_name}')
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.slurmctl_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{self.slurmctl_sg_name} to {compute_region}")
-        self.slurmctl_sg.connections.allow_from(self.slurm_rest_api_lambda_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
+            self.slurmctl_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(slurmd_port), f"{self.slurmctl_sg_name} to {compute_region}")
+        self.slurmctl_sg.connections.allow_from(self.slurm_rest_api_lambda_sg, ec2.Port.tcp(slurmrestd_port), f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
         # slurmdbd connections
         # egress
         if self.slurmdbd_sg:
-            self.slurmdbd_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmdbd_sg_name} to {self.slurmctl_sg_name}")
+            self.slurmdbd_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{self.slurmdbd_sg_name} to {self.slurmctl_sg_name}")
             # @todo Does slurmdbd really need ephemeral access to slurmctl?
             # self.slurmdbd_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmdbd_sg_name} to {self.slurmctl_sg_name} - Ephemeral")
             if 'ExistingSlurmDbd' not in self.config['slurm']:
@@ -982,9 +1361,9 @@ class CdkSlurmStack(Stack):
 
         # slurmnode connections
         # egress
-        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name}")
-        self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name}")
-        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
+        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name}")
+        self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(slurmd_port), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name}")
+        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(slurmrestd_port), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
         self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name} - ephemeral")
         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to other slurmnodes: 1024-65535')
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
@@ -1005,34 +1384,34 @@ class CdkSlurmStack(Stack):
         self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
         self.suppress_cfn_nag(self.slurmnode_sg, 'W5', 'Egress to internet required to install packages and slurm software')
         for federated_slurmnode_sg_name, federated_slurmnode_sg in self.federated_slurmnode_sgs.items():
-            federated_slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{federated_slurmnode_sg_name} to {self.slurmctl_sg_name}")
-            self.slurmnode_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(6818), f"{self.slurmnode_sg_name} to {federated_slurmnode_sg_name}")
+            federated_slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{federated_slurmnode_sg_name} to {self.slurmctl_sg_name}")
+            self.slurmnode_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(slurmd_port), f"{self.slurmnode_sg_name} to {federated_slurmnode_sg_name}")
             self.slurmnode_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {federated_slurmnode_sg_name} - ephemeral")
             if self.onprem_cidr:
-                federated_slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6818), f"OnPremNodes to {federated_slurmnode_sg_name}")
+                federated_slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(slurmd_port), f"OnPremNodes to {federated_slurmnode_sg_name}")
                 self.federated_slurmnode_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {federated_slurmnode_sg_name} - ephemeral")
         if self.onprem_cidr:
-            self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(6818), f"OnPremNodes to {self.slurmnode_sg_name}")
+            self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(slurmd_port), f"OnPremNodes to {self.slurmnode_sg_name}")
             self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {self.slurmnode_sg_name}")
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.slurmctl_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6817), f"{compute_region} to {self.slurmctl_sg_name}")
-            self.slurmnode_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{compute_region} to {self.slurmnode_sg_name}")
-            self.slurmnode_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{self.slurmnode_sg_name} to {compute_region}")
+            self.slurmctl_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{compute_region} to {self.slurmctl_sg_name}")
+            self.slurmnode_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(slurmd_port), f"{compute_region} to {self.slurmnode_sg_name}")
+            self.slurmnode_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(slurmd_port), f"{self.slurmnode_sg_name} to {compute_region}")
             self.slurmnode_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{compute_region} to {self.slurmnode_sg_name}")
             self.slurmnode_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {compute_region}")
 
         # slurm submitter connections
         # egress
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
-            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(6817), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name}")
-            slurm_submitter_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to {self.slurmnode_sg_name} - srun")
+            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(slurmctld_port_min, slurmctld_port_max), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name}")
+            slurm_submitter_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(slurmd_port), f"{slurm_submitter_sg_name} to {self.slurmnode_sg_name} - srun")
             if self.slurmdbd_sg:
-                slurm_submitter_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(6819), f"{slurm_submitter_sg_name} to {self.slurmdbd_sg_name} - sacct")
-            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.config['slurm']['SlurmCtl']['SlurmrestdPort']), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
+                slurm_submitter_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(slurmdbd_port), f"{slurm_submitter_sg_name} to {self.slurmdbd_sg_name} - sacct")
+            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(slurmrestd_port), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
             if self.onprem_cidr:
-                slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
+                slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(slurmd_port), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
             for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-                slurm_submitter_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(6818), f"{slurm_submitter_sg_name} to {compute_region} - srun")
+                slurm_submitter_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(slurmd_port), f"{slurm_submitter_sg_name} to {compute_region} - srun")
 
         # Try to suppress cfn_nag warnings on ingress/egress rules
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
@@ -1565,6 +1944,8 @@ class CdkSlurmStack(Stack):
             logger.error(f"RDS Serverless cluster requires at least 2 subnets.")
             exit(1)
 
+        self.db_cluster_username = 'slurm'
+
         # See https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless.how-it-works.html#aurora-serverless.architecture
         self.db_cluster = rds.ServerlessCluster(
             self, "SlurmDBCluster",
@@ -1572,7 +1953,7 @@ class CdkSlurmStack(Stack):
             vpc = self.vpc,
             vpc_subnets  = ec2.SubnetSelection(subnets=rds_subnets),
             backup_retention = Duration.days(35),
-            credentials = rds.Credentials.from_generated_secret(username="slurm"),
+            credentials = rds.Credentials.from_generated_secret(username=self.db_cluster_username),
             default_database_name = "slurm_acct_db",
             deletion_protection = True,
             scaling = rds.ServerlessScalingOptions(auto_pause=Duration.days(1)),
@@ -1584,11 +1965,33 @@ class CdkSlurmStack(Stack):
                 )
             )
 
-        self.database_sg.connections.allow_from(self.slurmdbd_sg, ec2.Port.tcp(self.config['slurm']['SlurmDbd']['database']['port']), description=f"{{self.slurmdbd_sg_name}} - Database")
+        self.db_cluster_password_secret = secretsmanager.Secret(
+            self, "ClusterPasswordSecret",
+            secret_string_value = self.db_cluster.secret.secret_value_from_json("password")
+        )
 
         self.database_read_endpoint = self.db_cluster.cluster_read_endpoint.hostname
 
         self.database_secret = self.db_cluster.secret
+
+        CfnOutput(self, "DatabaseAdminUser",
+            value = self.db_cluster_username
+        )
+        CfnOutput(self, "DatabaseAdminPasswordSecretArn",
+            value = self.db_cluster_password_secret.secret_full_arn
+        )
+        CfnOutput(self, "DatabasePort",
+            value = str(self.db_cluster.cluster_endpoint.port)
+        )
+        CfnOutput(self, "DatabaseHost",
+            value = self.db_cluster.cluster_endpoint.hostname
+        )
+        CfnOutput(self, "DatabaseUri",
+            value = self.db_cluster.cluster_endpoint.socket_address
+        )
+        CfnOutput(self, "SlurmDbdSecurityGroup",
+            value = self.slurmdbd_sg.security_group_id
+        )
 
     def create_cw(self):
         if self.config['ErrorSnsTopicArn']:
@@ -2003,32 +2406,64 @@ class CdkSlurmStack(Stack):
 
     def get_instance_template_vars(self, instance_role):
 
-        # instance_template_vars is used to create create environment variables,
+        # instance_template_vars is used to create environment variables,
         # extra ansible variables, and to use jinja2 to template user data scripts.
         # The keys are the environment and ansible variable names.
-        instance_template_vars = {
-            "AWS_ACCOUNT_ID": Aws.ACCOUNT_ID,
-            "AWS_PARTITION": Aws.PARTITION,
-            "AWS_DEFAULT_REGION": Aws.REGION,
-            "ClusterName": self.config['slurm']['ClusterName'],
-            "Domain": self.config['Domain'],
-            "ERROR_SNS_TOPIC_ARN": self.config['ErrorSnsTopicArn'],
-            "ExtraMounts": self.config['slurm']['storage']['ExtraMounts'],
-            "FileSystemDns": self.file_system_dns,
-            "FileSystemMountPath": self.config['slurm']['storage']['mount_path'],
-            "FileSystemMountSrc": self.file_system_mount_source,
-            "FileSystemOptions": self.file_system_options,
-            "FileSystemPort": self.file_system_port,
-            "FileSystemType": self.file_system_type,
-            "MountCommand": self.file_system_mount_command,
-            "PLAYBOOKS_S3_URL": self.playbooks_asset.s3_object_url,
-            "Region": Aws.REGION,
-            "SlurmUid": self.config['slurm']['SlurmUid'],
-            "SlurmVersion": self.config['slurm']['SlurmVersion'],
-            "STACK_NAME": self.stack_name,
-            "TimeZone": self.config['TimeZone'],
-            "VPC_ID": self.config['VpcId'],
-        }
+        if instance_role.startswith('ParallelCluster'):
+            instance_template_vars = {
+                "AWS_DEFAULT_REGION": self.config['Region'],
+                "ClusterName": self.config['slurm']['ClusterName'],
+                "Region": self.config['Region'],
+                "TimeZone": self.config['TimeZone'],
+            }
+            instance_template_vars['FileSystemMountPath'] = '/opt/slurm'
+            instance_template_vars['SlurmBaseDir'] = '/opt/slurm'
+            instance_template_vars['SlurmOSDir'] = '/opt/slurm'
+            instance_template_vars['SlurmVersion'] =  self.config['slurm']['SlurmVersion']
+            if instance_role == 'ParallelClusterHeadNode':
+                if 'Database' in self.config['slurm']['ParallelClusterConfig']:
+                    instance_template_vars['AccountingStorageHost'] = 'pcvluster-head-node'
+                else:
+                    instance_template_vars['AccountingStorageHost'] = ''
+                instance_template_vars['Licenses'] = self.config['Licenses']
+                instance_template_vars['ParallelClusterPythonVersion'] = self.config['slurm']['ParallelClusterConfig']['PythonVersion']
+                instance_template_vars['PrimaryController'] = True
+                instance_template_vars['SlurmctldPort'] = self.config['slurm']['SlurmCtl']['SlurmctldPort']
+                instance_template_vars['SlurmctldPortMin'] = self.config['slurm']['SlurmCtl']['SlurmctldPortMin']
+                instance_template_vars['SlurmctldPortMax'] = self.config['slurm']['SlurmCtl']['SlurmctldPortMax']
+                instance_template_vars['SlurmrestdJwtForRootParameter'] = self.jwt_token_for_root_ssm_parameter_name
+                instance_template_vars['SlurmrestdJwtForSlurmrestdParameter'] = self.jwt_token_for_slurmrestd_ssm_parameter_name
+                instance_template_vars['SlurmrestdPort'] = self.config['slurm']['SlurmCtl']['SlurmrestdPort']
+                instance_template_vars['SlurmrestdSocketDir'] = '/opt/slurm/com'
+                instance_template_vars['SlurmrestdSocket'] = f"{instance_template_vars['SlurmrestdSocketDir']}/slurmrestd.socket"
+                instance_template_vars['SlurmrestdUid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
+            # Not used by ParallelCluster but must be set
+            instance_template_vars['SlurmUid'] = 'None'
+        else:
+            instance_template_vars = {
+                "AWS_ACCOUNT_ID": Aws.ACCOUNT_ID,
+                "AWS_PARTITION": Aws.PARTITION,
+                "AWS_DEFAULT_REGION": Aws.REGION,
+                "ClusterName": self.config['slurm']['ClusterName'],
+                "Domain": self.config['Domain'],
+                "ERROR_SNS_TOPIC_ARN": self.config['ErrorSnsTopicArn'],
+                "ExtraMounts": self.config['slurm']['storage']['ExtraMounts'],
+                "FileSystemDns": self.file_system_dns,
+                "FileSystemMountPath": self.config['slurm']['storage']['mount_path'],
+                "FileSystemMountSrc": self.file_system_mount_source,
+                "FileSystemOptions": self.file_system_options,
+                "FileSystemPort": self.file_system_port,
+                "FileSystemType": self.file_system_type,
+                "MountCommand": self.file_system_mount_command,
+                "PLAYBOOKS_S3_URL": self.playbooks_asset.s3_object_url,
+                "Region": Aws.REGION,
+                "SlurmUid": self.config['slurm']['SlurmUid'],
+                "SlurmVersion": self.config['slurm']['SlurmVersion'],
+                "STACK_NAME": self.stack_name,
+                "TimeZone": self.config['TimeZone'],
+                "VPC_ID": self.config['VpcId'],
+            }
+
         if instance_role == 'SlurmDbd':
             instance_template_vars['SlurmDBWriteEndpoint'] = self.db_cluster.cluster_endpoint.hostname
             instance_template_vars['SlurmDBSecretName'] = self.database_secret.secret_name
@@ -2051,22 +2486,29 @@ class CdkSlurmStack(Stack):
             instance_template_vars["PreemptMode"] = self.config['slurm']['SlurmCtl']['PreemptMode']
             instance_template_vars["PreemptType"] = self.config['slurm']['SlurmCtl']['PreemptType']
             instance_template_vars["SlurmCtlBaseHostname"] = self.config['slurm']['SlurmCtl']['BaseHostname']
+            instance_template_vars['SlurmctldPort'] = self.config['slurm']['SlurmCtl']['SlurmctldPort']
+            instance_template_vars['SlurmctldPortMin'] = self.config['slurm']['SlurmCtl']['SlurmctldPortMin']
+            instance_template_vars['SlurmctldPortMax'] = self.config['slurm']['SlurmCtl']['SlurmctldPortMax']
+            instance_template_vars['SlurmdPort'] = self.config['slurm']['SlurmCtl']['SlurmdPort']
+            instance_template_vars['SlurmdbdPort'] = self.config['slurm']['SlurmdbdPort']
             instance_template_vars['SlurmNodeProfileArn'] = self.slurm_node_instance_profile.attr_arn
             instance_template_vars['SlurmNodeRoleName'] = self.slurm_node_role.role_name
-            instance_template_vars['SlurmrestdJwtForRootParameter'] = self.jwt_token_for_root_ssm_parameter.parameter_name
-            instance_template_vars['SlurmrestdJwtForSlurmrestdParameter'] = self.jwt_token_for_slurmrestd_ssm_parameter.parameter_name
+            instance_template_vars['SlurmrestdJwtForRootParameter'] = self.jwt_token_for_root_ssm_parameter_name
+            instance_template_vars['SlurmrestdJwtForSlurmrestdParameter'] = self.jwt_token_for_slurmrestd_ssm_parameter_name
             instance_template_vars['SlurmrestdPort'] = self.config['slurm']['SlurmCtl']['SlurmrestdPort']
             instance_template_vars['SlurmrestdUid']  = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
             instance_template_vars["SuspendAction"]  = self.config['slurm']['SlurmCtl']['SuspendAction']
             instance_template_vars["UseAccountingDatabase"] = self.useSlurmDbd
         elif 'SlurmNodeAmi':
             instance_template_vars['SlurmrestdPort'] = self.config['slurm']['SlurmCtl']['SlurmrestdPort']
+        elif 'ParallelCluster':
+            pass
         else:
             raise ValueError(f"Invalid instance role {instance_role}")
 
         return instance_template_vars
 
-    def create_slurmctl(self):
+    def create_munge_ssm_parameter(self):
         ssm_client = boto3.client('ssm', region_name=self.config['Region'])
         response = ssm_client.describe_parameters(
             ParameterFilters = [
@@ -2087,13 +2529,14 @@ class CdkSlurmStack(Stack):
             logger.info(f"{self.config['slurm']['MungeKeySsmParameter']} SSM parameter doesn't exist. Creating it so can give IAM permissions to it.")
             output = check_output(['dd if=/dev/random bs=1 count=1024 | base64 -w 0'], shell=True, stderr=subprocess.DEVNULL, encoding='utf8', errors='ignore')
             munge_key = output.split('\n')[0]
-            # print(f"output\n{output}")
-            # print(f"munge_key:\n{munge_key}")
             self.munge_key_ssm_parameter = ssm.StringParameter(
                 self, f"MungeKeySsmParamter",
                 parameter_name  = f"{self.config['slurm']['MungeKeySsmParameter']}",
                 string_value = f"{munge_key}"
             )
+
+    def create_slurmctl(self):
+        self.create_munge_ssm_parameter()
 
         # Create SSM parameters to store the EC2 Keypairs
         self.slurmnode_ec2_key_pair_ssm_parameters = {}
@@ -2103,20 +2546,6 @@ class CdkSlurmStack(Stack):
                 parameter_name = f"/{self.stack_name}/SlurmNodeEc2KeyPairs/{compute_region}",
                 string_value = region_dict['SshKeyPair']
             )
-
-        # Create an SSM parameter to store the JWT tokens for root and slurmrestd
-        self.jwt_token_for_root_ssm_parameter = ssm.StringParameter(
-            self, f"JwtTokenForRootParameter",
-            parameter_name = f"/{self.stack_name}/slurmrestd/jwt/root",
-            string_value = 'None'
-        )
-        self.jwt_token_for_root_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
-        self.jwt_token_for_slurmrestd_ssm_parameter = ssm.StringParameter(
-            self, f"JwtTokenForSlurmrestdParameter",
-            parameter_name = f"/{self.stack_name}/slurmrestd/jwt/slurmrestd",
-            string_value = 'None'
-        )
-        self.jwt_token_for_slurmrestd_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
 
         self.slurmctl_role = iam.Role(self, "SlurmCtlRole",
             assumed_by=iam.CompositePrincipal(
@@ -3084,3 +3513,668 @@ class CdkSlurmStack(Stack):
         # Apply this to all children to make sure to get separate ingress and egress rules
         for child in resource.node.children:
             self.suppress_cfn_nag(child, msg_id, reason)
+
+    def create_parallel_cluster_config(self):
+        MAX_NUMBER_OF_QUEUES = 50
+        MAX_NUMBER_OF_COMPUTE_RESOURCES = 50
+        if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0b1'):
+            # ParallelCluster has a restriction where a queue can have only 1 instance type with memory based scheduling
+            # So, for now creating a queue for each instance type and purchase option
+            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE = False
+            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE = False
+        else:
+            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE = True
+            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE = True
+
+        self.parallel_cluster_config = {
+            'HeadNode': {
+                'Dcv': {
+                    'Enabled': self.config['slurm']['ParallelClusterConfig']['Dcv']['Enable'],
+                    'Port': self.config['slurm']['ParallelClusterConfig']['Dcv']['Port'],
+                    'AllowedIps': self.config['slurm']['ParallelClusterConfig']['Dcv']['AllowedIps'],
+                },
+                'Iam': {
+                    'AdditionalIamPolicies': [
+                        {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
+                        {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
+                        {'Policy': self.parallel_cluster_jwt_write_policy.managed_policy_arn},
+                    ],
+                },
+                'Imds': {
+                    'Secured': True
+                },
+                'InstanceType': self.config['slurm']['SlurmCtl']['instance_type'],
+                'Ssh': {
+                    'KeyName':self.config['SshKeyPair']
+                },
+                'Networking': {
+                    'SubnetId': self.config['SubnetId'],
+                    'AdditionalSecurityGroups': [
+                        self.slurmctl_sg.security_group_id
+                    ]
+                },
+                'CustomActions': {
+                    'OnNodeStart': {
+                        'Sequence': [
+                            {
+                                'Script': self.custom_action_s3_urls['config/bin/on_head_node_start.sh'],
+                                'Args': []
+                            }
+                        ]
+                    },
+                    'OnNodeConfigured': {
+                        'Sequence': [
+                            {
+                                'Script': self.custom_action_s3_urls['config/bin/on_head_node_configured.sh'],
+                                'Args': []
+                            }
+                        ]
+                    },
+                    'OnNodeUpdated': {
+                        'Sequence': [
+                            {
+                                'Script': self.custom_action_s3_urls['config/bin/on_head_node_updated.sh'],
+                                'Args': []
+                            }
+                        ]
+                    }
+                },
+            },
+            'Image': {
+                'Os': self.config['slurm']['ParallelClusterConfig']['Image']['Os']
+            },
+            'Imds': {
+                'ImdsSupport': 'v2.0'
+            },
+            'Region': self.config['Region'],
+            'Scheduling': {
+                'Scheduler': 'slurm',
+                'SlurmQueues': [],
+                'SlurmSettings': {
+                    'EnableMemoryBasedScheduling': True,
+                    'CustomSlurmSettings': [
+                        {'AuthAltTypes': 'auth/jwt'},
+                        {'AuthAltParameters': 'jwt_key=/opt/slurm/var/spool/jwt_hs256.key'},
+                        {'FederationParameters': 'fed_display'},
+                        # JobRequeue must be set to 1 to enable preemption to requeue jobs.
+                        {'JobRequeue': 1},
+                        # {'LaunchParameters': 'enable_nss_slurm'},
+                        {'PreemptExemptTime': self.config['slurm']['SlurmCtl']['PreemptExemptTime']},
+                        {'PreemptMode': self.config['slurm']['SlurmCtl']['PreemptMode']},
+                        {'PreemptParameters': ','.join([
+                            'reclaim_licenses',
+                            'send_user_signal',
+                            'strict_order',
+                            'youngest_first',
+                        ])},
+                        {'PreemptType': self.config['slurm']['SlurmCtl']['PreemptType']},
+                        {'PrologFlags': 'X11'},
+                        {'SchedulerParameters': ','.join([
+                            'batch_sched_delay=10',
+                            'bf_continue',
+                            'bf_interval=30',
+                            'bf_licenses',
+                            'bf_max_job_test=500',
+                            'bf_max_job_user=0',
+                            'bf_yield_interval=1000000',
+                            'default_queue_depth=10000',
+                            'max_rpc_cnt=100',
+                            'nohold_on_prolog_fail',
+                            'sched_min_internal=2000000',
+                        ])},
+                        {'ScronParameters': 'enable'},
+                    ],
+                },
+            },
+            'Tags': [
+                {
+                    'Key': 'parallelcluster-ui',
+                    'Value': 'true'
+                }
+            ]
+        }
+
+        if 'volume_size' in self.config['slurm']['SlurmCtl']:
+            self.parallel_cluster_config['HeadNode']['LocalStorage'] = {
+                'RootVolume': {
+                    'Size': self.config['slurm']['SlurmCtl']['volume_size']
+                }
+            }
+
+        if 'Database' in self.config['slurm']['ParallelClusterConfig']:
+            for security_group_name, security_group_id in self.config['slurm']['ParallelClusterConfig']['Database']['ClientSecurityGroup'].items():
+                self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(security_group_id)
+
+        if 'LoginNodes' in self.config['slurm']['ParallelClusterConfig']:
+            self.parallel_cluster_config['LoginNodes'] = self.config['slurm']['ParallelClusterConfig']['LoginNodes']
+            for login_node_pool in self.parallel_cluster_config['LoginNodes']['Pools']:
+                if 'Networking' not in login_node_pool:
+                    login_node_pool['Networking'] = {'SubnetIds': [self.config['SubnetId']]}
+
+        # Give the head node access to extra mounts
+        for fs_type in self.extra_mount_security_groups.keys():
+            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
+                self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(
+                    extra_mount_sg.security_group_id
+                )
+
+        # Create list of instance types by number of cores and amount of memory
+        instance_types_by_core_memory = {}
+        # Create list of instance types by amount of memory and number of cores
+        instance_types_by_memory_core = {}
+        logger.info(f"Bucketing {len(self.instance_types)} instance types based on core and memory")
+        for instance_type in self.instance_types:
+            cores = self.plugin.get_CoreCount(self.config['Region'], instance_type)
+            mem_gb = int(self.plugin.get_MemoryInMiB(self.config['Region'], instance_type) / 1024)
+            if cores not in instance_types_by_core_memory:
+                instance_types_by_core_memory[cores] = {}
+            if mem_gb not in instance_types_by_core_memory[cores]:
+                instance_types_by_core_memory[cores][mem_gb] = []
+            instance_types_by_core_memory[cores][mem_gb].append(instance_type)
+
+            if mem_gb not in instance_types_by_memory_core:
+                instance_types_by_memory_core[mem_gb] = {}
+            if cores not in instance_types_by_memory_core[mem_gb]:
+                instance_types_by_memory_core[mem_gb][cores] = []
+            instance_types_by_memory_core[mem_gb][cores].append(instance_type)
+        logger.info("Instance type by core and memory:")
+        logger.info(f"    {len(instance_types_by_core_memory)} unique core counts:")
+        for cores in sorted(instance_types_by_core_memory):
+            logger.info(f"        {cores} core(s)")
+            for mem_gb in instance_types_by_core_memory[cores]:
+                logger.info(f"            {len(instance_types_by_core_memory[cores][mem_gb])} instance type with {mem_gb} GB")
+        logger.info("Instance type by memory and core:")
+        logger.info(f"    {len(instance_types_by_memory_core)} unique memory size:")
+        for mem_gb in sorted(instance_types_by_memory_core):
+            logger.info(f"        {mem_gb} GB")
+            for cores in sorted(instance_types_by_memory_core[mem_gb]):
+                logger.info(f"            {len(instance_types_by_memory_core[mem_gb][cores])} instance type with {cores} core(s)")
+
+        purchase_options = ['ONDEMAND']
+        if self.config['slurm']['InstanceConfig']['UseSpot']:
+            purchase_options.append('SPOT')
+
+        nodesets = {}
+        number_of_queues = 0
+        number_of_compute_resources = 0
+        if PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE and PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE:
+            # Creating a queue for each memory size
+            # In each queue, create a CR for each permutation of memmory and core count
+            for purchase_option in purchase_options:
+                nodesets[purchase_option] = []
+                for mem_gb in sorted(instance_types_by_memory_core.keys()):
+                    if purchase_option == 'ONDEMAND':
+                        queue_name_prefix = "od"
+                        allocation_strategy = 'lowest-price'
+                    else:
+                        queue_name_prefix = "sp"
+                        allocation_strategy = 'capacity-optimized'
+                    queue_name = f"{queue_name_prefix}-{mem_gb}-gb"
+                    if number_of_queues >= MAX_NUMBER_OF_QUEUES:
+                        logger.warning(f"Skipping {queue_name} queue because MAX_NUMBER_OF_QUEUES=={MAX_NUMBER_OF_QUEUES}")
+                        continue
+                    if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
+                        logger.warning(f"Skipping {queue_name} queue because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES}")
+                        continue
+                    nodeset = f"{queue_name}_nodes"
+                    nodesets[purchase_option].append(nodeset)
+                    parallel_cluster_queue = {
+                        'Name': queue_name,
+                        'AllocationStrategy': allocation_strategy,
+                        'CapacityType': purchase_option,
+                        'ComputeResources': [],
+                        'ComputeSettings': {
+                            'LocalStorage': {
+                                'RootVolume': {
+                                    'VolumeType': 'gp3'
+                                }
+                            }
+                        },
+                        'CustomActions': {
+                            'OnNodeStart': {
+                                'Sequence': [
+                                    {
+                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_start.sh'],
+                                        'Args': []
+                                    }
+                                ]
+                            },
+                            'OnNodeConfigured': {
+                                'Sequence': [
+                                    {
+                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_configured.sh'],
+                                        'Args': []
+                                    }
+                                ]
+                            },
+                        },
+                        'Iam': {
+                            'AdditionalIamPolicies': [
+                                {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
+                                {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
+                            ]
+                        },
+                        'Networking': {
+                            'SubnetIds': [self.config['SubnetId']],
+                            'AdditionalSecurityGroups': [self.slurmnode_sg.security_group_id],
+                            'PlacementGroup': {}
+                        },
+                    }
+                    if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
+                        parallel_cluster_queue['Image'] = {
+                            'CustomAmi': self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
+                        }
+                    number_of_queues += 1
+
+                    # Give the compute node access to extra mounts
+                    for fs_type in self.extra_mount_security_groups.keys():
+                        for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
+                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
+
+                    for num_cores in sorted(instance_types_by_memory_core[mem_gb].keys()):
+                        compute_resource_name = f"{queue_name_prefix}-{mem_gb}gb-{num_cores}-cores"
+                        if len(parallel_cluster_queue['ComputeResources']):
+                            logger.warning(f"Skipping {compute_resource_name} compute resource to reduce the number of compute resources to 1 per queue")
+                            continue
+                        if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
+                            logger.warning(f"Skipping {compute_resource_name} compute resource because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES}")
+                            continue
+                        instance_types = sorted(instance_types_by_memory_core[mem_gb][num_cores])
+                        if compute_resource_name in self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts']:
+                            min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MinCount']
+                            max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MaxCount']
+                        else:
+                            min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMinCount']
+                            max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMaxCount']
+                        compute_resource = {
+                            'Name': compute_resource_name,
+                            'MinCount': min_count,
+                            'MaxCount': max_count,
+                            'DisableSimultaneousMultithreading': self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading'],
+                            'Instances': [],
+                            'Efa': {'Enabled': False},
+                        }
+                        efa_supported = self.config['slurm']['ParallelClusterConfig']['EnableEfa']
+                        min_price = sys.maxsize
+                        max_price = 0
+                        total_price = 0
+                        for instance_type in sorted(instance_types):
+                            efa_supported = efa_supported and self.plugin.get_EfaSupported(self.config['Region'], instance_type)
+                            if purchase_option == 'ONDEMAND':
+                                price = self.plugin.instance_type_and_family_info[self.config['Region']]['instance_types'][instance_type]['pricing']['OnDemand']
+                            else:
+                                price = self.plugin.instance_type_and_family_info[self.config['Region']]['instance_types'][instance_type]['pricing']['spot']['max']
+                            min_price = min(min_price, price)
+                            max_price = max(max_price, price)
+                            total_price += price
+                            compute_resource['Instances'].append(
+                                {
+                                    'InstanceType': instance_type
+                                }
+                            )
+                        average_price = total_price / len(instance_types)
+                        compute_resource['Efa']['Enabled'] = efa_supported
+                        if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0b1'):
+                            compute_resource['StaticNodePriority'] = int(average_price *  1000)
+                            compute_resource['DynamicNodePriority'] = int(average_price * 10000)
+                        compute_resource['Networking'] = {
+                            'PlacementGroup': {
+                                'Enabled': efa_supported
+                            }
+                        }
+                        parallel_cluster_queue['ComputeResources'].append(compute_resource)
+                        number_of_compute_resources += 1
+                    self.parallel_cluster_config['Scheduling']['SlurmQueues'].append(parallel_cluster_queue)
+        else:
+            for purchase_option in purchase_options:
+                nodesets[purchase_option] = []
+                for instance_type in self.instance_types:
+                    efa_supported = self.plugin.get_EfaSupported(self.config['Region'], instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
+                    if purchase_option == 'ONDEMAND':
+                        queue_name_prefix = "od"
+                        allocation_strategy = 'lowest-price'
+                        price = self.plugin.instance_type_and_family_info[self.config['Region']]['instance_types'][instance_type]['pricing']['OnDemand']
+                    else:
+                        queue_name_prefix = "sp"
+                        allocation_strategy = 'capacity-optimized'
+                        price = self.plugin.instance_type_and_family_info[self.config['Region']]['instance_types'][instance_type]['pricing']['spot']['max']
+                    queue_name = f"{queue_name_prefix}-{instance_type}"
+                    queue_name = queue_name.replace('.', '-')
+                    nodeset = f"{queue_name}_nodes"
+                    nodesets[purchase_option].append(nodeset)
+                    parallel_cluster_queue = {
+                        'Name': queue_name,
+                        'AllocationStrategy': allocation_strategy,
+                        'CapacityType': purchase_option,
+                        'ComputeResources': [],
+                        'ComputeSettings': {
+                            'LocalStorage': {
+                                'RootVolume': {
+                                    'VolumeType': 'gp3'
+                                }
+                            }
+                        },
+                        'CustomActions': {
+                            'OnNodeStart': {
+                                'Sequence': [
+                                    {
+                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_start.sh'],
+                                        'Args': []
+                                    }
+                                ]
+                            },
+                            'OnNodeConfigured': {
+                                'Sequence': [
+                                    {
+                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_configured.sh'],
+                                        'Args': []
+                                    }
+                                ]
+                            },
+                        },
+                        'Iam': {
+                            'AdditionalIamPolicies': [
+                                {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
+                                {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
+                            ]
+                        },
+                        'Networking': {
+                            'SubnetIds': [self.config['SubnetId']],
+                            'AdditionalSecurityGroups': [self.slurmnode_sg.security_group_id],
+                        },
+                    }
+                    if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
+                        parallel_cluster_queue['Image'] = {
+                            'CustomAmi': self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
+                        }
+
+                    # Give the compute node access to extra mounts
+                    for fs_type in self.extra_mount_security_groups.keys():
+                        for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
+                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
+
+                    compute_resource_name = f"{queue_name_prefix}-{instance_type}-cr1".replace('.', '-')
+                    if compute_resource_name in self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts']:
+                        min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MinCount']
+                        max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MaxCount']
+                    else:
+                        min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMinCount']
+                        max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMaxCount']
+                    compute_resource = {
+                        'Name': compute_resource_name,
+                        'MinCount': min_count,
+                        'MaxCount': max_count,
+                        'DisableSimultaneousMultithreading': self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading'],
+                        'Instances': [],
+                        'Efa': {'Enabled': efa_supported},
+                        'Networking': {
+                            'PlacementGroup': {
+                                'Enabled': efa_supported
+                            }
+                        }
+                    }
+                    compute_resource['Instances'].append(
+                        {
+                            'InstanceType': instance_type
+                        }
+                    )
+                    if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0b1'):
+                        compute_resource['StaticNodePriority'] = int(price *  1000)
+                        compute_resource['DynamicNodePriority'] = int(price * 10000)
+                    parallel_cluster_queue['ComputeResources'].append(compute_resource)
+                    self.parallel_cluster_config['Scheduling']['SlurmQueues'].append(parallel_cluster_queue)
+
+        logger.info(f"Created {number_of_queues} queues with {number_of_compute_resources} compute resources")
+
+        if 'OnPremComputeNodes' in self.config['slurm']['InstanceConfig']:
+            if not path.exists(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']):
+                logger.error(f"slurm/InstanceConfig/OnPremComputeNodes/ConfigFile: On-premises compute nodes config file not found: {self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile']}")
+                exit(1)
+            fh = open(self.config['slurm']['InstanceConfig']['OnPremComputeNodes']['ConfigFile'], 'r')
+            for line in fh.readline():
+                line = line.strip()
+                if not line: continue
+                if re.match(r'\s*#', line): continue
+                key_value_pairs = line.split(' ')
+                if not key_value_pairs: continue
+                slurm_settings_dict = {}
+                for key_value_pair in key_value_pairs:
+                    (key, value) = key_value_pair.split('=', 1)
+                    slurm_settings_dict[key] = value
+                self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].append(slurm_settings_dict)
+
+        # Create custom partitions based on those created by ParallelCluster
+        if 'ONDEMAND' in nodesets:
+            self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].extend(
+                [
+                    {
+                        'PartitionName': 'on-demand',
+                        'Default': 'NO',
+                        'PriorityTier': '1',
+                        'Nodes': ','.join(nodesets['ONDEMAND']),
+                    }
+                ]
+            )
+        if 'SPOT' in nodesets:
+            self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].extend(
+                [
+                    {
+                        'PartitionName': 'spot',
+                        'Default': 'NO',
+                        'PriorityTier': '10',
+                        'Nodes': ','.join(nodesets['SPOT']),
+                    }
+                ]
+            )
+        self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].extend(
+            [
+                {
+                    'PartitionName': 'all',
+                    'Default': 'NO',
+                    'PriorityTier': '10',
+                    'Nodes': 'ALL',
+                },
+                {
+                    'PartitionName': 'interactive',
+                    'Default': 'NO',
+                    'PriorityTier': '10000',
+                    'Nodes': 'ALL'
+                },
+                {
+                    'PartitionName': 'batch',
+                    'Default': 'YES',
+                    'PriorityTier': '10',
+                    'Nodes': 'ALL'
+                },
+            ]
+        )
+
+        if 'Database' in self.config['slurm']['ParallelClusterConfig']:
+            self.parallel_cluster_config['Scheduling']['SlurmSettings']['Database'] = {
+                'Uri': f"{self.config['slurm']['ParallelClusterConfig']['Database']['FQDN']}:{self.config['slurm']['ParallelClusterConfig']['Database']['Port']}",
+                'UserName': self.config['slurm']['ParallelClusterConfig']['Database']['AdminUserName'],
+                'PasswordSecretArn': self.config['slurm']['ParallelClusterConfig']['Database']['AdminPasswordSecretArn'],
+            }
+            self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].extend(
+                [
+                    {'AccountingStoreFlags': 'job_comment'},
+                    {'PriorityType': 'priority/multifactor'},
+                    {'PriorityWeightPartition': '100000'},
+                    {'PriorityWeightFairshare': '10000'},
+                    {'PriorityWeightQOS': '10000'},
+                    {'PriorityWeightAge': '1000'},
+                    {'PriorityWeightAssoc': '0'},
+                    {'PriorityWeightJobSize': '0'},
+                ]
+            )
+        else:
+            # Remote licenses configured using sacctmgr
+            license_strings = []
+            for license_name in self.config['Licenses']:
+                full_license_name = license_name
+                if 'Server' in self.config['Licenses'][license_name]:
+                    full_license_name += f"@{self.config['Licenses'][license_name]['Server']}"
+                    if 'Port' in self.config['Licenses'][license_name]:
+                        # Using '@' for the port separator instead of ':' because sbatch doesn't work if ':' is in the server name.
+                        full_license_name += f"@{self.config['Licenses'][license_name]['Port']}"
+                license_strings.append(f"{full_license_name}:{self.config['Licenses'][license_name]['Count']}")
+            self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].append({'Licenses': ','.join(license_strings)})
+
+        if 'SlurmConfOverrides' in self.config['slurm']['SlurmCtl']:
+            if not path.exists(self.config['slurm']['SlurmCtl']['SlurmConfOverrides']['ConfigFile']):
+                logger.error(f"slurm/SlurmCtl/SlurmConfOverrides/ConfigFile: On-premises compute nodes config file not found: {self.config['slurm']['SlurmCtl']['SlurmConfOverrides']['ConfigFile']}")
+                exit(1)
+            fh = open(self.config['slurm']['SlurmCtl']['SlurmConfOverrides']['ConfigFile'], 'r')
+            for line in fh.readline():
+                line = line.strip()
+                if not line: continue
+                if re.match(r'\s*#', line): continue
+                key_value_pairs = line.split(' ')
+                if not key_value_pairs: continue
+                slurm_settings_dict = {}
+                for key_value_pair in key_value_pairs:
+                    (key, value) = key_value_pair.split('=', 1)
+                    slurm_settings_dict[key] = value
+                self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].append(slurm_settings_dict)
+
+        self.parallel_cluster_config['SharedStorage'] = []
+        for extra_mount_dict in self.config['slurm']['storage']['ExtraMounts']:
+            mount_dir = extra_mount_dict['dest']
+            storage_type = extra_mount_dict['StorageType']
+            if storage_type == 'Efs':
+                parallel_cluster_storage_dict = {
+                    'Name': mount_dir,
+                    'StorageType': storage_type,
+                    'MountDir': mount_dir,
+                    'EfsSettings': {'FileSystemId': extra_mount_dict['FileSystemId']},
+                }
+            elif storage_type == 'FsxLustre':
+                parallel_cluster_storage_dict = {
+                    'Name': mount_dir,
+                    'StorageType': storage_type,
+                    'MountDir': mount_dir,
+                    'FsxLustreSettings': {'FileSystemId': extra_mount_dict['FileSystemId']},
+                }
+            elif storage_type == 'FsxOntap':
+                parallel_cluster_storage_dict = {
+                    'Name': mount_dir,
+                    'StorageType': storage_type,
+                    'MountDir': mount_dir,
+                    'FsxOntapSettings': {'VolumeId': extra_mount_dict['VolumeId']},
+                }
+            elif storage_type == 'FsxOpenZfs':
+                parallel_cluster_storage_dict = {
+                    'Name': mount_dir,
+                    'StorageType': storage_type,
+                    'MountDir': mount_dir,
+                    'FsxOpenZfsSettings': {'VolumeId': extra_mount_dict['VolumeId']},
+                }
+            self.parallel_cluster_config['SharedStorage'].append(parallel_cluster_storage_dict)
+
+        fh = NamedTemporaryFile()
+        yaml.dump(self.parallel_cluster_config, fh, encoding='utf-8', sort_keys=False)
+        self.parallelClusterConfigAsset = s3_assets.Asset(self, "ParallelClusterConfigAsset", path=fh.name)
+        self.parallelClusterConfigAsset.grant_read(self.parallel_cluster_asset_read_policy)
+
+        createParallelClusterConfigAsset = s3_assets.Asset(self, "CreateParallelClusterConfigAsset", path="resources/lambdas/CreateParallelClusterConfig")
+        self.create_parallel_cluster_config_lambda = aws_lambda.Function(
+            self, "CreateParallelClusterConfigLambda",
+            function_name=f"{self.stack_name}-CreateParallelClusterConfig",
+            description="Create ParallelCluster config file in s3",
+            memory_size=128,
+            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            architecture=aws_lambda.Architecture.ARM_64,
+            timeout=Duration.minutes(3),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CreateParallelClusterConfig.lambda_handler",
+            code=aws_lambda.Code.from_bucket(createParallelClusterConfigAsset.bucket, createParallelClusterConfigAsset.s3_object_key),
+            vpc = self.vpc,
+            allow_all_outbound = True
+        )
+        self.create_parallel_cluster_config_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    's3:*',
+                ],
+                resources=['*']
+                )
+            )
+        # This is created as a custom resource so that resources get resolved in the config string before it gets passed to the lambda.
+        self.parallel_cluster_config_s3_url = CustomResource(
+            self, "ParallelClusterConfigS3Object",
+            service_token = self.create_parallel_cluster_config_lambda.function_arn,
+            properties = {
+                'ParallelClusterConfigYaml': yaml.dump(self.parallel_cluster_config, sort_keys=False),
+                'S3Bucket': self.parallelClusterConfigAsset.s3_bucket_name,
+                'S3Key': self.parallelClusterConfigAsset.s3_object_key,
+                'S3ObjectUrl': self.parallelClusterConfigAsset.s3_object_url
+            }
+        ).get_att_string('S3ObjectUrl')
+
+        self.parallel_cluster_lambda_layer = aws_lambda.LayerVersion(self, "ParallelClusterLambdaLayer",
+            description = 'ParallelCluster Layer',
+            code = aws_lambda.Code.from_bucket(
+                s3.Bucket.from_bucket_name(self, 'ParallelClusterBucket', f"{self.config['Region']}-aws-parallelcluster"),
+                f"parallelcluster/{self.config['slurm']['ParallelClusterConfig']['Version']}/layers/aws-parallelcluster/lambda-layer.zip"
+            ),
+            compatible_architectures = [
+                aws_lambda.Architecture.ARM_64,
+                aws_lambda.Architecture.X86_64,
+            ],
+            compatible_runtimes = [
+                aws_lambda.Runtime.PYTHON_3_8,
+                aws_lambda.Runtime.PYTHON_3_9,
+                # aws_lambda.Runtime.PYTHON_3_10,
+                # aws_lambda.Runtime.PYTHON_3_11,
+            ],
+        )
+        createParallelClusterAsset = s3_assets.Asset(self, "CreateParallelClusterAsset", path="resources/lambdas/CreateParallelCluster")
+        self.create_parallel_cluster_lambda = aws_lambda.Function(
+            self, "CreateParallelClusterLambda",
+            function_name=f"{self.stack_name}-CreateParallelCluster",
+            description="Create ParallelCluster from config file in s3",
+            memory_size=2048,
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CreateParallelCluster.lambda_handler",
+            code=aws_lambda.Code.from_bucket(createParallelClusterAsset.bucket, createParallelClusterAsset.s3_object_key),
+            layers=[self.parallel_cluster_lambda_layer],
+            vpc = self.vpc,
+            allow_all_outbound = True
+        )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    '*',
+                ],
+                resources=['*']
+                )
+            )
+        self.parallel_cluster = CustomResource(
+            self, "CreatedParallelCluster",
+            service_token = self.create_parallel_cluster_lambda.function_arn,
+            properties = {
+                'Region': self.config['Region'],
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'ParallelClusterConfigJson': self.parallel_cluster_config,
+                'ParallelClusterConfigS3Url': self.parallel_cluster_config_s3_url,
+            }
+        )
+        # self.parallel_cluster.add_dependency()
+
+        CfnOutput(self, "ParallelClusterConfigS3Url",
+            value = self.parallelClusterConfigAsset.s3_object_url
+        )
+        CfnOutput(self, "MungeParameterName",
+            value = self.munge_key_ssm_parameter.parameter_name
+        )
+        CfnOutput(self, "MungeParameterArn",
+            value = self.munge_key_ssm_parameter.parameter_arn
+        )
+        CfnOutput(self, "PlaybookS3Url",
+            value = self.playbooks_asset.s3_object_url
+        )

@@ -1,14 +1,203 @@
 # Deploy the Cluster
 
-## Configure AWS CLI Credentials
+The original (legacy) version used a custom Slurm plugin for orchestrating the EC2 compute nodes.
+The latest version uses ParallelCluster to provision the core Slurm infrastructure.
+When using ParallelCluster, a ParallelCluster configuration will be generated and use to create a ParallelCluster slurm cluster.
+The first supported ParallelCluster version is 3.6.0.
+
+## Prerequisites
+
+### Configure AWS CLI Credentials
 
 You will needs AWS credentials that provide admin access to deploy the cluster.
 
-## Clone or Download the Repository
+### Clone or Download the Repository
 
-Clone or download the repository to your system.
+Clone or download the aws-eda-slurm-cluster repository to your system.
 
-## Subscribe to AWS MarketPlace AMIs
+### Make sure required packages are installed
+
+```
+cd aws-eda-slurm-cluster
+source setup.sh
+```
+
+The setup script assumes that you have sudo access so that you can install or update packages.
+If you do not, then contact an administrator to help you do the updates.
+If necessary modify the setup script for your environment.
+
+### Create SNS Topic for Error Notifications (Optional but recommended)
+
+The Slurm cluster allows you to specify an SNS notification that will be notified when an error is detected.
+You can provide the ARN for the topic in the config file or on the command line.
+
+You can use the SNS notification in various ways.
+The simplest is to subscribe your email address to the topic so that you get an email when there is an error.
+You could also use it to trigger a CloudWatch alarm that could be used to trigger a lambda to do automatic
+remediation or create a support ticket.
+
+## Deploy Using ParallelCluster
+
+### Create ParallelCluster UI
+
+It is highly recommended to create a ParallelCluster UI to manage your ParallelCluster clusters.
+A different UI is required for each version of ParallelCluster that you are using.
+The versions are list in the [ParallelCluster Release Notes](https://docs.aws.amazon.com/parallelcluster/latest/ug/document_history.html).
+The minimum required version is 3.6.0 which adds support for RHEL 8 and increases the number of allows queues and compute resources.
+The suggested version is at least 3.7.0 because it adds configurate compute node weights which we use to prioritize the selection of
+compute nodes by their cost.
+
+The instructions are in the [ParallelCluster User Guide](https://docs.aws.amazon.com/parallelcluster/latest/ug/install-pcui-v3.html).
+
+### Create ParallelCluster Slurm Database
+
+The Slurm Database is required for configuring Slurm accounts, users, groups, and fair share scheduling.
+It you need these and other features then you will need to create ParallelCluster Slurm Database.
+Follow the directions in this [ParallelCluster tutorial to configure slurm accounting](https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3).
+
+### Configuration File
+
+The first step in deploying your cluster is to create a configuration file.
+A default configuration file is found in [source/resources/config/default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml).
+You should create a new config file and update the parameters for your cluster.
+
+The schema for the config file along with its default values can be found in [source/cdk/config_schema.py](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py).
+The schema is defined in python, but the actual config file should be in yaml format.
+
+The following are key parameters that you will need to update.
+If you do not have the required parameters in your config file then the installer script will fail unless you specify the `--prompt` option.
+You should save your selections in the config file.
+
+| Parameter                       | Description | Valid Values | Default
+|---------------------------------|-------------|--------------|--------
+| StackName                       | The cloudformation stack that will deploy the cluster. | | None
+| ClusterName                     | Shouldn't be the same as StackName | | None
+| Region                          | Region where VPC is located | | `$AWS_DEFAULT_REGION`
+| VpcId                           | The vpc where the cluster will be deployed. |  vpc-* | None
+| SshKeyPair                      | EC2 Keypair to use for instances | | None
+| slurm/SubmitterSecurityGroupIds | Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource. | sg-* | None
+| ErrorSnsTopicArn                | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
+
+The defaults for the following parameters are generally acceptable, but may be modified based on your requirements.
+
+| Parameter | Description | Valid Values | Default
+|-----------|-------------|--------------|--------
+| InstanceConfig | Configures the instance families and types that the cluster can use. | | See default_config.yml
+
+### Configure the Compute Instances
+
+The InstanceConfig configuration parameter configures the base operating systems, CPU architectures, instance families,
+and instance types that the Slurm cluster should support.
+ParallelCluster currently doesn't support heterogeneous cluster;
+all nodes must have the same architecture and Base OS.
+
+The supported OSes and CPU architectures are:
+
+| Base OS        | CPU Architectures
+|----------------|------------------
+| Amazon Linux 2 | x86_64, arm64
+| CentOS 7       | x86_64
+| RedHat 7       | x86_64
+| RedHat 8       | x86_64, arm64
+
+You can exclude instances types by family or specific instance type.
+By default the InstanceConfig excludes older generation instance families.
+
+You can include instances by family or specific instance type.
+If no includes are specified then all non-excluded instance types will be used.
+You can also choose to only include the largest instance size within a family.
+The advantage of using the max instance size is that jobs running on the instance
+have the highest network bandwidth for that family and fewer instances are required
+to run the same number of jobs.
+This may help jobs run faster and allow jobs to wait less time for a new instance to start.
+The disadvantage is higher cost if the instance is lightly loaded.
+
+The default InstanceConfig includes all supported base OSes and architectures and burstable and general purpose
+instance types.
+Note that instance types and families are python regular expressions.
+
+```
+slurm:
+  InstanceConfig:
+    BaseOsArchitecture:
+      CentOS:
+        7: [x86_64]
+    Include:
+      InstanceFamilies:
+        - t3.*
+        - m6a.*
+      InstanceTypes:
+        - r6a.large
+```
+
+The following InstanceConfig configures instance types recommended for EDA workloads running on CentOS.
+
+```
+slurm:
+  InstanceConfig:
+    BaseOsArchitecture:
+      CentOS:
+          7: [x86_64]
+    Include:
+      InstanceFamilies:
+        - c5.*
+        - c6g.*
+        - f1
+        - m5.*
+        - m6g.*
+        - r5.*
+        - r6g.*
+        - x2gd
+        - z1d
+```
+
+If you have reserved instances (RIs) or savings plans then you can configure instances so that they are always on since you are paying for them whether they are running or not.
+To do this add a MinCount greater than 0 for the compute resources that contain the instance types.
+
+```
+slurm:
+  InstanceConfig:
+    NodeCounts:
+      DefaultMinCount: 1
+```
+
+## Create the Cluster
+
+To install the cluster run the install script. You can override some parameters in the config file
+with command line arguments, however it is better to specify all of the parameters in the config file.
+
+```
+./install.sh --config-file <config-file> --cdk-cmd create
+```
+
+This will create the ParallelCuster configuration file, store it in S3, and use it to create a cluster.
+
+
+### Customize the compute node AMI
+
+The easiest way to create a custom AMI is to find the default ParallelCluster AMI in the UI.
+Create an instance using the AMI and make whatever customizations you require such as installing packages and
+configuring users and groups.
+
+Custom file system mounts can be configured in the aws-eda-slurm-cluster config file which will add it to the
+ParallelCluster config file so that ParallelCluster can manage them for you.
+
+When you are done create a new AMI and wait for the AMI to become available.
+After it is available you can add the custom ami to the aws-eda-slurm-cluster config file.
+
+```
+slurm:
+  ParallelClusterConfig:
+    ComputeNodeAmi: ami-0fdb972bda05d2932
+```
+
+Then update your aws-eda-slurm-cluster stack by running the install script again.
+
+## Deploy using legacy cluster
+
+## Subscribe to AWS MarketPlace AMIs (Legacy)
+
+This is only required for the Legacy scheduler. It is not required for ParallelCluster which uses it's own public AMIs.
 
 Subscribe to the MarketPlace AMIs you will use in your cluster.
 Examples are:
@@ -21,20 +210,11 @@ Examples are:
 * [Rocky Linux 8 - arm64](https://aws.amazon.com/marketplace/pp/prodview-uzg6o44ep3ugw?sr=0-3&ref_=beagle&applicationId=AWS-Marketplace-Console)
 * [Rocky Linux 8 - x86_64](https://aws.amazon.com/marketplace/pp/prodview-2otariyxb3mqu?sr=0-1&ref_=beagle&applicationId=AWS-Marketplace-Console)
 
-## Create SNS Topic for Error Notifications
-
-The Slurm cluster allows you to specify an SNS notification that will be notified when an error is detected.
-You can provide the ARN for the topic in the config file or on the command line.
-
-You can use the SNS notification in various ways.
-The simplest is to subscribe your email address to the topic so that you get an email when there is an error.
-You could also use it to trigger a CloudWatch alarm that could be used to trigger a lambda to do automatic
-remediation or create a support ticket.
-
 ## Quick Minimal Deployment
 
 The install script can create a minimal Slurm cluster using the default configuration file in the repository and
 it will prompt you for the required parameters. You will first need to configure your AWS credentials.
+The installer now defaults to using the ParallelCluster version.
 
 ```
 cd edaslurmcluster
@@ -49,7 +229,7 @@ on how to install or update CDK.
 
 This cluster uses Cloud Development Kit (CDK) and Python 3 to deploy the cluster.
 
-Install packages used by the installer.
+Install the packages used by the installer.
 
 ```
 sudo yum -y install curl gcc-c++ make nfs-utils python3 tcl unzip wget
@@ -90,14 +270,14 @@ The following are key parameters that you will need to update.
 If you do not have the required parameters in your config file then the installer script will fail unless you specify the `--prompt` option.
 You should save your selections in the config file.
 
-| Parameter | Description | Valid Values | Default
-|-----------|-------------|--------------|--------
-| StackName | The cloudformation stack that will deploy the cluster. | | None
-| VpcId | The vpc where the cluster will be deployed. |  vpc-* | None
-| Region | Region where VPC is located | | `$AWS_DEFAULT_REGION`
-| SshKeyPair | EC2 Keypair to use for instances | | None
+| Parameter                       | Description | Valid Values | Default
+|---------------------------------|-------------|--------------|--------
+| StackName                       | The cloudformation stack that will deploy the cluster. | | None
+| VpcId                           | The vpc where the cluster will be deployed. |  vpc-* | None
+| Region                          | Region where VPC is located | | `$AWS_DEFAULT_REGION`
+| SshKeyPair                      | EC2 Keypair to use for instances | | None
 | slurm/SubmitterSecurityGroupIds | Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource. | sg-* | None
-| ErrorSnsTopicArn | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
+| ErrorSnsTopicArn                | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
 
 The defaults for the following parameters are generally acceptable, but may be modified based on your requirements.
 
@@ -116,14 +296,25 @@ The InstanceConfig configuration parameter configures the base operating systems
 and instance types that the Slurm cluster should support.
 The supported OSes and CPU architectures are:
 
-| Base OS | CPU Architectures
-|---------|------------------
-| Alma Linux 8 | x86_64, arm64
+### ParallelCluster
+
+| Base OS        | CPU Architectures
+|----------------|------------------
 | Amazon Linux 2 | x86_64, arm64
-| CentOS 7 | x86_64
-| RedHat 7 | x86_64
-| RedHat 8 | x86_64, arm64
-| Rocky Linux 8 | x86_64, arm64
+| CentOS 7       | x86_64
+| RedHat 7       | x86_64
+| RedHat 8       | x86_64, arm64
+
+### Legacy
+
+| Base OS        | CPU Architectures
+|----------------|------------------
+| Alma Linux 8   | x86_64, arm64
+| Amazon Linux 2 | x86_64, arm64
+| CentOS 7       | x86_64
+| RedHat 7       | x86_64
+| RedHat 8       | x86_64, arm64
+| Rocky Linux 8  | x86_64, arm64
 
 You can exclude instances types by family or specific instance type.
 By default the InstanceConfig excludes older generation instance families.
@@ -356,6 +547,10 @@ with command line arguments, however it is better to specify all of the paramete
 ```
 ./install.sh --config-file <config-file> --stack-name <stack-name> --cdk-cmd create
 ```
+
+## Create Custom ParallelCluster AMI
+
+The ParallelCluster User Guide has [instructions for customizing the AMI](https://docs.aws.amazon.com/parallelcluster/latest/ug/custom-ami-v3.html) used by compute nodes.
 
 ## Use the Cluster
 

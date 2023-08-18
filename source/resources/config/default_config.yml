@@ -11,6 +11,9 @@
 StackName: slurmminimal
 
 slurm:
+  ParallelClusterConfig:
+    Enable: true
+
   SlurmCtl: {}
 
   # InstanceConfig:
@@ -18,17 +21,12 @@ slurm:
   # A partition will be created for each combination of Base OS, Architecture, and Spot
   InstanceConfig:
     UseSpot: true
-    NodesPerInstanceType: 10
     BaseOsArchitecture:
-      AlmaLinux: {8: [x86_64, arm64]}
-      CentOS:
-        7: [x86_64]
+      RedHat:
+        8: [x86_64]
     Include:
       InstanceFamilies:
         - t3
-        - t4g
       InstanceTypes: []
-
-  storage:
-    provider: zfs
-    zfs: {} # This causes the defaults from the schema to be applied.
+    NodeCounts:
+      DefaultMaxCount: 5

@@ -237,11 +237,11 @@
     group: root
     mode: 0644
 
-- name: Wait for {{AccountingStorageHost}} to accept requests on port 6819
+- name: Wait for {{AccountingStorageHost}} to accept requests on port {{SlurmdbdPort}}
   when: AccountingStorageHost|bool
   wait_for:
     host: "{{AccountingStorageHost}}"
-    port: "6819"
+    port: "{{SlurmdbdPort}}"
     timeout: 1800 # 30 minutes
 
 - name: Get service facts
@@ -289,10 +289,10 @@
     path: "{{SlurmBinDir}}/scontrol"
     timeout: 1800 # 30 minutes
 
-- name: Wait for slurmctld to accept requests on port 6817
+- name: Wait for slurmctld to accept requests on port {{SlurmctldPortMin}}
   wait_for:
     host: "127.0.0.1"
-    port: "6817"
+    port: "{{SlurmctldPortMin}}"
     timeout: 1800 # 30 minutes
 
 - name: Configure remote licenses

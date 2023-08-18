@@ -47,7 +47,10 @@ def lambda_handler(event, context):
             'Description',
             'ControllerCIDR',
             'CIDRs',
-            'StackName'
+            'StackName',
+            'SlurmctldPortMin',
+            'SlurmctldPortMax',
+            'SlurmdPort',
             ]
         error_message = ""
         for property in required_properties:
@@ -119,8 +122,8 @@ def lambda_handler(event, context):
                 IpPermissions = [
                     {
                         'IpProtocol': 'tcp',
-                        'FromPort': 6818,
-                        'ToPort': 6818,
+                        'FromPort': properties['SlurmdPort'],
+                        'ToPort':   properties['SlurmdPort'],
                         'IpRanges': [{'CidrIp': properties['ControllerCIDR'], 'Description': f"{properties['StackName']}-SlurmCtl to {properties['Region']}-SlurmNode"}]
                     },
                 ]
@@ -161,13 +164,13 @@ def lambda_handler(event, context):
                     {
                         'IpProtocol': 'udp',
                         'FromPort': 2049,
-                        'ToPort': 2049,
+                        'ToPort':   2049,
                         'IpRanges': [{'CidrIp': properties['ControllerCIDR'], 'Description': f"{properties['Region']}-SlurmNode to {properties['StackName']}-ZFS"}]
                     },
                     {
                         'IpProtocol': 'tcp',
-                        'FromPort': 6817,
-                        'ToPort': 6817,
+                        'FromPort': properties['SlurmctldPortMin'],
+                        'ToPort':   properties['SlurmctldPortMax'],
                         'IpRanges': [{'CidrIp': properties['ControllerCIDR'], 'Description': f"{properties['Region']}-SlurmNode to {properties['StackName']}-SlurmCtl"}]
                     },
                     {
@@ -208,8 +211,8 @@ def lambda_handler(event, context):
                             },
                             {
                                 'IpProtocol': 'tcp',
-                                'FromPort': 6818,
-                                'ToPort': 6818,
+                                'FromPort': properties['SlurmdPort'],
+                                'ToPort':   properties['SlurmdPort'],
                                 'UserIdGroupPairs': [{'GroupId': security_group_id, 'Description': f"{properties['Region']}-SlurmNode to {compute_region}-SlurmNode"}]
                             },
                         ]
@@ -237,8 +240,8 @@ def lambda_handler(event, context):
                             },
                             {
                                 'IpProtocol': 'tcp',
-                                'FromPort': 6818,
-                                'ToPort': 6818,
+                                'FromPort': properties['SlurmdPort'],
+                                'ToPort':   properties['SlurmdPort'],
                                 'IpRanges': [{'CidrIp': cidr, 'Description': f"{properties['Region']}-SlurmNode to {compute_region}-SlurmNode"}]
                             },
                         ]

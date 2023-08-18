@@ -1,0 +1,1 @@
+../../../playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/bin/create_users_groups.py
