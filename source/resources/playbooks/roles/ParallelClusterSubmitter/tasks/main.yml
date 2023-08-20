@@ -1,0 +1,117 @@
+---
+
+- name: Show vars used in this playbook
+  debug:
+    msg: |
+      Architecture:               {{Architecture}}
+      ClusterName:                {{ClusterName}}
+      distribution:               {{distribution}}
+      distribution_major_version: {{distribution_major_version}}
+      SlurmConfigDir:             {{SlurmConfigDir}}
+      ModulefilesBaseDir:         {{ModulefilesBaseDir}}
+
+- name: Install epel from amazon-linux-extras
+  when: ansible_facts['distribution'] == 'Amazon'
+  shell:
+    cmd: |
+      set -ex
+      amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel
+  when: ansible_facts['distribution'] == 'CentOS'
+  yum:
+    state: present
+    name:
+      - epel-release
+
+- name: Install slurm_submitter packages
+  yum:
+    state: present
+    name:
+      - environment-modules
+      - python3
+      - wget
+      - xz
+
+- name: Remove yum munge package
+  yum:
+    state: absent
+    name:
+      - munge
+
+- name: Create munge user
+  user:
+    name: munge
+    system: yes
+    state: present
+    create_home: no
+
+- name: Build munge version used by ParallelCluster
+  args:
+    creates: /usr/sbin/munged
+  shell: |
+    set -ex
+
+    cd /usr/local/src
+    mkdir munge
+    cd munge
+    wget https://github.com/dun/munge/releases/download/munge-0.5.15/munge-0.5.15.tar.xz
+    xz -d munge-0.5.15.tar.xz
+    tar -xf munge-0.5.15.tar
+    rm -f munge-0.5.15.tar
+    cd munge-0.5.15
+    ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib64 &> configure.log
+    make
+    make install &> make_install.log
+  register: build_munge
+
+- name: Create /var/log/munge
+  file:
+    path: /var/log/munge
+    owner: munge
+    group: munge
+    state: directory
+
+- name: Create /etc/munge with correct permissions
+  file:
+    path: /etc/munge
+    owner: munge
+    group: munge
+    mode: 0700
+    state: directory
+
+- name: Copy /opt/slurm/config/munge.key to /etc/munge/munge.key
+  copy:
+    dest: /etc/munge/munge.key
+    src: "{{SlurmConfigDir}}/munge.key"
+    remote_src: true
+    force: false
+    backup: true
+    owner: munge
+    group: munge
+    mode: 0400
+  register: munge_key
+
+- name: Start munge
+  when: build_munge.changed or munge_key.changed
+  service:
+    name: munge
+    enabled: yes
+    state: restarted
+
+- name: Create slurm user
+  user:
+    name: slurm
+    system: yes
+    state: present
+    create_home: no
+
+- name: Configure modules
+  template:
+    dest: /etc/profile.d/slurm_{{ClusterName}}_modulefiles.sh
+    src:  ../../SlurmCtl/templates/etc/profile.d/slurm_modulefiles.sh
+    owner: root
+    group: root
+    mode: 0644
+    force: yes

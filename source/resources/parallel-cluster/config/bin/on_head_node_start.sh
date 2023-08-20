@@ -33,6 +33,7 @@ chmod -R 0700 $config_dir
 
 # Download all of the config scripts
 config_scripts=(\
+    config_submitter.sh \
     create_users_groups_json.py \
     create_users_groups.py \
     on_head_node_start.sh \
@@ -94,6 +95,8 @@ if ! [ -e $jwt_key ]; then
     chown slurm:slurm $jwt_key
     chmod 0600 $jwt_key
 fi
+
+/usr/bin/cp -f /etc/munge/munge.key $config_dir/munge.key
 
 date
 echo "Finished on_head_node_start.sh: $full_script"

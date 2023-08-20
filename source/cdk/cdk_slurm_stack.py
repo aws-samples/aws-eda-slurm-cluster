@@ -711,6 +711,20 @@ class CdkSlurmStack(Stack):
         self.assets_bucket = self.playbooks_asset.s3_bucket_name
         self.assets_base_key = self.config['slurm']['ClusterName']
 
+        self.parallel_cluster_munge_key_write_policy = iam.ManagedPolicy(
+            self, "ParallelClusterMungeKeyWritePolicy",
+            managed_policy_name = f"{self.stack_name}-ParallelClusterMungeKeyWritePolicy",
+            statements = [
+                iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        's3:PutObject',
+                    ],
+                    resources=[f"arn:aws:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/config/munge.key"]
+                )
+            ]
+        )
+
         s3_client = boto3.client('s3', region_name=self.config['Region'])
 
         template_vars = {
@@ -719,14 +733,15 @@ class CdkSlurmStack(Stack):
             'playbooks_s3_url': self.playbooks_s3_url,
         }
         files_to_upload = [
+            'config/bin/config_submitter.sh',
             'config/bin/create_users_groups_json.py',
             'config/bin/create_users_groups.py',
-            'config/users_groups.json',
             'config/bin/on_head_node_start.sh',
             'config/bin/on_head_node_configured.sh',
             'config/bin/on_head_node_updated.sh',
             'config/bin/on_compute_node_start.sh',
             'config/bin/on_compute_node_configured.sh',
+            'config/users_groups.json',
         ]
         self.custom_action_s3_urls = {}
         for file_to_upload in files_to_upload:
@@ -2416,7 +2431,10 @@ class CdkSlurmStack(Stack):
                 "Region": self.config['Region'],
                 "TimeZone": self.config['TimeZone'],
             }
+            instance_template_vars['DefaultPartition'] = 'batch'
             instance_template_vars['FileSystemMountPath'] = '/opt/slurm'
+            instance_template_vars['ModulefilesBaseDir'] = '/opt/slurm/config/modules/modulefiles'
+            instance_template_vars['ParallelClusterVersion'] = self.config['slurm']['ParallelClusterConfig']['Version']
             instance_template_vars['SlurmBaseDir'] = '/opt/slurm'
             instance_template_vars['SlurmOSDir'] = '/opt/slurm'
             instance_template_vars['SlurmVersion'] =  self.config['slurm']['SlurmVersion']
@@ -3538,6 +3556,7 @@ class CdkSlurmStack(Stack):
                         {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
                         {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
                         {'Policy': self.parallel_cluster_jwt_write_policy.managed_policy_arn},
+                        {'Policy': self.parallel_cluster_munge_key_write_policy.managed_policy_arn},
                     ],
                 },
                 'Imds': {
@@ -4177,4 +4196,12 @@ class CdkSlurmStack(Stack):
         )
         CfnOutput(self, "PlaybookS3Url",
             value = self.playbooks_asset.s3_object_url
+        )
+        region = self.config['Region']
+        cluster_name = self.config['slurm']['ClusterName']
+        CfnOutput(self, "SubmitterMountHeadNodeCommand",
+            value = f"head_ip=$(aws ec2 describe-instances --region {region} --filters 'Name=tag:parallelcluster:cluster-name,Values={cluster_name}' 'Name=tag:parallelcluster:node-type,Values=HeadNode' --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text) && sudo mkdir -p /opt/slurm && sudo mount $head_ip:/opt/slurm /opt/slurm"
+        )
+        CfnOutput(self, "SubmitterConfigureCommand",
+            value = f"sudo /opt/slurm/config/bin/config_submitter.sh"
         )
