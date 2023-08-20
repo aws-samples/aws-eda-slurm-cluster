@@ -6,3 +6,4 @@
 - { include: config-licenses.yml, tags: licenses }
 - { include: config-slurmrestd.yml, tags: slurmrestd }
 - { include: config-sshd.yml, tags: sshd }
+- { include: config-modulefiles.yml, tags: modulefiles }
