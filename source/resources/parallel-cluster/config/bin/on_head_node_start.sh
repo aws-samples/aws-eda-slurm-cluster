@@ -23,13 +23,13 @@ playbooks_s3_url={{playbooks_s3_url}}
 
 ansible_head_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_head_node_vars.yml"
 ansible_compute_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_compute_node_vars.yml"
+ansible_submitter_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_submitter_vars.yml"
 
 create_user_groups_json_py_s3_url="s3://$assets_bucket/$assets_base_key/config/bin/create_users_groups_json.py"
 create_user_groups_py_s3_url="s3://$assets_bucket/$assets_base_key/config/bin/create_users_groups.py"
 users_groups_json_s3_url="s3://$assets_bucket/$assets_base_key/config/users_groups.json"
 
 mkdir -p $config_bin_dir
-chmod -R 0700 $config_dir
 
 # Download all of the config scripts
 config_scripts=(\
@@ -81,6 +81,8 @@ fi
 aws s3 cp $ansible_head_node_vars_yml_s3_url /opt/slurm/config/ansible/ansible_head_node_vars.yml
 
 aws s3 cp $ansible_compute_node_vars_yml_s3_url /opt/slurm/config/ansible/ansible_compute_node_vars.yml
+
+aws s3 cp $ansible_submitter_vars_yml_s3_url /opt/slurm/config/ansible/ansible_submitter_vars.yml
 
 # Don't run ansible until after slurmctld and slurmdbd are up and running successfully.
 

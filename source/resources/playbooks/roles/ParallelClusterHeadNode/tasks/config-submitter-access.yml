@@ -1,0 +1,104 @@
+---
+
+- name: Show vars used in this playbook
+  debug:
+    msg: |
+      Architecture:               {{Architecture}}
+      ClusterName:                {{ClusterName}}
+      DefaultPartition:           {{DefaultPartition}}
+      distribution:               {{distribution}}
+      distribution_major_version: {{distribution_major_version}}
+      ParallelClusterVersion:     {{ParallelClusterVersion}}
+      PCModulefilesBaseDir:       {{PCModulefilesBaseDir}}
+      SlurmConfigDir:             {{SlurmConfigDir}}
+
+- name: Create /opt/slurm/{{ClusterName}} symbolic link
+  # All head nodes are originally configured to use /opt/slurm
+  # This doesn't work for submitter nodes that need to access more than one cluster because they can't all be mounted at /opt/slurm.
+  # So create a path, /opt/slurm/{{ClusterName}} that can exist both on the Head node and the submitter node
+  file:
+    path: "/opt/slurm/{{ClusterName}}"
+    src:  "/opt/slurm"
+    state: link
+    owner: root
+    group: root
+    mode: '0775'
+
+- name: Change /opt/slurm to /opt/slurm/{{ClusterName}} in slurm.conf
+  shell:
+    cmd: |
+      set -ex
+
+      conf_files=$(find /opt/slurm -name '*.conf')
+      backup_suffix=".$(date '+%Y-%m-%dT%H:%M:%S')~"
+      num_changed=0
+      for conf_file in ${conf_files[*]}; do
+          sed --in-place=$backup_suffix 's%/opt/slurm/etc%/opt/slurm/{{ClusterName}}/etc%' $conf_file
+          sed --in-place=$backup_suffix 's%/opt/slurm/lib%/opt/slurm/{{ClusterName}}/lib%' $conf_file
+
+          backup_conf_file="${conf_file}${backup_suffix}"
+          if diff -q $backup_conf_file $conf_file; then
+              rm -f $backup_conf_file
+          else
+              num_changed=$((num_changed + 1))
+          fi
+      done
+      if [[ $num_changed -gt 0 ]]; then
+          echo "$num_changed files changed. Need to restart slurmd and slurmctld."
+          systemctl restart slurmd || true
+          systemctl restart slurmctld
+      else
+          echo "No conf files changed."
+      fi
+
+- name: Fix permissions on config dir so users can access it to get the modulefiles
+  file:
+    path: "{{SlurmConfigDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create {{PCModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}
+  file:
+    path: "{{PCModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  register: create_modulefile_dir_result
+
+- name: Fix modulefile permissions
+  when: create_modulefile_dir_result
+  shell:
+    cmd: |
+      set -ex
+
+      chmod -R 0755 /opt/slurm/config/modules
+
+- name: Create slurm modulefile .template
+  template:
+    dest: "{{PCModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/.template"
+    src:  opt/slurm/modules/modulefiles/slurm/.template
+    owner: root
+    group: root
+    mode: '0664'
+    force: yes
+
+- name: Create slurm modulefile
+  file:
+    path: "{{PCModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/{{ParallelClusterVersion}}"
+    src:  ".template"
+    state: link
+    owner: root
+    group: root
+    mode: '0664'
+
+- name: Create slurm modulefile .version
+  template:
+    dest: "{{PCModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/.version"
+    src:   opt/slurm/modules/modulefiles/slurm/.version
+    owner: root
+    group: root
+    mode: '0664'
+    force: yes

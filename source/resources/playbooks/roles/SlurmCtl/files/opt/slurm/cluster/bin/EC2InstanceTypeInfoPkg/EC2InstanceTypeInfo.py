@@ -484,8 +484,8 @@ class EC2InstanceTypeInfo:
         return region_name
 
     @retry_boto3_throttling()
-    def describe_regions(self):
-        response = self.ec2_client.describe_regions()
+    def describe_regions(self, all_regions=True):
+        response = self.ec2_client.describe_regions(AllRegions=all_regions)
         return response
 
     @retry_boto3_throttling()

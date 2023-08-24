@@ -1,0 +1,18 @@
+---
+
+- name: Show vars used in this playbook
+  debug:
+    msg: |
+      ClusterName:                {{ClusterName}}
+
+- name: Remove modulefile configuration
+  file:
+    dest: /etc/profile.d/slurm_{{ClusterName}}_modulefiles.sh
+    state: absent
+
+- name: Remove /opt/slurm/{{ClusterName}} from /etc/fstab
+  mount:
+    path: /opts/slurm/{{ClusterName}}
+    backup: true
+    fstype: nfs
+    state: absent

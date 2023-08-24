@@ -20,7 +20,11 @@ proc ModulesHelp { } {
 
 module-whatis "loads the env for $toolname version $version"
 
-prepend-path PATH {{SlurmBaseDir}}/bin
+prepend-path PATH {{SubmitterSlurmBaseDir}}/bin
+
+prepend-path LD_LIBRARY_PATH {{SubmitterSlurmBaseDir}}/lib/slurm
+
+setenv SLURM_CONF {{SubmitterSlurmBaseDir}}/etc/slurm.conf
 
 setenv SLURM_CLUSTER_NAME {{ClusterName}}
 

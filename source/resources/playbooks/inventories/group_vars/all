@@ -55,6 +55,11 @@ SlurmConf:           "{{SlurmEtcDir}}/slurm.conf"
 
 ModulefilesBaseDir: "{{SlurmBaseDir}}/modules/modulefiles"
 
+PCModulefilesBaseDir:        "{{SlurmConfigDir}}/modules/modulefiles"
+SubmitterSlurmBaseDir:       "{{SlurmBaseDir}}/{{ClusterName}}"
+SubmitterSlurmConfigDir:     "{{SubmitterSlurmBaseDir}}/config"
+SubmitterModulefilesBaseDir: "{{SubmitterSlurmConfigDir}}/modules/modulefiles"
+
 SupportedDistributions:
 - AlmaLinux/8/arm64
 - AlmaLinux/8/x86_64

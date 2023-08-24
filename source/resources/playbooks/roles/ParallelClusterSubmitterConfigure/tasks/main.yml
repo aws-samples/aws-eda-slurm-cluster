@@ -3,12 +3,33 @@
 - name: Show vars used in this playbook
   debug:
     msg: |
-      Architecture:               {{Architecture}}
       ClusterName:                {{ClusterName}}
       distribution:               {{distribution}}
-      distribution_major_version: {{distribution_major_version}}
-      SlurmConfigDir:             {{SlurmConfigDir}}
-      ModulefilesBaseDir:         {{ModulefilesBaseDir}}
+      Region:                     {{Region}}
+      SubmitterSlurmBaseDir:      {{SubmitterSlurmBaseDir}}
+      SubmitterSlurmConfigDir:    {{SubmitterSlurmConfigDir}}
+
+- name: Get ip address of {{ClusterName}} head node
+  shell:
+    cmd: |
+      set -e
+
+      head_ip_address=$(aws ec2 describe-instances --region {{Region}} --filters 'Name=tag:parallelcluster:cluster-name,Values={{ClusterName}}' 'Name=tag:parallelcluster:node-type,Values=HeadNode' --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
+      echo $head_ip_address
+  register: head_node_ip_address
+
+- name: Show ip address results
+  debug:
+    msg: |
+      head_node_ip_address: {{head_node_ip_address}}
+
+- name: Add /opt/slurm/{{ClusterName}} to /etc/fstab
+  mount:
+    path: /opts/slurm/{{ClusterName}}
+    src: "{{head_node_ip_address.stdout_lines[0]}}:/opt/slurm {{SubmitterSlurmBaseDir}}"
+    fstype: nfs
+    backup: true
+    state: present # Should already be mounted
 
 - name: Install epel from amazon-linux-extras
   when: ansible_facts['distribution'] == 'Amazon'
@@ -47,20 +68,23 @@
     state: present
     create_home: no
 
-- name: Build munge version used by ParallelCluster
+- name: Build munge version used by ParallelCluster ({{ParallelClusterMungeVersion}})
   args:
     creates: /usr/sbin/munged
   shell: |
     set -ex
 
     cd /usr/local/src
-    mkdir munge
+    mkdir -p munge
     cd munge
-    wget https://github.com/dun/munge/releases/download/munge-0.5.15/munge-0.5.15.tar.xz
-    xz -d munge-0.5.15.tar.xz
-    tar -xf munge-0.5.15.tar
-    rm -f munge-0.5.15.tar
-    cd munge-0.5.15
+    rm -f munge-{{ParallelClusterMungeVersion}}.tar.xz
+    rm -f munge-{{ParallelClusterMungeVersion}}.tar
+    rm -rf munge-{{ParallelClusterMungeVersion}}
+    wget https://github.com/dun/munge/releases/download/munge-{{ParallelClusterMungeVersion}}/munge-{{ParallelClusterMungeVersion}}.tar.xz
+    xz -d munge-{{ParallelClusterMungeVersion}}.tar.xz
+    tar -xf munge-{{ParallelClusterMungeVersion}}.tar
+    rm -f munge-{{ParallelClusterMungeVersion}}.tar
+    cd munge-{{ParallelClusterMungeVersion}}
     ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib64 &> configure.log
     make
     make install &> make_install.log
@@ -81,12 +105,12 @@
     mode: 0700
     state: directory
 
-- name: Copy /opt/slurm/config/munge.key to /etc/munge/munge.key
+- name: Copy /opt/slurm/{{ClusterName}}/config/munge.key to /etc/munge/munge.key
   copy:
     dest: /etc/munge/munge.key
-    src: "{{SlurmConfigDir}}/munge.key"
+    src: "{{SubmitterSlurmConfigDir}}/munge.key"
     remote_src: true
-    force: false
+    force: true   # Has to be true or won't be copied when they are different.
     backup: true
     owner: munge
     group: munge
@@ -110,7 +134,7 @@
 - name: Configure modules
   template:
     dest: /etc/profile.d/slurm_{{ClusterName}}_modulefiles.sh
-    src:  ../../SlurmCtl/templates/etc/profile.d/slurm_modulefiles.sh
+    src:   etc/profile.d/slurm_modulefiles.sh
     owner: root
     group: root
     mode: 0644

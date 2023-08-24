@@ -730,10 +730,11 @@ class CdkSlurmStack(Stack):
         template_vars = {
             'assets_bucket': self.assets_bucket,
             'assets_base_key': self.assets_base_key,
+            'ClusterName': self.config['slurm']['ClusterName'],
             'playbooks_s3_url': self.playbooks_s3_url,
+            'SubmitterSlurmConfigDir': f"/opt/slurm/{self.config['slurm']['ClusterName']}"
         }
         files_to_upload = [
-            'config/bin/config_submitter.sh',
             'config/bin/create_users_groups_json.py',
             'config/bin/create_users_groups.py',
             'config/bin/on_head_node_start.sh',
@@ -741,6 +742,8 @@ class CdkSlurmStack(Stack):
             'config/bin/on_head_node_updated.sh',
             'config/bin/on_compute_node_start.sh',
             'config/bin/on_compute_node_configured.sh',
+            'config/bin/submitter_configure.sh',
+            'config/bin/submitter_deconfigure.sh',
             'config/users_groups.json',
         ]
         self.custom_action_s3_urls = {}
@@ -777,6 +780,19 @@ class CdkSlurmStack(Stack):
         fh.close()
         local_file = fh.name
         s3_key = f"{self.assets_base_key}/config/ansible/ansible_compute_node_vars.yml"
+        s3_client.upload_file(
+            local_file,
+            self.assets_bucket,
+            s3_key)
+
+        ansible_submitter_template_vars = self.get_instance_template_vars('ParallelClusterSubmitter')
+        fh = NamedTemporaryFile('w', delete=False)
+        fh.write('---\n')
+        for name, value in sorted(ansible_submitter_template_vars.items()):
+            fh.write(f"{name:28}: {value}\n")
+        fh.close()
+        local_file = fh.name
+        s3_key = f"{self.assets_base_key}/config/ansible/ansible_submitter_vars.yml"
         s3_client.upload_file(
             local_file,
             self.assets_bucket,
@@ -2424,16 +2440,16 @@ class CdkSlurmStack(Stack):
         # instance_template_vars is used to create environment variables,
         # extra ansible variables, and to use jinja2 to template user data scripts.
         # The keys are the environment and ansible variable names.
+        cluster_name = self.config['slurm']['ClusterName']
         if instance_role.startswith('ParallelCluster'):
             instance_template_vars = {
                 "AWS_DEFAULT_REGION": self.config['Region'],
-                "ClusterName": self.config['slurm']['ClusterName'],
+                "ClusterName": cluster_name,
                 "Region": self.config['Region'],
                 "TimeZone": self.config['TimeZone'],
             }
             instance_template_vars['DefaultPartition'] = 'batch'
             instance_template_vars['FileSystemMountPath'] = '/opt/slurm'
-            instance_template_vars['ModulefilesBaseDir'] = '/opt/slurm/config/modules/modulefiles'
             instance_template_vars['ParallelClusterVersion'] = self.config['slurm']['ParallelClusterConfig']['Version']
             instance_template_vars['SlurmBaseDir'] = '/opt/slurm'
             instance_template_vars['SlurmOSDir'] = '/opt/slurm'
@@ -2444,6 +2460,7 @@ class CdkSlurmStack(Stack):
                 else:
                     instance_template_vars['AccountingStorageHost'] = ''
                 instance_template_vars['Licenses'] = self.config['Licenses']
+                instance_template_vars['ParallelClusterMungeVersion'] = self.config['slurm']['ParallelClusterConfig']['MungeVersion']
                 instance_template_vars['ParallelClusterPythonVersion'] = self.config['slurm']['ParallelClusterConfig']['PythonVersion']
                 instance_template_vars['PrimaryController'] = True
                 instance_template_vars['SlurmctldPort'] = self.config['slurm']['SlurmCtl']['SlurmctldPort']
@@ -2455,6 +2472,11 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['SlurmrestdSocketDir'] = '/opt/slurm/com'
                 instance_template_vars['SlurmrestdSocket'] = f"{instance_template_vars['SlurmrestdSocketDir']}/slurmrestd.socket"
                 instance_template_vars['SlurmrestdUid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
+            elif instance_role == 'ParallelClusterSubmitter':
+                instance_template_vars['FileSystemMountPath'] = f'/opt/slurm/{cluster_name}'
+                instance_template_vars['ParallelClusterMungeVersion'] = self.config['slurm']['ParallelClusterConfig']['MungeVersion']
+                instance_template_vars['SlurmBaseDir'] = f'/opt/slurm/{cluster_name}'
+                instance_template_vars['SlurmOSDir'] = f'/opt/slurm/{cluster_name}'
             # Not used by ParallelCluster but must be set
             instance_template_vars['SlurmUid'] = 'None'
         else:
@@ -3642,6 +3664,7 @@ class CdkSlurmStack(Stack):
                             'sched_min_internal=2000000',
                         ])},
                         {'ScronParameters': 'enable'},
+                        {'PluginDir': '/opt/slurm/lib/slurm'},
                     ],
                 },
             },
@@ -4200,8 +4223,11 @@ class CdkSlurmStack(Stack):
         region = self.config['Region']
         cluster_name = self.config['slurm']['ClusterName']
         CfnOutput(self, "SubmitterMountHeadNodeCommand",
-            value = f"head_ip=$(aws ec2 describe-instances --region {region} --filters 'Name=tag:parallelcluster:cluster-name,Values={cluster_name}' 'Name=tag:parallelcluster:node-type,Values=HeadNode' --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text) && sudo mkdir -p /opt/slurm && sudo mount $head_ip:/opt/slurm /opt/slurm"
+            value = f"head_ip=$(aws ec2 describe-instances --region {region} --filters 'Name=tag:parallelcluster:cluster-name,Values={cluster_name}' 'Name=tag:parallelcluster:node-type,Values=HeadNode' --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text) && sudo mkdir -p /opt/slurm/{cluster_name} && sudo mount $head_ip:/opt/slurm /opt/slurm/{cluster_name}"
         )
         CfnOutput(self, "SubmitterConfigureCommand",
-            value = f"sudo /opt/slurm/config/bin/config_submitter.sh"
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_configure.sh"
+        )
+        CfnOutput(self, "SubmitterDeconfigureCommand",
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh"
         )
