@@ -1,0 +1,16 @@
+---
+
+- name: Create {{SlurmConfigDir}}/users_groups.json
+  shell: |
+    set -ex
+
+    {{SlurmConfigDir}}/bin/create_or_update_users_groups_json.sh
+
+- name: Create cron to refresh {{SlurmConfigDir}}/users_groups.json every hour
+  template:
+    dest: /etc/cron.d/slurm_update_users_groups_json
+    src:   etc/cron.d/slurm_update_users_groups_json
+    owner: root
+    group: root
+    mode: 0600
+    force: yes

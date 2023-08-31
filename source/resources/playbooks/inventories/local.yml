@@ -19,6 +19,11 @@ ParallelClusterSubmitter:
     local:
       ansible_host: 127.0.0.1
       ansible_connection: local
+ParallelClusterUsersGroupsSource:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
 SlurmCtl:
   hosts:
     local:

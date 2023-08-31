@@ -54,7 +54,7 @@ logger.setLevel(logging.INFO)
 #     * Login Nodes
 #     * Add support for configurable node weights within queue
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
-DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.6.1')
+DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.7.0')
 DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION = '0.5.15'
 DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.6.0':   '0.5.15',

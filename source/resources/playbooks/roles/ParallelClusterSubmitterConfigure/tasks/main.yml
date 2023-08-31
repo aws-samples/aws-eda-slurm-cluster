@@ -105,10 +105,10 @@
     mode: 0700
     state: directory
 
-- name: Copy /opt/slurm/{{ClusterName}}/config/munge.key to /etc/munge/munge.key
+- name: Copy {{SlurmConfigDir}}/munge.key to /etc/munge/munge.key
   copy:
     dest: /etc/munge/munge.key
-    src: "{{SubmitterSlurmConfigDir}}/munge.key"
+    src: "{{SlurmConfigDir}}/munge.key"
     remote_src: true
     force: true   # Has to be true or won't be copied when they are different.
     backup: true

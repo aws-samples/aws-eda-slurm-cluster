@@ -732,10 +732,14 @@ class CdkSlurmStack(Stack):
             'assets_base_key': self.assets_base_key,
             'ClusterName': self.config['slurm']['ClusterName'],
             'playbooks_s3_url': self.playbooks_s3_url,
-            'SubmitterSlurmConfigDir': f"/opt/slurm/{self.config['slurm']['ClusterName']}"
+            'SubmitterSlurmConfigDir': f"/opt/slurm/{self.config['slurm']['ClusterName']}/config"
         }
+        # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
         files_to_upload = [
+            'config/bin/create_or_update_users_groups_json.sh',
             'config/bin/create_users_groups_json.py',
+            'config/bin/create_users_groups_json_configure.sh',
+            'config/bin/create_users_groups_json_deconfigure.sh',
             'config/bin/create_users_groups.py',
             'config/bin/on_head_node_start.sh',
             'config/bin/on_head_node_configured.sh',
@@ -4227,6 +4231,12 @@ class CdkSlurmStack(Stack):
         )
         CfnOutput(self, "SubmitterConfigureCommand",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_configure.sh"
+        )
+        CfnOutput(self, "CreateUsersGroupsJsonConfigureCommand",
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_configure.sh"
+        )
+        CfnOutput(self, "CreateUsersGroupsJsonDeconfigureCommand",
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_deconfigure.sh"
         )
         CfnOutput(self, "SubmitterDeconfigureCommand",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh"

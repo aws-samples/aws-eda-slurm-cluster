@@ -1,0 +1,8 @@
+---
+
+- name: Remove contrab that refreshes refresh users_groups.json
+  hosts: ParallelClusterUsersGroupsSource
+  become_user: root
+  become: yes
+  roles:
+    - ParallelClusterCreateUsersGroupsJsonDeconfigure

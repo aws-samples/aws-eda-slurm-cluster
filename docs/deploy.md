@@ -55,7 +55,7 @@ The Slurm Database is required for configuring Slurm accounts, users, groups, an
 It you need these and other features then you will need to create ParallelCluster Slurm Database.
 Follow the directions in this [ParallelCluster tutorial to configure slurm accounting](https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3).
 
-### Configuration File
+### Create Configuration File
 
 The first step in deploying your cluster is to create a configuration file.
 A default configuration file is found in [source/resources/config/default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml).
@@ -172,8 +172,48 @@ with command line arguments, however it is better to specify all of the paramete
 
 This will create the ParallelCuster configuration file, store it in S3, and use it to create a cluster.
 
+## Create users_groups.json
 
-### Customize the compute node AMI
+The slurm cluster needs to have the same users and groups as the submission host.
+But joining each compute node to a domain effectively creates a distributed denial of service (DDOS) attack on the demain controller
+when the cluster rapidly scales out or in and each node tries to joing and leave the domain.
+This can lead to domain controller timeouts and widespread having in your environment.
+
+To solve this problem a script runs on a server that is joined to the domain which writes a users_groups.json file with all
+of the non-privileged users and groups and their respective uids and gids.
+This file is used to create local users and groups that match the domain-joined servers.
+
+Select the server that you want to use to create and update users_groups.json.
+Mount the Slurm file system using the `SubmitterMountHeadNodeCommand` output of the CloudFormation stack.
+Then run the `CreateUsersGroupsJsonConfigureCommand` output of CloudFormation stack.
+
+Before deleting the cluster you can undo the configuration by running the `CreateUsersGroupsJsonDecConfigureCommand` output of the CloudFormation stack.
+
+## Configure submission hosts to use the cluster
+
+ParallelCluster was built assuming that users would ssh into the head node or login nodes to execute Slurm commands.
+This can be undesirable for a number of reasons.
+First, users shouldn't be given ssh access to a critical infrastructure likek the cluster head node.
+Second, it's just inconvenient to have to use ssh to access the cluster and use it.
+
+Fortunately, you can configure any server to be able to run slurm commands.
+These commands must be run by an administrator that has root access to the submission host.
+These commands could also be run to create a custom AMI for user desktops so that they can access the clusters.
+The commands to configure submission hosts are in the outputs of the CloudFormation template.
+Run them in the following order:
+
+```
+SubmitterMountHeadNodeCommand
+SubmitterConfigureCommand
+```
+
+The first command simply mounts the head node's NFS file system so you have access to the Slurm commands and configuration.
+The second command runs an ansible playbook that configures the submission host so that it can run the Slurm commands for the cluster.
+It also configures the modulefile that sets up the environment to use the slurm cluster.
+
+The clusters have been configured so that a submission host can use more than one cluster by simply changing the modulefile that is loaded.
+
+## Customize the compute node AMI
 
 The easiest way to create a custom AMI is to find the default ParallelCluster AMI in the UI.
 Create an instance using the AMI and make whatever customizations you require such as installing packages and

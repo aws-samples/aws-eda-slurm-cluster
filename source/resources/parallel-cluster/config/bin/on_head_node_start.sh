@@ -33,14 +33,18 @@ mkdir -p $config_bin_dir
 
 # Download all of the config scripts
 config_scripts=(\
-    config_submitter.sh \
+    create_or_update_users_groups_json.sh \
     create_users_groups_json.py \
+    create_users_groups_json_configure.sh \
+    create_users_groups_json_deconfigure.sh \
     create_users_groups.py \
     on_head_node_start.sh \
     on_head_node_configured.sh \
     on_head_node_updated.sh \
     on_compute_node_start.sh \
     on_compute_node_configured.sh \
+    submitter_configure.sh \
+    submitter_deconfigure.sh \
 )
 for config_script in ${config_scripts[*]}; do
     dest=$config_bin_dir/$config_script
