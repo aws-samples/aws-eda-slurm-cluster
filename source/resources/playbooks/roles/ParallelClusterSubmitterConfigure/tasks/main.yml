@@ -6,8 +6,7 @@
       ClusterName:                {{ClusterName}}
       distribution:               {{distribution}}
       Region:                     {{Region}}
-      SubmitterSlurmBaseDir:      {{SubmitterSlurmBaseDir}}
-      SubmitterSlurmConfigDir:    {{SubmitterSlurmConfigDir}}
+      SlurmBaseDir:               {{SlurmBaseDir}}
 
 - name: Get ip address of {{ClusterName}} head node
   shell:
@@ -26,7 +25,7 @@
 - name: Add /opt/slurm/{{ClusterName}} to /etc/fstab
   mount:
     path: /opts/slurm/{{ClusterName}}
-    src: "{{head_node_ip_address.stdout_lines[0]}}:/opt/slurm {{SubmitterSlurmBaseDir}}"
+    src: "{{head_node_ip_address.stdout_lines[0]}}:/opt/slurm /opt/slurm/{{ClusterName}}"
     fstype: nfs
     backup: true
     state: present # Should already be mounted

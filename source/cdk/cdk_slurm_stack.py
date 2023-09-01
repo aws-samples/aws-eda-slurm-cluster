@@ -4210,7 +4210,6 @@ class CdkSlurmStack(Stack):
                 'ParallelClusterConfigS3Url': self.parallel_cluster_config_s3_url,
             }
         )
-        # self.parallel_cluster.add_dependency()
 
         CfnOutput(self, "ParallelClusterConfigS3Url",
             value = self.parallelClusterConfigAsset.s3_object_url
@@ -4226,18 +4225,18 @@ class CdkSlurmStack(Stack):
         )
         region = self.config['Region']
         cluster_name = self.config['slurm']['ClusterName']
-        CfnOutput(self, "SubmitterMountHeadNodeCommand",
+        CfnOutput(self, "Command01_SubmitterMountHeadNode",
             value = f"head_ip=$(aws ec2 describe-instances --region {region} --filters 'Name=tag:parallelcluster:cluster-name,Values={cluster_name}' 'Name=tag:parallelcluster:node-type,Values=HeadNode' --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text) && sudo mkdir -p /opt/slurm/{cluster_name} && sudo mount $head_ip:/opt/slurm /opt/slurm/{cluster_name}"
         )
-        CfnOutput(self, "SubmitterConfigureCommand",
-            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_configure.sh"
-        )
-        CfnOutput(self, "CreateUsersGroupsJsonConfigureCommand",
+        CfnOutput(self, "Command02_CreateUsersGroupsJsonConfigure",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_configure.sh"
         )
-        CfnOutput(self, "CreateUsersGroupsJsonDeconfigureCommand",
+        CfnOutput(self, "Command03_SubmitterConfigure",
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_configure.sh"
+        )
+        CfnOutput(self, "command10_CreateUsersGroupsJsonDeconfigure",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_deconfigure.sh"
         )
-        CfnOutput(self, "SubmitterDeconfigureCommand",
+        CfnOutput(self, "command11_SubmitterDeconfigure",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh"
         )
