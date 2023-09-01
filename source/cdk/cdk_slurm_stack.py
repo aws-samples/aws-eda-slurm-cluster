@@ -4238,5 +4238,5 @@ class CdkSlurmStack(Stack):
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_deconfigure.sh"
         )
         CfnOutput(self, "command11_SubmitterDeconfigure",
-            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh"
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh && sudo umount /opt/slurm/{cluster_name}"
         )
