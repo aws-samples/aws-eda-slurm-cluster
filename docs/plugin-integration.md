@@ -1,4 +1,4 @@
-# Plugin Integration Into Existing Slurm Cluster
+# Plugin Integration Into Existing Slurm Cluster (legacy)
 
 If you have an existing Slurm cluster and want to enable it to scale into AWS then you can integrate
 the `SlurmPlugin.py` into your existing cluster.

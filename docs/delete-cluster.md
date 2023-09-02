@@ -1,4 +1,4 @@
-# Delete Cluster
+# Delete Cluster (legacy)
 
 Most of the resources can be deleted by simply deleting the cluster's CloudFormation stack.
 However, there a couple of resources that must be manually deleted:

@@ -3,12 +3,14 @@ repo_url: https://github.com/aws-samples/aws-eda-slurm-cluster
 docs_dir: docs
 nav:
   - 'index.md'
-  - 'deploy.md'
+  - 'deployment-prerequisites.md'
+  - 'deploy-parallel-cluster.md'
+  - 'soca_integration.md'
   - 'run_jobs.md'
   - 'job_preemption.md'
   - 'rest_api.md'
+  - 'deploy-legacy-cluster.md'
   - 'onprem.md'
-  - 'soca_integration.md'
   - 'f1-ami.md'
   - 'federation.md'
   - 'multi-region.md'

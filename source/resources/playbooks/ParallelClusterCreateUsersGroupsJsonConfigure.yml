@@ -1,0 +1,8 @@
+---
+
+- name: Create and periodically refresh users_groups.json
+  hosts: ParallelClusterUsersGroupsSource
+  become_user: root
+  become: yes
+  roles:
+    - ParallelClusterCreateUsersGroupsJsonConfigure

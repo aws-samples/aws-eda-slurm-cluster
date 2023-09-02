@@ -1,4 +1,4 @@
-# On-Premises Integration
+# On-Premises Integration (legacy)
 
 The slurm cluster can also be configured to manage on-premises compute nodes.
 The user must configure the on-premises compute nodes and then give the configuration information.

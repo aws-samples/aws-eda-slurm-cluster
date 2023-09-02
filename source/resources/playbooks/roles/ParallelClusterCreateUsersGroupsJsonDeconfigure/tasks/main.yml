@@ -1,0 +1,6 @@
+---
+
+- name: Delete cron to refresh {{SlurmConfigDir}}/users_groups.json every hour
+  file:
+    dest: /etc/cron.d/slurm_update_users_groups_json
+    state: absent

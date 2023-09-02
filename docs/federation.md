@@ -1,4 +1,4 @@
-# Federation
+# Federation (legacy)
 
 To maximize performance, EDA workloads should run in a single AZ.
 If you need to run jobs in more than one AZ then you can use the [federation feature of Slurm](https://slurm.schedmd.com/federation.html) so that you can run jobs on multiple clusters.

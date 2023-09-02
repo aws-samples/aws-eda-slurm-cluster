@@ -54,9 +54,15 @@ logger.setLevel(logging.INFO)
 #     * Login Nodes
 #     * Add support for configurable node weights within queue
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
-DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.6.1')
+DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.7.0')
+DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION = '0.5.15'
+DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSIONS = {
+    '3.6.0':   '0.5.15',
+    '3.6.1':   '0.5.15',
+}
 DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION = '3.9.16'
 DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS = {
+    '3.6.0':   '3.9.16',
     '3.6.1':   '3.9.16',
     '3.7.0b1': '3.9.16',
 }
@@ -64,9 +70,15 @@ DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION = '23-02-3-1'
 DEFAULT_PARALLEL_CLUSTER_SLURM_VERSIONS = {
     '3.7.0b1': DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION,
 }
+
+def get_DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION(config):
+    parallel_cluster_version = config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Version', DEFAULT_PARALLEL_CLUSTER_VERSION)
+    munge_version = DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSIONS.get(parallel_cluster_version, str(DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION))
+    return munge_version
+
 def get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config):
     parallel_cluster_version = config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Version', DEFAULT_PARALLEL_CLUSTER_VERSION)
-    python_version = DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS.get(parallel_cluster_version, str(DEFAULT_PARALLEL_CLUSTER_VERSION))
+    python_version = DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS.get(parallel_cluster_version, str(DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION))
     return python_version
 
 PARALLEL_CLUSTER_ALLOWED_OSES = ['alinux2', 'centos7', 'rhel8', 'ubuntu2004', 'ubuntu2204']
@@ -238,6 +250,7 @@ def get_config_schema(config):
             Optional('ParallelClusterConfig'): {
                 'Enable': bool,
                 Optional('Version', default=str(DEFAULT_PARALLEL_CLUSTER_VERSION)): And(str, lambda s: parse_version(s) >= MIN_PARALLEL_CLUSTER_VERSION),
+                Optional('MungeVersion', default=get_DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION(config)): str,
                 Optional('PythonVersion', default=get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config)): str,
                 Optional('Image', default={'Os': 'centos7'}): {
                     Optional('Os', default='centos7'): And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES)
