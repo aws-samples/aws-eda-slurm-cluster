@@ -39,7 +39,13 @@
                                 <a href="." class="nav-link">AWS EDA Slurm Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="deploy/" class="nav-link">Deploy the Cluster</a>
+                                <a href="deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="run_jobs/" class="nav-link">Run Jobs</a>
@@ -51,28 +57,28 @@
                                 <a href="rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="onprem/" class="nav-link">On-Premises Integration</a>
+                                <a href="deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="soca_integration/" class="nav-link">SOCA Integration</a>
+                                <a href="onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                                <a href="f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="federation/" class="nav-link">Federation</a>
+                                <a href="federation/" class="nav-link">Federation (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                                <a href="multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                                <a href="plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="delete-cluster/" class="nav-link">Delete Cluster</a>
+                                <a href="delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="implementation/" class="nav-link">Implementation Details</a>
+                                <a href="implementation/" class="nav-link">Implementation Details (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="debug/" class="nav-link">Debug</a>
@@ -91,7 +97,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="deploy/" class="nav-link">
+                                <a rel="next" href="deployment-prerequisites/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -143,7 +149,7 @@
 
 <h1 id="aws-eda-slurm-cluster">AWS EDA Slurm Cluster</h1>
 <p>This repository contains an AWS Cloud Development Kit (CDK) application that creates a Slurm cluster that is suitable for running production EDA workloads on AWS.</p>
-<p>The original version of this repo used a custom Python plugin to integrate Slurm with AWS.
+<p>The original (legacy) version of this repo used a custom Python plugin to integrate Slurm with AWS.
 The latest version of the repo uses AWS ParallelCluster for the core Slurm infrastructure and AWS integration.
 The big advantage of moving to AWS ParallelCluster is that it is a supported AWS service.
 Currently, some of the features of the legacy version are not supported in the ParallelCluster version, but
@@ -156,29 +162,32 @@ work continues to add features to ParallelCluster so that those features can be 
 <li>Handling of spot terminations</li>
 <li>Handling of insufficient capacity exceptions</li>
 <li>Batch and interactive partitions (queues)</li>
-<li>Managed tool licenses as a consumable resource</li>
+<li>Manages tool licenses as a consumable resource</li>
 <li>User and group fair share scheduling</li>
 <li>Slurm accounting database</li>
 <li>CloudWatch dashboard</li>
 <li>Job preemption</li>
 <li>Manage on-premises compute nodes</li>
-<li>Configure partitions (queues) and nodes that are always on to support reserved instances RIs and savings plans.</li>
+<li>Configure partitions (queues) and nodes that are always on to support reserved instances (RIs) and savings plans (SPs).</li>
 </ul>
 <p>Features in the legacy version and not in the ParallelCluster version:</p>
 <ul>
-<li>Multi-AZ support. Supported by ParallelCluster, but not implemented.</li>
+<li>Heterogenous clusters with mixed OSes and CPU architectures on compute nodes.</li>
+<li>Multi-AZ support. Supported by ParallelCluster, but not currently implemented.</li>
+<li>Multi-region support</li>
 <li>AWS Fault Injection Simulator (FIS) templates to test spot terminations</li>
-<li>Heterogenous cluster with mixed OSes and CPU architectures on compute nodes.</li>
 <li>Support for MungeKeySsmParameter</li>
 <li>Multi-cluster federation</li>
-<li>Multi-region support</li>
 </ul>
 <p>ParallelCluster Limitations</p>
 <ul>
-<li>Number of "Compute Resources" is limited to 50 which limits the number of instance types allowed in a cluster.</li>
+<li>Number of "Compute Resources" (CRs) is limited to 50 which limits the number of instance types allowed in a cluster.
+  ParallelCluster can have multiple instance types in a CR, but with memory based scheduling enabled, they must all have the same number of cores and amount of memory.</li>
 <li>All Slurm instances must have the same OS and CPU architecture.</li>
 <li>Stand-alone Slurm database daemon instance. Prevents federation.</li>
-<li>Multi-region support. This is unlikely to change because multi-region services run against our archiectural philosophy. Federation may be a better option</li>
+<li>Multi-region support. This is unlikely to change because multi-region services run against our archiectural philosophy.
+  Federation may be an option but its current implementation limits scheduler performance and doesn't allow cluster prioritization so jobs land on
+  random clusters.</li>
 </ul>
 <p>Slurm Limitations</p>
 <ul>
@@ -230,11 +239,11 @@ RedHat 7 and CentOS 7 do not support Graviton 2.</p>
 <li>Rocky Linux 8 and arm64</li>
 <li>Rocky Linux 8 and x86_64</li>
 </ul>
-<p>Note that in the ParallelCluster version all compute nodes must have the same OS and architecture.</p>
+<p>Note that in the ParallelCluster version, all compute nodes must have the same OS and architecture.</p>
 <h2 id="documentation">Documentation</h2>
 <p><a href="https://aws-samples.github.io/aws-eda-slurm-cluster/">View on GitHub Pages</a></p>
-<p>To view the docs locally, clone the repository and run mkdocs:</p>
-<p>The docs are in the docs directory. You can view them in an editor or using the mkdocs tool.</p>
+<p>You can also view the docs locally,
+The docs are in the docs directory. You can view them in an editor or using the mkdocs tool.</p>
 <p>I recommend installing mkdocs in a python virtual environment.</p>
 <pre><code>python3 -m venv ~/.mkdocs_venv
 source ~/.mkdocs_venv/bin/activate
@@ -333,5 +342,5 @@ firefox http://127.0.0.1:8000/ &amp;
 
 <!--
 MkDocs version : 1.3.0
-Build Date UTC : 2023-08-20 03:38:43.903405+00:00
+Build Date UTC : 2023-09-02 01:34:12.664294+00:00
 -->

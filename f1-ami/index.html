@@ -8,7 +8,7 @@
         
         
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>SLURM AMI Based On FPGA Developer AMI - EDA SLURM Cluster on AWS</title>
+        <title>SLURM AMI Based On FPGA Developer AMI (legacy) - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
@@ -39,7 +39,13 @@
                                 <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy/" class="nav-link">Deploy the Cluster</a>
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
@@ -51,28 +57,28 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem active">
-                                <a href="./" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                                <a href="./" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation</a>
+                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details</a>
+                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -86,7 +92,7 @@
                             </a>
                         </li>
                             <li class="nav-item">
-                                <a rel="prev" href="../soca_integration/" class="nav-link">
+                                <a rel="prev" href="../onprem/" class="nav-link">
                                     <i class="fa fa-arrow-left"></i> Previous
                                 </a>
                             </li>
@@ -116,7 +122,7 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#slurm-ami-based-on-fpga-developer-ami" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+            <li class="nav-item" data-level="1"><a href="#slurm-ami-based-on-fpga-developer-ami-legacy" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-level="2"><a href="#subscribe-to-the-ami" class="nav-link">Subscribe To the AMI</a>
               <ul class="nav flex-column">
@@ -137,7 +143,7 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="slurm-ami-based-on-fpga-developer-ami">SLURM AMI Based On FPGA Developer AMI</h1>
+<h1 id="slurm-ami-based-on-fpga-developer-ami-legacy">SLURM AMI Based On FPGA Developer AMI (legacy)</h1>
 <p>This tutorial shows how to create an AMI based on the AWS FPGA Developer AMI.
 The FPGA Developer AMI has the Xilinx Vivado tools that can be used free of additional
 charges when run on AWS EC2 instances to develop FPGA images that can be run on AWS F1 instances.</p>

@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Deployment Prerequisites - EDA SLURM Cluster on AWS</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/font-awesome.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css">
+
+        <script src="../js/jquery-1.10.2.min.js" defer></script>
+        <script src="../js/bootstrap.min.js" defer></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
+        <script>hljs.initHighlightingOnLoad();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+            <div class="container">
+                <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-collapse">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="navitem">
+                                <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
+                            </li>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../run_jobs/" class="nav-link">Run Jobs</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../job_preemption/" class="nav-link">Job Preemption</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../rest_api/" class="nav-link">Slurm REST API</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../debug/" class="nav-link">Debug</a>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-toggle="modal" data-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href=".." class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../deploy-parallel-cluster/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/deployment-prerequisites.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-light navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-level="1"><a href="#deployment-prerequisites" class="nav-link">Deployment Prerequisites</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#configure-aws-cli-credentials" class="nav-link">Configure AWS CLI Credentials</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#clone-or-download-the-repository" class="nav-link">Clone or Download the Repository</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#create-sns-topic-for-error-notifications-optional-but-recommended" class="nav-link">Create SNS Topic for Error Notifications (Optional but recommended)</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#make-sure-required-packages-are-installed" class="nav-link">Make sure required packages are installed</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#install-cloud-development-kit-cdk-optional" class="nav-link">Install Cloud Development Kit (CDK) (Optional)</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#create-configuration-file" class="nav-link">Create Configuration File</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#configure-the-compute-instances" class="nav-link">Configure the Compute Instances</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="4"><a href="#parallelcluster" class="nav-link">ParallelCluster</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#legacy" class="nav-link">Legacy</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#configure-fair-share-scheduling-optional" class="nav-link">Configure Fair Share Scheduling (Optional)</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#configure-licenses" class="nav-link">Configure Licenses</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="deployment-prerequisites">Deployment Prerequisites</h1>
+<p>The original (legacy) version used a custom Slurm plugin for orchestrating the EC2 compute nodes.
+The latest version uses ParallelCluster to provision the core Slurm infrastructure.</p>
+<p>This page shows common prerequisites that need to be done for deploying either version.</p>
+<h2 id="configure-aws-cli-credentials">Configure AWS CLI Credentials</h2>
+<p>You will needs AWS credentials that provide admin access to deploy the cluster.</p>
+<h2 id="clone-or-download-the-repository">Clone or Download the Repository</h2>
+<p>Clone or download the aws-eda-slurm-cluster repository to your system.</p>
+<pre><code>git clone git@github.com:aws-samples/aws-eda-slurm-cluster.git
+</code></pre>
+<h2 id="create-sns-topic-for-error-notifications-optional-but-recommended">Create SNS Topic for Error Notifications (Optional but recommended)</h2>
+<p>The Slurm cluster allows you to specify an SNS notification that will be notified when an error is detected.
+You can provide the ARN for the topic in the config file or on the command line.</p>
+<p>You can use the SNS notification in various ways.
+The simplest is to subscribe your email address to the topic so that you get an email when there is an error.
+You could also use it to trigger a CloudWatch alarm that could be used to trigger a lambda to do automatic
+remediation or create a support ticket.</p>
+<h2 id="make-sure-required-packages-are-installed">Make sure required packages are installed</h2>
+<pre><code>cd aws-eda-slurm-cluster
+source setup.sh
+</code></pre>
+<p>The setup script assumes that you have sudo access so that you can install or update packages.
+If you do not, then contact an administrator to help you do the updates.
+If necessary modify the setup script for your environment.</p>
+<h3 id="install-cloud-development-kit-cdk-optional">Install Cloud Development Kit (CDK) (Optional)</h3>
+<p>The setup script will attempt to install all of the prerequisites for you.
+If the install script fails on your system then you can refer to this section for instructions
+on how to install or update CDK.</p>
+<p>This cluster uses Cloud Development Kit (CDK) and Python 3 to deploy the cluster.</p>
+<p>Install the packages used by the installer.</p>
+<pre><code>sudo yum -y install curl gcc-c++ make nfs-utils python3 tcl unzip wget
+</code></pre>
+<p>The following link documents how to setup for CDK.
+Follow the instructions for Python.</p>
+<p><a href="https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_prerequisites">https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_prerequisites</a></p>
+<p>Note that CDK requires a pretty new version of nodejs which you may have to download from, for example, <a href="https://nodejs.org/dist/v16.13.1/node-v16.13.1-linux-x64.tar.xz">https://nodejs.org/dist/v16.13.1/node-v16.13.1-linux-x64.tar.xz</a></p>
+<pre><code>sudo yum -y install wget
+wget https://nodejs.org/dist/v16.13.1/node-v16.13.1-linux-x64.tar.xz
+tar -xf node-v16.13.1-linux-x64.tar.xz ~
+</code></pre>
+<p>Add the nodjs bin directory to your path.</p>
+<p><a href="https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_install">https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_install</a></p>
+<p>Note that the version of aws-cdk changes frequently.
+The version that has been tested is in the CDK_VERSION variable in the install script.</p>
+<p>The install script will try to install the prerequisites if they aren't already installed.</p>
+<h2 id="create-configuration-file">Create Configuration File</h2>
+<p>Before you deploy a cluster you need to create a configuration file.
+A default configuration file is found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">source/resources/config/default_config.yml</a>.
+You should create a new config file and update the parameters for your cluster.
+Ideally you should version control this file so you can keep track of changes.</p>
+<p>The schema for the config file along with its default values can be found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L204-L631">source/cdk/config_schema.py</a>.
+The schema is defined in python, but the actual config file should be in yaml format.</p>
+<p>The following are key parameters that you will need to update.
+If you do not have the required parameters in your config file then the installer script will fail unless you specify the <code>--prompt</code> option.
+You should save your selections in the config file.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+<th>Valid Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L221">StackName</a>]</td>
+<td>The cloudformation stack that will deploy the cluster.</td>
+<td></td>
+<td>None</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L318-L320">slurm/ClusterName</a></td>
+<td>Name of the Slurm cluster</td>
+<td>For ParallelCluster shouldn't be the same as StackName</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L222-L223">Region</a></td>
+<td>Region where VPC is located</td>
+<td></td>
+<td><code>$AWS_DEFAULT_REGION</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L226-L227">VpcId</a></td>
+<td>The vpc where the cluster will be deployed.</td>
+<td>vpc-*</td>
+<td>None</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L224-L225">SshKeyPair</a></td>
+<td>EC2 Keypair to use for instances</td>
+<td></td>
+<td>None</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L435-L439">slurm/SubmitterSecurityGroupIds</a></td>
+<td>Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource.</td>
+<td>sg-*</td>
+<td>None</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L233-L234">ErrorSnsTopicArn</a></td>
+<td>ARN of an SNS topic that will be notified of errors</td>
+<td><code>arn:aws:sns:{{region}}:{AccountId}:{TopicName}</code></td>
+<td>None</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L250-L312">slurm/ParallelClusterConfig/enable</a></td>
+<td>Use ParallelCluster</td>
+<td>true, false</td>
+<td>false</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509">slurm/InstanceConfig</a></td>
+<td>Configure instance types that the cluster can use and number of nodes.</td>
+<td></td>
+<td>See <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">default_config.yml</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="configure-the-compute-instances">Configure the Compute Instances</h3>
+<p>The <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509">slurm/InstanceConfig</a> configuration parameter configures the base operating systems, CPU architectures, instance families,
+and instance types that the Slurm cluster should support.
+ParallelCluster currently doesn't support heterogeneous clusters;
+all nodes must have the same architecture and Base OS.</p>
+<h4 id="parallelcluster">ParallelCluster</h4>
+<table>
+<thead>
+<tr>
+<th>Base OS</th>
+<th>CPU Architectures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Amazon Linux 2</td>
+<td>x86_64, arm64</td>
+</tr>
+<tr>
+<td>CentOS 7</td>
+<td>x86_64</td>
+</tr>
+<tr>
+<td>RedHat 7</td>
+<td>x86_64</td>
+</tr>
+<tr>
+<td>RedHat 8</td>
+<td>x86_64, arm64</td>
+</tr>
+</tbody>
+</table>
+<h4 id="legacy">Legacy</h4>
+<table>
+<thead>
+<tr>
+<th>Base OS</th>
+<th>CPU Architectures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alma Linux 8</td>
+<td>x86_64, arm64</td>
+</tr>
+<tr>
+<td>Amazon Linux 2</td>
+<td>x86_64, arm64</td>
+</tr>
+<tr>
+<td>CentOS 7</td>
+<td>x86_64</td>
+</tr>
+<tr>
+<td>RedHat 7</td>
+<td>x86_64</td>
+</tr>
+<tr>
+<td>RedHat 8</td>
+<td>x86_64, arm64</td>
+</tr>
+<tr>
+<td>Rocky Linux 8</td>
+<td>x86_64, arm64</td>
+</tr>
+</tbody>
+</table>
+<p>You can exclude instances types by family or specific instance type.
+By default the InstanceConfig excludes older generation instance families.</p>
+<p>You can include instances by family or specific instance type.
+If no includes are specified then all non-excluded instance types will be used.
+You can also choose to only include the largest instance size within a family.
+The advantage of using the max instance size is that jobs running on the instance
+have the highest network bandwidth for that family and fewer instances are required
+to run the same number of jobs.
+This may help jobs run faster and allow jobs to wait less time for a new instance to start.
+The disadvantage is higher cost if the instance is lightly loaded.</p>
+<p>The default InstanceConfig includes all supported base OSes and architectures and burstable and general purpose
+instance types.</p>
+<ul>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L124-L166">default instance families</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L168-L173">default instance types</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L175-L192">default excluded instance families</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L194-L197">default excluded instance types</a></li>
+</ul>
+<p>Note that instance types and families are python regular expressions.</p>
+<pre><code>slurm:
+  InstanceConfig:
+    BaseOsArchitecture:
+      CentOS:
+        7: [x86_64]
+    Include:
+      InstanceFamilies:
+        - t3.*
+        - m6a.*
+      InstanceTypes:
+        - r6a.large
+</code></pre>
+<p>The following InstanceConfig configures instance types recommended for EDA workloads running on CentOS.</p>
+<pre><code>slurm:
+  InstanceConfig:
+    BaseOsArchitecture:
+      CentOS:
+          7: [x86_64]
+    Include:
+      InstanceFamilies:
+        - c5.*
+        - c6g.*
+        - f1
+        - m5.*
+        - m6g.*
+        - r5.*
+        - r6g.*
+        - x2gd
+        - z1d
+</code></pre>
+<p>If you have reserved instances (RIs) or savings plans then you can configure instances so that they are always on since you are paying for them whether they are running or not.
+To do this add a MinCount greater than 0 for the compute resources that contain the instance types.</p>
+<pre><code>slurm:
+  InstanceConfig:
+    NodeCounts:
+      DefaultMinCount: 1
+</code></pre>
+<p>The Legacy cluster also allows you to specify the names of specific nodes.</p>
+<pre><code>slurm:
+  InstanceConfig:
+    AlwaysOnNodes:
+      - nodename-[0-4]
+</code></pre>
+<h3 id="configure-fair-share-scheduling-optional">Configure Fair Share Scheduling (Optional)</h3>
+<p>Slurm supports <a href="https://slurm.schedmd.com/fair_tree.html">fair share scheduling</a>, but it requires the fair share policy to be configured.
+By default, all users will be put into a default group that has a low fair share.
+The configuration file is at <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example">source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example</a>
+in the repository and is deployed to <strong>/opt/slurm/{{ClusterName}}/conf/accounts.yml</strong>.</p>
+<p>The file is a simple yaml file that allows you to configure groups, the users that belong to the group, and a fair share weight for the group.
+Refer to the Slurm documentation for details on how the fair share weight is calculated.
+The scheduler can be configured so that users who aren't getting their fair share of resources get
+higher priority.
+The following shows 3 top level groups.
+Note that the fairshare weights aren't a percentage. They are just a relative weight.
+In this example, the projects have 9 times higher weight than the jenkins group.</p>
+<pre><code>jenkins:
+  fairshare: 10
+  users:
+  - jenkins
+
+project1:
+  fairshare: 90
+
+project2:
+  fairshare: 90
+</code></pre>
+<p>The allocation of top level groups can be further subdivided to control the
+relative priority of jobs within that group.
+For example, a project may have design verification (dv), rtl design (rtl), physical design (dv),
+and formal verification (fv) teams.
+The following example shows how the project's allocation can be prioritized for the different teams.
+If a group is using more than it's fair share then its jobs will have lower priority than
+jobs whose users aren't getting their fair share.</p>
+<pre><code>project1-dv:
+  parent: project1
+  fairshare: 80
+  users:
+  - dvuser1
+project1-pd:
+  parent: project1
+  fairshare: 10
+  users:
+  - pduser1
+project1-rtl:
+  parent: project1
+  fairshare: 10
+  users:
+  - rtluser1
+project1-fv:
+  parent: project1
+  fairshare: 10
+  users:
+  - fvuser1
+</code></pre>
+<p>The scheduler uses the <strong>priority/multifactor</strong> plugin to calculate job priorities.
+Fair share is just one of the factors.
+Read the <a href="https://slurm.schedmd.com/priority_multifactor.html">Multifactor Priority Plugin</a> documentation
+for the details.</p>
+<p>This is the default configuration in slurm.conf.
+The partition weight is set the highest so that jobs in the interactive partition always have the highest priority.
+Fairshare and QOS are the next highest weighted factors.
+The next factor is the job age, which means all else being equal the jobs run in FIFO order with the jobs that have been waiting
+the longest getting higher priority.</p>
+<pre><code>PriorityType=priority/multifactor
+PriorityWeightPartition=100000
+PriorityWeightFairshare=10000
+PriorityWeightQOS=10000
+PriorityWeightAge=1000
+PriorityWeightAssoc=0
+PriorityWeightJobSize=0
+</code></pre>
+<p>These weights can be adjusted based on your needs to control job priorities.</p>
+<h3 id="configure-licenses">Configure Licenses</h3>
+<p>Slurm supports <a href="https://slurm.schedmd.com/licenses.html">configuring licenses as a consumable resource</a>.
+It will keep track of how many running jobs are using a license and when no more licenses are available
+then jobs will stay pending in the queue until a job completes and frees up a license.
+Combined with the fairshare algorithm, this can prevent users from monopolizing licenses and preventing others from
+being able to run their jobs.</p>
+<p>Licenses are configured using the <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L621-L629">slurm/Licenses</a> configuration variable.
+If you are using the Slurm database then these will be configured in the database.
+Otherwises they will be configured in <strong>/opt/slurm/{{ClusterName}}/etc/slurm_licenses.conf</strong>.</p>
+<p>The example configuration shows how the number of licenses can be configured.
+In this example, the cluster will manage 800 vcs licenses and 1 ansys license.
+Users must request a license using the <strong>-L</strong> or <strong>--licenses</strong> options.</p>
+<pre><code>slurm:
+  Licenses:
+    vcs:
+      Count: 800
+    ansys:
+      Count: 1
+</code></pre></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js" defer></script>
+        <script src="../search/main.js" defer></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>

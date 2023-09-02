@@ -39,7 +39,13 @@
                                 <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy/" class="nav-link">Deploy the Cluster</a>
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                            </li>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
@@ -51,28 +57,28 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
-                            </li>
-                            <li class="navitem active">
-                                <a href="./" class="nav-link">SOCA Integration</a>
+                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation</a>
+                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -86,12 +92,12 @@
                             </a>
                         </li>
                             <li class="nav-item">
-                                <a rel="prev" href="../onprem/" class="nav-link">
+                                <a rel="prev" href="../deploy-parallel-cluster/" class="nav-link">
                                     <i class="fa fa-arrow-left"></i> Previous
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../f1-ami/" class="nav-link">
+                                <a rel="next" href="../run_jobs/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -155,15 +161,11 @@
 </tbody>
 </table>
 <p>Deploy your slurm cluster.</p>
-<p>Connect to the SOCA Scheduler instance and run the commands in the <strong>MountCommand</strong> and <strong>ConfigureSyncSlurmUsersGroups</strong> outputs
-of the SLURM stack as root.
-These commands will mount the SLURM file system at <strong>/opt/slurm/{{ClusterName}}</strong> and then create
-a cron job that runs every 5 minutes and updates <strong>/opt/slurm/{{ClusterName}}/config/users_groups.json</strong>.</p>
-<p>Connect to a remote desktop instance and run the commands in the <strong>MountCommand</strong> and <strong>ConfigureSubmitterCommand</strong> outputs
-of the SLURM stack.
+<p>Connect to the SOCA Scheduler instance and follow the instructions to <a href="../deploy-parallel-cluster/#create-users_groupsjson">Create users_groups.json</a>.</p>
+<p>Connect to a remote desktop instance and follow the instructions in <a href="../deploy-parallel-cluster/#configure-submission-hosts-to-use-the-cluster">Configure submission hosts to use the cluster</a>.
 If all users need to use the cluster then it is probably best to create a custom AMI that is configured with the configuration
 commands.</p>
-<p>You are now ready to run jobs.</p></div>
+<p>You are now ready to run jobs from your SOCA desktop.</p></div>
             </div>
         </div>
 

@@ -39,7 +39,13 @@
                                 <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy/" class="nav-link">Deploy the Cluster</a>
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
@@ -51,28 +57,28 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation</a>
+                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details</a>
+                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -139,7 +145,7 @@ The more likely reason for a job to pend is if it requires a license and all ava
 However, it appears that Slurm doesn't support preemption based on licenses availability so if the reason a job is pending is
 because of licenses then it will not preempt jobs in a lower priority queue even if doing so would free up a license.</p>
 <h2 id="documentation">Documentation</h2>
-<p>https://slurm.schedmd.com/preempt.html</p></div>
+<p><a href="https://slurm.schedmd.com/preempt.html">https://slurm.schedmd.com/preempt.html</a></p></div>
             </div>
         </div>
 

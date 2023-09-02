@@ -8,7 +8,7 @@
         
         
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>Implementation Details - EDA SLURM Cluster on AWS</title>
+        <title>Implementation Details (legacy) - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
@@ -39,7 +39,13 @@
                                 <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy/" class="nav-link">Deploy the Cluster</a>
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
@@ -51,28 +57,28 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation</a>
+                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
                             </li>
                             <li class="navitem active">
-                                <a href="./" class="nav-link">Implementation Details</a>
+                                <a href="./" class="nav-link">Implementation Details (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -116,7 +122,7 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#implementation-details" class="nav-link">Implementation Details</a>
+            <li class="nav-item" data-level="1"><a href="#implementation-details-legacy" class="nav-link">Implementation Details (legacy)</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-level="2"><a href="#slurm-infrastructure" class="nav-link">Slurm Infrastructure</a>
               <ul class="nav flex-column">
@@ -145,7 +151,7 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="implementation-details">Implementation Details</h1>
+<h1 id="implementation-details-legacy">Implementation Details (legacy)</h1>
 <h2 id="slurm-infrastructure">Slurm Infrastructure</h2>
 <p>All hosts in the cluster must share a uniform user and group namespace.</p>
 <p>The munged service must be running before starting any slurm daemons.</p>

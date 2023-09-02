@@ -39,7 +39,13 @@
                                 <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy/" class="nav-link">Deploy the Cluster</a>
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem active">
                                 <a href="./" class="nav-link">Run Jobs</a>
@@ -51,28 +57,28 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
                             </li>
                             <li class="navitem">
-                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI</a>
+                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation</a>
+                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support</a>
+                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster</a>
+                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details</a>
+                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -86,7 +92,7 @@
                             </a>
                         </li>
                             <li class="nav-item">
-                                <a rel="prev" href="../deploy/" class="nav-link">
+                                <a rel="prev" href="../soca_integration/" class="nav-link">
                                     <i class="fa fa-arrow-left"></i> Previous
                                 </a>
                             </li>
@@ -194,62 +200,67 @@ in the default format.</p>
 </thead>
 <tbody>
 <tr>
-<td>sbatch</td>
-<td>Submit a batch script</td>
-<td>sbatch -c 1 --mem 1G -C 'sport&amp;GHz:3.1' <em>script</em></td>
+<td><a href="https://slurm.schedmd.com/salloc.html">salloc</a></td>
+<td>Create a compute allocation.</td>
+<td>salloc -c 1 --mem 1G -C 'spot&amp;GHz:3.1'</td>
 </tr>
 <tr>
-<td>srun</td>
+<td><a href="https://slurm.schedmd.com/srun.html">srun</a></td>
 <td>Run a job within an allocation.</td>
 <td>srun --pty bin/bash</td>
 </tr>
 <tr>
-<td>squeue</td>
+<td><a href="https://slurm.schedmd.com/sbatch.html">sbatch</a></td>
+<td>Submit a batch script</td>
+<td>sbatch -c 1 --mem 1G -C 'spot&amp;GHz:3.1' <em>script</em></td>
+</tr>
+<tr>
+<td><a href="https://slurm.schedmd.com/squeue.html">squeue</a></td>
 <td>Get job status</td>
 <td></td>
 </tr>
 <tr>
-<td>scancel</td>
+<td><a href="https://slurm.schedmd.com/scancel.html">scancel</a></td>
 <td>Cancel a job</td>
 <td>scancel <em>jobid</em></td>
 </tr>
 <tr>
-<td>sinfo</td>
+<td><a href="https://slurm.schedmd.com/sinfo.html">sinfo</a></td>
 <td>Get info about Slurm node status</td>
 <td>sinfo -p all</td>
 </tr>
 <tr>
-<td>scontrol</td>
-<td></td>
-<td></td>
+<td><a href="https://slurm.schedmd.com/scontrol.html">scontrol</a></td>
+<td>view or modify Slurm configuration and state</td>
+<td>scontrol show node <em>nodename</em></td>
 </tr>
 <tr>
-<td>sstat</td>
+<td><a href="https://slurm.schedmd.com/sstat.html">sstat</a></td>
 <td>Display various status information about a running job/step</td>
 <td></td>
 </tr>
 <tr>
-<td>sshare</td>
+<td><a href="https://slurm.schedmd.com/sshare.html">sshare</a></td>
 <td>Tool for listing fair share information</td>
 <td></td>
 </tr>
 <tr>
-<td>sprio</td>
+<td><a href="https://slurm.schedmd.com/sprio.html">sprio</a></td>
 <td>View the factors that comprise a job's scheduling priority</td>
 <td></td>
 </tr>
 <tr>
-<td>sacct</td>
+<td><a href="https://slurm.schedmd.com/sacct.html">sacct</a></td>
 <td>Display accounting data for jobs</td>
 <td></td>
 </tr>
 <tr>
-<td>sreport</td>
+<td><a href="https://slurm.schedmd.com/sreport.html">sreport</a></td>
 <td>Generate reports from the Slurm accounting data.</td>
 <td></td>
 </tr>
 <tr>
-<td>sview</td>
+<td><a href="https://slurm.schedmd.com/sview.html">sview</a></td>
 <td>Graphical tool for viewing cluster state</td>
 <td></td>
 </tr>
@@ -385,27 +396,23 @@ For example, it can be used to get the requested CPU and memory and see the CPU 
 </thead>
 <tbody>
 <tr>
-<td>sacctmgr</td>
+<td><a href="https://slurm.schedmd.com/sacctmgr.html">sacctmgr</a></td>
 <td>View/modify Slurm account information</td>
 </tr>
 <tr>
-<td>salloc</td>
-<td>Obtain a Slurm job allocation</td>
-</tr>
-<tr>
-<td>sattach</td>
+<td><a href="https://slurm.schedmd.com/sattach.html">sattach</a></td>
 <td>Attach to a job step</td>
 </tr>
 <tr>
-<td>sbcast</td>
+<td><a href="https://slurm.schedmd.com/sbcast.html">sbcast</a></td>
 <td>Transmit a file to the nodes allocated to a Slurm job.</td>
 </tr>
 <tr>
-<td>scrontab</td>
+<td><a href="https://slurm.schedmd.com/scrontab.html">scrontab</a></td>
 <td>Manage slurm crontab files</td>
 </tr>
 <tr>
-<td>sdiag</td>
+<td><a href="https://slurm.schedmd.com/sdiag.html">sdiag</a></td>
 <td>Diagnostic tool for Slurm. Shows information related to slurmctld execution.</td>
 </tr>
 <tr>
@@ -417,7 +424,7 @@ For example, it can be used to get the requested CPU and memory and see the CPU 
 <td>Transmit a file from the nodes allocated to a Slurm job.</td>
 </tr>
 <tr>
-<td>sh5util</td>
+<td><a href="https://slurm.schedmd.com/sh5util.html">sh5util</a></td>
 <td>Tool for merging HDF5 files from the acct_gather_profile plugin that gathers detailed data for jobs.</td>
 </tr>
 <tr>
@@ -425,7 +432,7 @@ For example, it can be used to get the requested CPU and memory and see the CPU 
 <td>Modify derived exit code of a job</td>
 </tr>
 <tr>
-<td>strigger</td>
+<td><a href="https://slurm.schedmd.com/strigger.html">strigger</a></td>
 <td>Set, get, or clear Slurm trigger information</td>
 </tr>
 </tbody>
