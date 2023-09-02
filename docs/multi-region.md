@@ -1,4 +1,4 @@
-# Multi-AZ and Multi-Region Support
+# Multi-AZ and Multi-Region Support (legacy)
 
 By default, the EDA Slurm Cluster deploys all resources in a single availability zone (AZ).
 This is done for performance and cost reasons to minimize network latency and network cross AZ charges.
@@ -292,4 +292,4 @@ slurm:
 
 ## Deployment
 
-After the configuration is complete then deployment is the same as document on the [Deploy the Cluster](deploy.md) page.
+After the configuration is complete then deployment is the same as document on the [Deploy the Legacy Cluster](deploy-legacy-cluster.md) page.

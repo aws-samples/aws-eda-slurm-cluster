@@ -29,18 +29,19 @@ The key Slurm commands are
 
 | Command | Description | Example
 |---------|-------------|---------
-| sbatch  | Submit a batch script | sbatch -c 1 --mem 1G -C 'sport&GHz:3.1' *script*
-| srun    | Run a job within an allocation. | srun --pty bin/bash
-| squeue  | Get job status |
-| scancel | Cancel a job | scancel *jobid*
-| sinfo   | Get info about Slurm node status | sinfo -p all
-| scontrol |
-| sstat       | Display various status information about a running job/step
-| sshare      | Tool for listing fair share information
-| sprio       | View the factors that comprise a job's scheduling priority
-| sacct       | Display accounting data for jobs
-| sreport     | Generate reports from the Slurm accounting data.
-| sview       | Graphical tool for viewing cluster state
+| [salloc](https://slurm.schedmd.com/salloc.html)     | Create a compute allocation. | salloc -c 1 --mem 1G -C 'spot&GHz:3.1'
+| [srun](https://slurm.schedmd.com/srun.html)         | Run a job within an allocation. | srun --pty bin/bash
+| [sbatch](https://slurm.schedmd.com/sbatch.html)     | Submit a batch script | sbatch -c 1 --mem 1G -C 'spot&GHz:3.1' *script*
+| [squeue](https://slurm.schedmd.com/squeue.html)     | Get job status |
+| [scancel](https://slurm.schedmd.com/scancel.html)   | Cancel a job | scancel *jobid*
+| [sinfo](https://slurm.schedmd.com/sinfo.html)       | Get info about Slurm node status | sinfo -p all
+| [scontrol](https://slurm.schedmd.com/scontrol.html) | view or modify Slurm configuration and state | scontrol show node *nodename*
+| [sstat](https://slurm.schedmd.com/sstat.html)       | Display various status information about a running job/step
+| [sshare](https://slurm.schedmd.com/sshare.html)     | Tool for listing fair share information
+| [sprio](https://slurm.schedmd.com/sprio.html)       | View the factors that comprise a job's scheduling priority
+| [sacct](https://slurm.schedmd.com/sacct.html)       | Display accounting data for jobs
+| [sreport](https://slurm.schedmd.com/sreport.html)   | Generate reports from the Slurm accounting data.
+| [sview](https://slurm.schedmd.com/sview.html)       | Graphical tool for viewing cluster state
 
 ## sbatch
 
@@ -152,14 +153,13 @@ Use `man command` to get information about these less commonly used Slurm comman
 
 | Command     | Description
 |-------------|-------------
-| sacctmgr    | View/modify Slurm account information
-| salloc      | Obtain a Slurm job allocation
-| sattach     | Attach to a job step
-| sbcast      | Transmit a file to the nodes allocated to a Slurm job.
-| scrontab    | Manage slurm crontab files
-| sdiag       | Diagnostic tool for Slurm. Shows information related to slurmctld execution.
-| seff        |
-| sgather     | Transmit a file from the nodes allocated to a Slurm job.
-| sh5util     | Tool for merging HDF5 files from the acct_gather_profile plugin that gathers detailed data for jobs.
-| sjobexitmod | Modify derived exit code of a job
-| strigger    | Set, get, or clear Slurm trigger information
+| [sacctmgr](https://slurm.schedmd.com/sacctmgr.html)       | View/modify Slurm account information
+| [sattach](https://slurm.schedmd.com/sattach.html)         | Attach to a job step
+| [sbcast](https://slurm.schedmd.com/sbcast.html)           | Transmit a file to the nodes allocated to a Slurm job.
+| [scrontab](https://slurm.schedmd.com/scrontab.html)       | Manage slurm crontab files
+| [sdiag](https://slurm.schedmd.com/sdiag.html)             | Diagnostic tool for Slurm. Shows information related to slurmctld execution.
+| seff                                                      |
+| sgather                                                   | Transmit a file from the nodes allocated to a Slurm job.
+| [sh5util](https://slurm.schedmd.com/sh5util.html)         | Tool for merging HDF5 files from the acct_gather_profile plugin that gathers detailed data for jobs.
+| sjobexitmod                                               | Modify derived exit code of a job
+| [strigger](https://slurm.schedmd.com/strigger.html)       | Set, get, or clear Slurm trigger information

@@ -1,4 +1,4 @@
-# SLURM AMI Based On FPGA Developer AMI
+# SLURM AMI Based On FPGA Developer AMI (legacy)
 
 This tutorial shows how to create an AMI based on the AWS FPGA Developer AMI.
 The FPGA Developer AMI has the Xilinx Vivado tools that can be used free of additional

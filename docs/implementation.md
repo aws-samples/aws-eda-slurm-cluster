@@ -1,4 +1,4 @@
-# Implementation Details
+# Implementation Details (legacy)
 
 ## Slurm Infrastructure
 

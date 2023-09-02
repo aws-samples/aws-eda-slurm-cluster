@@ -12,4 +12,4 @@ because of licenses then it will not preempt jobs in a lower priority queue even
 
 ## Documentation
 
-https://slurm.schedmd.com/preempt.html
+[https://slurm.schedmd.com/preempt.html](https://slurm.schedmd.com/preempt.html)

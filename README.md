@@ -2,7 +2,7 @@
 
 This repository contains an AWS Cloud Development Kit (CDK) application that creates a Slurm cluster that is suitable for running production EDA workloads on AWS.
 
-The original version of this repo used a custom Python plugin to integrate Slurm with AWS.
+The original (legacy) version of this repo used a custom Python plugin to integrate Slurm with AWS.
 The latest version of the repo uses AWS ParallelCluster for the core Slurm infrastructure and AWS integration.
 The big advantage of moving to AWS ParallelCluster is that it is a supported AWS service.
 Currently, some of the features of the legacy version are not supported in the ParallelCluster version, but
@@ -16,29 +16,32 @@ Key features are supported by both versions are:
 * Handling of spot terminations
 * Handling of insufficient capacity exceptions
 * Batch and interactive partitions (queues)
-* Managed tool licenses as a consumable resource
+* Manages tool licenses as a consumable resource
 * User and group fair share scheduling
 * Slurm accounting database
 * CloudWatch dashboard
 * Job preemption
 * Manage on-premises compute nodes
-* Configure partitions (queues) and nodes that are always on to support reserved instances RIs and savings plans.
+* Configure partitions (queues) and nodes that are always on to support reserved instances (RIs) and savings plans (SPs).
 
 Features in the legacy version and not in the ParallelCluster version:
 
-* Multi-AZ support. Supported by ParallelCluster, but not implemented.
+* Heterogenous clusters with mixed OSes and CPU architectures on compute nodes.
+* Multi-AZ support. Supported by ParallelCluster, but not currently implemented.
+* Multi-region support
 * AWS Fault Injection Simulator (FIS) templates to test spot terminations
-* Heterogenous cluster with mixed OSes and CPU architectures on compute nodes.
 * Support for MungeKeySsmParameter
 * Multi-cluster federation
-* Multi-region support
 
 ParallelCluster Limitations
 
-* Number of "Compute Resources" is limited to 50 which limits the number of instance types allowed in a cluster.
+* Number of "Compute Resources" (CRs) is limited to 50 which limits the number of instance types allowed in a cluster.
+  ParallelCluster can have multiple instance types in a CR, but with memory based scheduling enabled, they must all have the same number of cores and amount of memory.
 * All Slurm instances must have the same OS and CPU architecture.
 * Stand-alone Slurm database daemon instance. Prevents federation.
-* Multi-region support. This is unlikely to change because multi-region services run against our archiectural philosophy. Federation may be a better option
+* Multi-region support. This is unlikely to change because multi-region services run against our archiectural philosophy.
+  Federation may be an option but its current implementation limits scheduler performance and doesn't allow cluster prioritization so jobs land on
+  random clusters.
 
 Slurm Limitations
 
@@ -96,14 +99,13 @@ Legacy:
 * Rocky Linux 8 and arm64
 * Rocky Linux 8 and x86_64
 
-Note that in the ParallelCluster version all compute nodes must have the same OS and architecture.
+Note that in the ParallelCluster version, all compute nodes must have the same OS and architecture.
 
 ## Documentation
 
 [View on GitHub Pages](https://aws-samples.github.io/aws-eda-slurm-cluster/)
 
-To view the docs locally, clone the repository and run mkdocs:
-
+You can also view the docs locally,
 The docs are in the docs directory. You can view them in an editor or using the mkdocs tool.
 
 I recommend installing mkdocs in a python virtual environment.

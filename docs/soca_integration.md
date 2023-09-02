@@ -12,14 +12,10 @@ Set the following parameters in your config file.
 
 Deploy your slurm cluster.
 
-Connect to the SOCA Scheduler instance and run the commands in the **MountCommand** and **ConfigureSyncSlurmUsersGroups** outputs
-of the SLURM stack as root.
-These commands will mount the SLURM file system at **/opt/slurm/{{ClusterName}}** and then create
-a cron job that runs every 5 minutes and updates **/opt/slurm/{{ClusterName}}/config/users_groups.json**.
+Connect to the SOCA Scheduler instance and follow the instructions to [Create users_groups.json](deploy-parallel-cluster.md#create-users_groupsjson).
 
-Connect to a remote desktop instance and run the commands in the **MountCommand** and **ConfigureSubmitterCommand** outputs
-of the SLURM stack.
+Connect to a remote desktop instance and follow the instructions in [Configure submission hosts to use the cluster](deploy-parallel-cluster.md#configure-submission-hosts-to-use-the-cluster).
 If all users need to use the cluster then it is probably best to create a custom AMI that is configured with the configuration
 commands.
 
-You are now ready to run jobs.
+You are now ready to run jobs from your SOCA desktop.
