@@ -3570,6 +3570,16 @@ class CdkSlurmStack(Stack):
             PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE = True
             PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE = True
 
+        # Check the architecture of the ComputeNodeAmi
+        if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
+            compute_node_ami = self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
+            ami_info = self.ec2_client.describe_images(ImageIds=[compute_node_ami])['Images'][0]
+            ami_architecture = ami_info['Architecture']
+            cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
+            if ami_architecture != cluster_architecture:
+                logger.error(f"Config slurm/ParallelClusterConfig/ComputeNodeAmi({compute_node_ami}) architecture=={ami_architecture}. Must be the same as slurm/ParallelClusterConfig/Architecture({cluster_architecture})")
+                exit(1)
+
         self.parallel_cluster_config = {
             'HeadNode': {
                 'Dcv': {
