@@ -39,7 +39,7 @@
 - name: Create /etc/rc.d/rc.local to set ifconfig eth0 txqueuelen 4096
   template:
     dest: /etc/rc.d/rc.local
-    src:  ../../SlurmCtl/templates/etc/rc.d/rc.local
+    src:  etc/rc.d/rc.local
     owner: root
     group: root
     mode: 0700

@@ -33,7 +33,6 @@
       ansible_ssh_user:        {{ansible_ssh_user}}
       ansible_ssh_common_args: {{ansible_ssh_common_args}}
 
-      SlurmUid:           {{SlurmUid}}
       SlurmVersion:       {{SlurmVersion}}
       SlurmBaseDir:       {{SlurmBaseDir}}
       SlurmSrcDir:        {{SlurmSrcDir}}

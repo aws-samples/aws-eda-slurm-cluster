@@ -1,9 +1,0 @@
----
-- name: Deconfigure SLURM Submitters
-  hosts: SlurmSubmitter
-  become_user: root
-  become: yes
-  roles:
-    - SlurmSubmitterDeconfigure
-    - rm_create_users_groups_json
-    - unmount_slurm_fs
