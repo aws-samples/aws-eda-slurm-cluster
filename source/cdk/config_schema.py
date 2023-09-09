@@ -81,7 +81,13 @@ def get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config):
     python_version = DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS.get(parallel_cluster_version, str(DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION))
     return python_version
 
-PARALLEL_CLUSTER_ALLOWED_OSES = ['alinux2', 'centos7', 'rhel8', 'ubuntu2004', 'ubuntu2204']
+PARALLEL_CLUSTER_ALLOWED_OSES = [
+    'alinux2',
+    'centos7',
+    'rhel8',
+    'ubuntu2004',
+    'ubuntu2204'
+    ]
 
 DEFAULT_SLURM_VERSION = '23.02.1'
 def get_DEFAULT_SLURM_VERSION(config):
@@ -255,7 +261,7 @@ def get_config_schema(config):
                 Optional('Image', default={'Os': 'centos7'}): {
                     Optional('Os', default='centos7'): And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES)
                 },
-                Optional('Architecture', default='arm64'): And(str, lambda s: s in ['arm64', 'x86_64']),
+                Optional('Architecture', default='x86_64'): And(str, lambda s: s in ['arm64', 'x86_64']),
                 Optional('ComputeNodeAmi'): And(str, lambda s: s.startswith('ami-')),
                 Optional('DisableSimultaneousMultithreading', default=True): bool,
                 # Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group

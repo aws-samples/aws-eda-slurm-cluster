@@ -115,7 +115,7 @@ class CdkSlurmStack(Stack):
 
         self.check_config()
 
-        if self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
+        if self.use_parallel_cluster:
             self.create_vpc()
 
             self.check_regions_config()
@@ -286,6 +286,9 @@ class CdkSlurmStack(Stack):
         Check config, set defaults, and sanity check the configuration
         '''
         config_errors = 0
+
+        self.use_parallel_cluster = self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False)
+
         if self.stack_name:
             if 'StackName' not in self.config:
                 logger.info(f"config/StackName set from command line: {self.stack_name}")
@@ -309,10 +312,13 @@ class CdkSlurmStack(Stack):
             logger.info(f"Domain defaulted to {self.config['Domain']}")
 
         if 'ClusterName' not in self.config['slurm']:
-            self.config['slurm']['ClusterName'] = self.stack_name
+            if self.use_parallel_cluster:
+                self.config['slurm']['ClusterName'] = f"{self.stack_name}-cl"
+            else:
+                self.config['slurm']['ClusterName'] = self.stack_name
             logger.info(f"slurm/ClusterName defaulted to {self.config['StackName']}")
 
-        if not self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
+        if not self.use_parallel_cluster:
             if 'mount_path' not in self.config['slurm']['storage']:
                 self.config['slurm']['storage']['mount_path'] = f"/opt/slurm/{self.config['slurm']['ClusterName']}"
             if 'provider' not in self.config['slurm']['storage']:
@@ -442,12 +448,12 @@ class CdkSlurmStack(Stack):
                     logger.error(f"Must specify existing ElasticSearch domain in slurm/JobCompLoc when slurm/JobCompType == jobcomp/elasticsearch and slurm/ElasticSearch is not set.")
                     config_errors += 1
 
-        if self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
+        if self.use_parallel_cluster:
             self.PARALLEL_CLUSTER_VERSION = parse_version(self.config['slurm']['ParallelClusterConfig']['Version'])
 
-            if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0b1'):
+            if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0'):
                 if 'LoginNodes' in self.config['slurm']['ParallelClusterConfig']:
-                    logger.error(f"slurm/ParallelClusterConfig/LoginNodes not supported before version 3.7.0b1")
+                    logger.error(f"slurm/ParallelClusterConfig/LoginNodes not supported before version 3.7.0")
                     config_errors += 1
 
             # Check for unsupported legacy config file options
@@ -512,6 +518,10 @@ class CdkSlurmStack(Stack):
                         continue
                     logger.error(f"Config 'slurm/storage/{key}={self.config['slurm']['storage'][key]}' is not supported with /slurm/ParallelClusterConfig/Enable.")
                     config_errors += 1
+
+            if self.config['slurm']['ParallelClusterConfig']['Image']['Os'] == 'centos7' and self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
+                logger.error(f'centos7 only supports x86_64 architecture. Update slurm/ParallelClusterConfig/Architecture.')
+                config_errors += 1
 
             # Make sure that slurm ports are the same as ParallelCluster
             if self.config['slurm']['SlurmCtl']['SlurmctldPortMin'] != 6820:
@@ -608,7 +618,7 @@ class CdkSlurmStack(Stack):
                             logger.error(f"Must specify slurm/ParallelClusterConfig/Database/{database_key} when slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName not set")
                             config_errors += 1
 
-            for extra_mount_dict in self.config['slurm']['storage']['ExtraMounts']:
+            for extra_mount_dict in self.config['slurm'].get('storage', {}).get('ExtraMounts', {}):
                 mount_dir = extra_mount_dict['dest']
                 if 'StorageType' not in extra_mount_dict:
                     logger.error(f"ParallelCluster requires StorageType for {mount_dir} in slurm/storage/ExtraMounts")
@@ -905,16 +915,22 @@ class CdkSlurmStack(Stack):
                 self.instance_types.append(instance_type)
         self.instance_types = sorted(self.instance_types)
 
-        if self.config['slurm'].get('ParallelClusterConfig', {}).get('Enable', False):
-            # Filter the instance types by architecture due to PC limitation to x86
-            x86_instance_types = []
+        if self.use_parallel_cluster:
+            # Filter the instance types by architecture due to PC limitation to 1 architecture
+            cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
+            logger.info(f"ParallelCluster Architecture: {cluster_architecture}")
+            filtered_instance_types = []
             for instance_type in self.instance_types:
-                architecture = self.plugin.get_architecture(self.config['Region'], instance_type)
-                if architecture != self.config['slurm']['ParallelClusterConfig']['Architecture']:
+                instance_architecture = self.plugin.get_architecture(self.config['Region'], instance_type)
+                if instance_architecture != cluster_architecture:
+                    logger.warning(f"Excluding {instance_type} because architecture ({instance_architecture}) != {cluster_architecture}")
                     continue
-                x86_instance_types.append(instance_type)
-            self.instance_types = x86_instance_types
+                filtered_instance_types.append(instance_type)
+            self.instance_types = filtered_instance_types
             logger.info(f"ParallelCluster configured to use {len(self.instance_types)} instance types :\n{pp.pformat(self.instance_types)}")
+            if len(self.instance_types) == 0:
+                logger.error(f"No instance type configured. Update slurm/InstanceConfig with {cluster_architecture} instance types.")
+                sys.exit(1)
 
         # Validate updated config against schema
         from config_schema import check_schema
@@ -1143,7 +1159,7 @@ class CdkSlurmStack(Stack):
 
         # These are the security groups that have client access to mount the extra file systems
         self.extra_mount_security_groups = {}
-        for fs_type in self.config['slurm']['storage']['ExtraMountSecurityGroups'].keys():
+        for fs_type in self.config['slurm'].get('storage', {}).get('ExtraMountSecurityGroups', {}).keys():
             self.extra_mount_security_groups[fs_type] = {}
             for extra_mount_sg_name, extra_mount_sg_id in self.config['slurm']['storage']['ExtraMountSecurityGroups'][fs_type].items():
                 (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(extra_mount_sg_id)
@@ -1334,7 +1350,7 @@ class CdkSlurmStack(Stack):
                     self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
                     self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for lustre: 1021-1023')
 
-        for fs_type in self.config['slurm']['storage']['ExtraMountCidrs'].keys():
+        for fs_type in self.config['slurm'].get('storage', {}).get('ExtraMountCidrs', {}).keys():
             for extra_mount_cidr_name, extra_mount_cidr in self.config['slurm']['storage']['ExtraMountCidrs'][fs_type].items():
                 extra_mount_cidr = ec2.Peer.ipv4(extra_mount_cidr)
                 if fs_type in ['nfs', 'zfs']:
@@ -2491,7 +2507,7 @@ class CdkSlurmStack(Stack):
                 "ClusterName": self.config['slurm']['ClusterName'],
                 "Domain": self.config['Domain'],
                 "ERROR_SNS_TOPIC_ARN": self.config['ErrorSnsTopicArn'],
-                "ExtraMounts": self.config['slurm']['storage']['ExtraMounts'],
+                "ExtraMounts": self.config['slurm'].get('storage', {}).get('ExtraMounts', {}),
                 "FileSystemDns": self.file_system_dns,
                 "FileSystemMountPath": self.config['slurm']['storage']['mount_path'],
                 "FileSystemMountSrc": self.file_system_mount_source,
@@ -3561,7 +3577,7 @@ class CdkSlurmStack(Stack):
     def create_parallel_cluster_config(self):
         MAX_NUMBER_OF_QUEUES = 50
         MAX_NUMBER_OF_COMPUTE_RESOURCES = 50
-        if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0b1'):
+        if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0'):
             # ParallelCluster has a restriction where a queue can have only 1 instance type with memory based scheduling
             # So, for now creating a queue for each instance type and purchase option
             PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE = False
@@ -3870,7 +3886,7 @@ class CdkSlurmStack(Stack):
                             )
                         average_price = total_price / len(instance_types)
                         compute_resource['Efa']['Enabled'] = efa_supported
-                        if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0b1'):
+                        if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0'):
                             compute_resource['StaticNodePriority'] = int(average_price *  1000)
                             compute_resource['DynamicNodePriority'] = int(average_price * 10000)
                         compute_resource['Networking'] = {
@@ -3974,7 +3990,7 @@ class CdkSlurmStack(Stack):
                             'InstanceType': instance_type
                         }
                     )
-                    if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0b1'):
+                    if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0'):
                         compute_resource['StaticNodePriority'] = int(price *  1000)
                         compute_resource['DynamicNodePriority'] = int(price * 10000)
                     parallel_cluster_queue['ComputeResources'].append(compute_resource)
@@ -4094,7 +4110,7 @@ class CdkSlurmStack(Stack):
                 self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].append(slurm_settings_dict)
 
         self.parallel_cluster_config['SharedStorage'] = []
-        for extra_mount_dict in self.config['slurm']['storage']['ExtraMounts']:
+        for extra_mount_dict in self.config['slurm'].get('storage', {}).get('ExtraMounts', {}):
             mount_dir = extra_mount_dict['dest']
             storage_type = extra_mount_dict['StorageType']
             if storage_type == 'Efs':
