@@ -17,13 +17,17 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 '''
-Create/update/delete ParallelCluster cluster.
+Create/update/delete ParallelCluster cluster and save config to S3 as json and yaml.
 '''
+import boto3
 import cfnresponse
 import json
 import logging
 from os import environ as environ
 import pcluster.lib as pc
+from pcluster.api.errors import BadRequestException, UpdateClusterBadRequestException
+from time import sleep
+import yaml
 
 logger=logging.getLogger(__file__)
 logger_formatter = logging.Formatter('%(levelname)s: %(message)s')
@@ -40,10 +44,12 @@ def lambda_handler(event, context):
         requestType = event['RequestType']
         properties = event['ResourceProperties']
         required_properties = [
-            'Region',
-            'ClusterName',
             'ParallelClusterConfigJson',
-            'ParallelClusterConfigS3Url'
+            'ParallelClusterConfigS3Bucket',
+            'ParallelClusterConfigJsonS3Key',
+            'ParallelClusterConfigYamlS3Key',
+            'Region',
+            'ClusterName'
             ]
         error_message = ""
         for property in required_properties:
@@ -58,6 +64,42 @@ def lambda_handler(event, context):
                 return
             else:
                 raise KeyError(error_message)
+
+        s3_resource = boto3.resource('s3')
+
+        json_key = f"{properties['ParallelClusterConfigJsonS3Key']}"
+        json_s3_url = f"s3://{properties['ParallelClusterConfigS3Bucket']}/{json_key}"
+        json_config_object = s3_resource.Object(
+            bucket_name = properties['ParallelClusterConfigS3Bucket'],
+            key = json_key
+        )
+
+        if not properties['ParallelClusterConfigJson']:
+            # Read the config from S3 for debug so don't need a complex test event
+            logger.info(f"Reading ParallelClusterConfigJson from {json_s3_url}")
+            properties['ParallelClusterConfigJson'] = json_config_object.get()['Body'].read().decode('utf-8')
+
+        parallel_cluster_config = json.loads(properties['ParallelClusterConfigJson'])
+
+        if requestType == 'Delete':
+            logging.info(f"Deleting Parallel Cluster json config in {json_s3_url}")
+            json_config_object.delete()
+        else:
+            logging.info(f"Saving Parallel Cluster json config in {json_s3_url}")
+            json_config_object.put(Body=json.dumps(parallel_cluster_config, indent=4, sort_keys=False))
+
+        yaml_key = f"{properties['ParallelClusterConfigYamlS3Key']}"
+        yaml_s3_url = f"s3://{properties['ParallelClusterConfigS3Bucket']}/{yaml_key}"
+        yaml_config_object = s3_resource.Object(
+            bucket_name = properties['ParallelClusterConfigS3Bucket'],
+            key = yaml_key
+        )
+        if requestType == 'Delete':
+            logging.info(f"Deleting Parallel Cluster yaml config in {yaml_s3_url}")
+            yaml_config_object.delete()
+        else:
+            logging.info(f"Saving Parallel Cluster yaml config in {yaml_s3_url}")
+            yaml_config_object.put(Body=yaml.dump(parallel_cluster_config, sort_keys=False))
 
         cluster_name = properties['ClusterName']
         cluster_region = properties['Region']
@@ -94,7 +136,7 @@ def lambda_handler(event, context):
             try:
                 pc.create_cluster(
                     cluster_name = properties['ClusterName'],
-                    cluster_configuration = properties['ParallelClusterConfigJson'],
+                    cluster_configuration = parallel_cluster_config,
                     region = properties['Region'],
                     rollback_on_failure = False,
                 )
@@ -102,16 +144,76 @@ def lambda_handler(event, context):
             except:
                 logger.exception("ParallelCluster create failed. Ignoring exception")
         elif requestType == "Update":
+            logger.info("Checking compute fleet status.")
+            compute_fleet_status = pc.describe_compute_fleet(
+                cluster_name = properties['ClusterName'],
+                region = properties['Region'])['status']
+            logger.info(f"compute fleet status: {compute_fleet_status}")
+
             logger.info(f"Updating {properties['ClusterName']}")
+            stop_and_retry = False
             try:
                 pc.update_cluster(
                     cluster_name = properties['ClusterName'],
-                    cluster_configuration = properties['ParallelClusterConfigJson'],
+                    cluster_configuration = parallel_cluster_config,
                     region = properties['Region']
                 )
                 logger.info("Update call succeeded")
-            except:
-                logger.exception("ParallelCluster Update failed. Ignoring exception.")
+            except BadRequestException as e:
+                message = e.content.message
+                if 'No changes found in your cluster configuration' in message:
+                    logger.info('No changes found in your cluster configuration.')
+                else:
+                    logger.error(message)
+
+            except UpdateClusterBadRequestException as e:
+                message = e.content.message
+                logger.info(message)
+                logger.info(f"{e.content.__dict__}")
+                if 'All compute nodes must be stopped' in str(e.content.__dict__):
+                    stop_and_retry = True
+                else:
+                    logger.error(f"{message}")
+
+            if stop_and_retry:
+                logger.info(f"Stopping the cluster and retrying the update.")
+                try:
+                    pc.update_compute_fleet(
+                        cluster_name = properties['ClusterName'],
+                        status = 'STOP_REQUESTED',
+                        region = properties['Region']
+                    )
+                except BadRequestException as e:
+                    message = e.content.message
+                    logger.error(e.content)
+                    logger.error(e.content.message)
+                    raise
+                except Exception as e:
+                    logger.exception("update_compute_fleet failed")
+                    logger.error(f"{type(e)} {e.__dict__}")
+                    raise
+                logger.info(f"Stop requested. Waiting for cluster to be STOPPED.")
+                while compute_fleet_status != 'STOPPED':
+                    compute_fleet_status = pc.describe_compute_fleet(
+                        cluster_name = properties['ClusterName'],
+                        region = properties['Region'])['status']
+                    logger.info(f"compute fleet status: {compute_fleet_status}")
+                    sleep(1)
+                logger.info("Compute fleet is stopped. Retrying update.")
+                try:
+                    pc.update_cluster(
+                        cluster_name = properties['ClusterName'],
+                        cluster_configuration = parallel_cluster_config,
+                        region = properties['Region']
+                    )
+                    logger.info("Update call succeeded")
+                except (BadRequestException, UpdateClusterBadRequestException) as e:
+                    message = e.content.message
+                    logger.error(message)
+                    logger.error(f"{e.content.__dict__}")
+                except Exception as e:
+                    logger.exception("ParallelCluster Update failed.")
+
         elif requestType == 'Delete':
             logger.info(f"Deleting {properties['ClusterName']}")
             try:
@@ -130,4 +232,4 @@ def lambda_handler(event, context):
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, physicalResourceId=cluster_name)
         raise
 
-    cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
+    cfnresponse.send(event, context, cfnresponse.SUCCESS, {'ConfigJsonS3Url': json_s3_url, 'ConfigYamlS3Url': yaml_s3_url}, physicalResourceId=cluster_name)

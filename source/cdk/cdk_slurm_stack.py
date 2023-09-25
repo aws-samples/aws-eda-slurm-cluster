@@ -115,6 +115,8 @@ class CdkSlurmStack(Stack):
 
         self.check_config()
 
+        self.cluster_region = self.config['Region']
+
         if self.use_parallel_cluster:
             self.create_vpc()
 
@@ -1095,6 +1097,58 @@ class CdkSlurmStack(Stack):
 
     def create_parallel_cluster_lambdas(self):
         self.create_callSlurmRestApiLambda()
+
+        self.parallel_cluster_lambda_layer = aws_lambda.LayerVersion(self, "ParallelClusterLambdaLayer",
+            description = 'ParallelCluster Layer',
+            code = aws_lambda.Code.from_bucket(
+                s3.Bucket.from_bucket_name(self, 'ParallelClusterBucket', f"{self.cluster_region}-aws-parallelcluster"),
+                f"parallelcluster/{self.config['slurm']['ParallelClusterConfig']['Version']}/layers/aws-parallelcluster/lambda-layer.zip"
+            ),
+            compatible_architectures = [
+                aws_lambda.Architecture.ARM_64,
+                aws_lambda.Architecture.X86_64,
+            ],
+            compatible_runtimes = [
+                aws_lambda.Runtime.PYTHON_3_9,
+                aws_lambda.Runtime.PYTHON_3_10,
+                # aws_lambda.Runtime.PYTHON_3_11, # Doesn't work: No module named 'rpds.rpds'
+            ],
+        )
+
+        createParallelClusterLambdaAsset = s3_assets.Asset(self, "CreateParallelClusterAsset", path="resources/lambdas/CreateParallelCluster")
+        self.create_parallel_cluster_lambda = aws_lambda.Function(
+            self, "CreateParallelClusterLambda",
+            function_name=f"{self.stack_name}-CreateParallelCluster",
+            description="Create ParallelCluster from json string",
+            memory_size=2048,
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CreateParallelCluster.lambda_handler",
+            code=aws_lambda.Code.from_bucket(createParallelClusterLambdaAsset.bucket, createParallelClusterLambdaAsset.s3_object_key),
+            layers=[self.parallel_cluster_lambda_layer],
+            vpc = self.vpc,
+            allow_all_outbound = True
+        )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    's3:*',
+                ],
+                resources=['*']
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    '*',
+                ],
+                resources=['*']
+                )
+            )
 
     def create_callSlurmRestApiLambda(self):
         callSlurmRestApiLambdaAsset = s3_assets.Asset(self, "CallSlurmRestApiLambdaAsset", path="resources/lambdas/CallSlurmRestApi")
@@ -4143,102 +4197,29 @@ class CdkSlurmStack(Stack):
                 }
             self.parallel_cluster_config['SharedStorage'].append(parallel_cluster_storage_dict)
 
-        fh = NamedTemporaryFile()
-        yaml.dump(self.parallel_cluster_config, fh, encoding='utf-8', sort_keys=False)
-        self.parallelClusterConfigAsset = s3_assets.Asset(self, "ParallelClusterConfigAsset", path=fh.name)
-        self.parallelClusterConfigAsset.grant_read(self.parallel_cluster_asset_read_policy)
+        self.parallel_cluster_config_json_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.json"
+        self.parallel_cluster_config_yaml_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.yml"
 
-        createParallelClusterConfigAsset = s3_assets.Asset(self, "CreateParallelClusterConfigAsset", path="resources/lambdas/CreateParallelClusterConfig")
-        self.create_parallel_cluster_config_lambda = aws_lambda.Function(
-            self, "CreateParallelClusterConfigLambda",
-            function_name=f"{self.stack_name}-CreateParallelClusterConfig",
-            description="Create ParallelCluster config file in s3",
-            memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_8,
-            architecture=aws_lambda.Architecture.ARM_64,
-            timeout=Duration.minutes(3),
-            log_retention=logs.RetentionDays.INFINITE,
-            handler="CreateParallelClusterConfig.lambda_handler",
-            code=aws_lambda.Code.from_bucket(createParallelClusterConfigAsset.bucket, createParallelClusterConfigAsset.s3_object_key),
-            vpc = self.vpc,
-            allow_all_outbound = True
-        )
-        self.create_parallel_cluster_config_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    's3:*',
-                ],
-                resources=['*']
-                )
-            )
-        # This is created as a custom resource so that resources get resolved in the config string before it gets passed to the lambda.
-        self.parallel_cluster_config_s3_url = CustomResource(
-            self, "ParallelClusterConfigS3Object",
-            service_token = self.create_parallel_cluster_config_lambda.function_arn,
-            properties = {
-                'ParallelClusterConfigYaml': yaml.dump(self.parallel_cluster_config, sort_keys=False),
-                'S3Bucket': self.parallelClusterConfigAsset.s3_bucket_name,
-                'S3Key': self.parallelClusterConfigAsset.s3_object_key,
-                'S3ObjectUrl': self.parallelClusterConfigAsset.s3_object_url
-            }
-        ).get_att_string('S3ObjectUrl')
-
-        self.parallel_cluster_lambda_layer = aws_lambda.LayerVersion(self, "ParallelClusterLambdaLayer",
-            description = 'ParallelCluster Layer',
-            code = aws_lambda.Code.from_bucket(
-                s3.Bucket.from_bucket_name(self, 'ParallelClusterBucket', f"{self.config['Region']}-aws-parallelcluster"),
-                f"parallelcluster/{self.config['slurm']['ParallelClusterConfig']['Version']}/layers/aws-parallelcluster/lambda-layer.zip"
-            ),
-            compatible_architectures = [
-                aws_lambda.Architecture.ARM_64,
-                aws_lambda.Architecture.X86_64,
-            ],
-            compatible_runtimes = [
-                aws_lambda.Runtime.PYTHON_3_8,
-                aws_lambda.Runtime.PYTHON_3_9,
-                # aws_lambda.Runtime.PYTHON_3_10,
-                # aws_lambda.Runtime.PYTHON_3_11,
-            ],
-        )
-        createParallelClusterAsset = s3_assets.Asset(self, "CreateParallelClusterAsset", path="resources/lambdas/CreateParallelCluster")
-        self.create_parallel_cluster_lambda = aws_lambda.Function(
-            self, "CreateParallelClusterLambda",
-            function_name=f"{self.stack_name}-CreateParallelCluster",
-            description="Create ParallelCluster from config file in s3",
-            memory_size=2048,
-            runtime=aws_lambda.Runtime.PYTHON_3_9,
-            architecture=aws_lambda.Architecture.X86_64,
-            timeout=Duration.minutes(15),
-            log_retention=logs.RetentionDays.INFINITE,
-            handler="CreateParallelCluster.lambda_handler",
-            code=aws_lambda.Code.from_bucket(createParallelClusterAsset.bucket, createParallelClusterAsset.s3_object_key),
-            layers=[self.parallel_cluster_lambda_layer],
-            vpc = self.vpc,
-            allow_all_outbound = True
-        )
-        self.create_parallel_cluster_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    '*',
-                ],
-                resources=['*']
-                )
-            )
         self.parallel_cluster = CustomResource(
-            self, "CreatedParallelCluster",
+            self, "ParallelCluster",
             service_token = self.create_parallel_cluster_lambda.function_arn,
             properties = {
+                'ParallelClusterConfigJson': json.dumps(self.parallel_cluster_config, sort_keys=False),
+                'ParallelClusterConfigS3Bucket': self.assets_bucket,
+                'ParallelClusterConfigJsonS3Key': self.parallel_cluster_config_json_s3_key,
+                'ParallelClusterConfigYamlS3Key': self.parallel_cluster_config_yaml_s3_key,
                 'Region': self.config['Region'],
                 'ClusterName': self.config['slurm']['ClusterName'],
-                'ParallelClusterConfigJson': self.parallel_cluster_config,
-                'ParallelClusterConfigS3Url': self.parallel_cluster_config_s3_url,
             }
         )
+        self.parallel_cluster_config_json_s3_url = self.parallel_cluster.get_att_string('ConfigJsonS3Url')
+        self.parallel_cluster_config_yaml_s3_url = self.parallel_cluster.get_att_string('ConfigYamlS3Url')
 
-        CfnOutput(self, "ParallelClusterConfigS3Url",
-            value = self.parallelClusterConfigAsset.s3_object_url
+        CfnOutput(self, "ParallelClusterConfigJsonS3Url",
+            value = self.parallel_cluster_config_json_s3_url
+        )
+        CfnOutput(self, "ParallelClusterConfigYamlS3Url",
+            value = self.parallel_cluster_config_yaml_s3_url
         )
         CfnOutput(self, "MungeParameterName",
             value = self.munge_key_ssm_parameter.parameter_name
