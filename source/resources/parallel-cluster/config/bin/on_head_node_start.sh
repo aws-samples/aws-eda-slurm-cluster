@@ -1,5 +1,9 @@
 #!/bin/bash -x
 
+set -x
+
+exec 1> >(logger -s -t on_head_node_start.sh) 2>&1
+
 full_script=$(realpath $0)
 script_dir=$(dirname $full_script)
 base_script=$(basename $full_script)
@@ -58,6 +62,8 @@ if ! [ -e $config_dir/users_groups.json ]; then
     $config_bin_dir/create_users_groups.py -i $config_dir/users_groups.json
 fi
 chmod 0600 $config_dir/users_groups.json
+
+export PATH=/usr/sbin:$PATH
 
 $config_bin_dir/create_users_groups.py -i $config_dir/users_groups.json
 

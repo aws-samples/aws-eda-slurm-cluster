@@ -1,5 +1,9 @@
 #!/bin/bash -x
 
+set -x
+
+exec 1> >(logger -s -t on_head_node_updated.sh) 2>&1
+
 full_script=$(realpath $0)
 script_dir=$(dirname $full_script)
 base_script=$(basename $full_script)
@@ -16,6 +20,8 @@ if [ $full_script != $dest_script ]; then
     cp $full_script $dest_script
     chmod 0700 $dest_script
 fi
+
+export PATH=/usr/sbin:$PATH
 
 $config_bin_dir/on_head_node_configured.sh
 
