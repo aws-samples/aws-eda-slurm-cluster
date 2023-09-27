@@ -72,7 +72,6 @@ class SlurmInstaller():
     def main(self):
         parser = argparse.ArgumentParser(description="Create a high throughput SLURM cluster.")
         parser.add_argument("--config-file", type=str, help="Configuration file. Can be absolute or relative path or filename in the config directory.")
-        parser.add_argument("--ami-map", type=str, help="AMI map file. Can be absolute or relative path or filename in the config directory.")
         parser.add_argument("--prompt", action='store_true', help="Prompt for configuration values if not in config file or if invalid.")
         parser.add_argument("--stack-name", type=str, help="CloudFormation stack name.")
         parser.add_argument("--profile", "-p", type=str, help="AWS CLI profile to use.")
@@ -314,8 +313,6 @@ class SlurmInstaller():
                     del cmdline_args[arg_index]
 
         self.install_parameters['config_file'] = args.config_file
-
-        self.install_parameters['ami_map'] = args.ami_map
 
         try:
             check_if_name_exist = cloudformation.describe_stacks(StackName=self.install_parameters["stack_name"])

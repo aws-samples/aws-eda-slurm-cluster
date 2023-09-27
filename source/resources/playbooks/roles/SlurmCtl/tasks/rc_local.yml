@@ -1,9 +1,0 @@
----
-- name: Create /etc/rc.d/rc.local
-  template:
-    src:   etc/rc.d/rc.local
-    dest: /etc/rc.d/rc.local
-    owner: root
-    group: root
-    mode: 0700
-    force: yes

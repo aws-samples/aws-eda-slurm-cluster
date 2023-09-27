@@ -1,5 +1,0 @@
-# Update slurm_nodes.conf to get latest instance types and pricing
-MAILTO=''
-SLURM_ROOT={{SlurmRoot}}
-PATH="{{SlurmScriptsDir}}:{{SlurmBinDir}}:/sbin:/bin:/usr/sbin:/usr/bin"
-0 0 * * * root {{SlurmScriptsDir}}/update_slurm_nodes_config.sh

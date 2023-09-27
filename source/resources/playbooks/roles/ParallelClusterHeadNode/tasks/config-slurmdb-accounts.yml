@@ -18,7 +18,7 @@
   when: PrimaryController|bool
   copy:
     dest: "{{SlurmConfigDir}}/bin/create_slurm_accounts.py"
-    src:   ../../SlurmCtl/files/opt/slurm/cluster/bin/create_slurm_accounts.py
+    src:  opt/slurm/config/bin/create_slurm_accounts.py
     owner: root
     group: root
     mode: 0755
@@ -27,7 +27,7 @@
   when: PrimaryController|bool
   copy:
     dest: "{{SlurmConfigDir}}/accounts.yml"
-    src:   ../../SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example
+    src:  opt/slurm/config/accounts.yml.example
     owner: root
     group: root
     mode: 0664

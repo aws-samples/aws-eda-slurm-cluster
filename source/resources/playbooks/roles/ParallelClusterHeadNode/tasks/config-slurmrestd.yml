@@ -79,7 +79,7 @@
 - name: Create /etc/sysconfig/slurmrestd
   template:
     dest: /etc/sysconfig/slurmrestd
-    src:  ../../SlurmCtl/templates/etc/sysconfig/slurmrestd
+    src:   etc/sysconfig/slurmrestd
     owner: root
     group: root
     mode: 0644
@@ -90,7 +90,7 @@
   when: PrimaryController|bool
   template:
     dest: /opt/slurm/config/bin/update_slurmrestd_jwt_parameter.sh
-    src:   ../../SlurmCtl/templates/opt/slurm/cluster/bin/update_slurmrestd_jwt_parameter.sh
+    src:   opt/slurm/config/bin/update_slurmrestd_jwt_parameter.sh
     owner: root
     group: root
     mode: 0755
@@ -118,7 +118,7 @@
 - name: Update /etc/systemd/system/slurmrestd.service
   template:
     dest: /etc/systemd/system/slurmrestd.service
-    src:  ../../SlurmCtl/templates/etc/systemd/system/slurmrestd.service
+    src:   etc/systemd/system/slurmrestd.service
     owner: root
     group: root
     mode: 0644

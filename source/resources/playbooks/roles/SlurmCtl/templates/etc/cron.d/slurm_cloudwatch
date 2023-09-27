@@ -1,4 +1,0 @@
-MAILTO=''
-SLURM_ROOT={{SlurmRoot}}
-PATH="{{SlurmScriptsDir}}:{{SlurmBinDir}}:/sbin:/bin:/usr/sbin:/usr/bin"
-*/{{CloudWatchPeriod}} * * * * root {{SlurmScriptsDir}}/slurm_ec2_publish_cw.py

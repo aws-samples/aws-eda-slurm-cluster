@@ -1,4 +1,0 @@
-# Set environment variables for slurmctld
-# Included in /etc/systemd/system/slurmctld.service
-
-LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64

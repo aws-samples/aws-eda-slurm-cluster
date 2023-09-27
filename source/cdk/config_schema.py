@@ -224,7 +224,7 @@ def get_config_schema(config):
         #     Enable Cloudformation Stack termination protection
         Optional('termination_protection', default=True): bool,
         # Optional so can be specified on the command-line
-        Optional('StackName', default='slurm'): str,
+        Optional('StackName', default='slurm-top'): str,
         # Optional so can be specified on the command-line
         Optional('Region'): And(str, lambda s: s in valid_regions),
         # Optional so can be specified on the command-line
@@ -238,23 +238,10 @@ def get_config_schema(config):
         Optional('SubnetId'): And(str, lambda s: re.match('subnet-', s)),
         # Optional, but highly recommended
         Optional('ErrorSnsTopicArn'): str,
-        #
-        # Domain:
-        #     Domain name for the Route 53 private hosted zone that will be used
-        #     by the slurm cluster for DNS.
-        #     Alternately, provide HostedZoneId of an existing Route53 hosted zone to use and
-        #     the zone name of the HostedZoneId.
-        #     By default will be {StackName}.local
-        Optional('Domain'): str,
-        #
-        # HostedZoneId:
-        #     ID of an existing hosted zone that will be used by the slurm cluster for DNS.
-        #     You must provide the Domain name of the HostedZone if it is different than the default.
-        Optional('HostedZoneId'): str,
         Optional('TimeZone', default='US/Central'): str,
         'slurm': {
             Optional('ParallelClusterConfig'): {
-                'Enable': bool,
+                Optional('Enable', default=True): And(bool, lambda s: s == True),
                 Optional('Version', default=str(DEFAULT_PARALLEL_CLUSTER_VERSION)): And(str, lambda s: parse_version(s) >= MIN_PARALLEL_CLUSTER_VERSION),
                 Optional('MungeVersion', default=get_DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION(config)): str,
                 Optional('PythonVersion', default=get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config)): str,
@@ -323,7 +310,7 @@ def get_config_schema(config):
             #
             # ClusterName:
             #     Default to the StackName
-            Optional('ClusterName'): str,
+            Optional('ClusterName'): And(str, lambda s: s != config['StackName']),
             #
             # MungeKeySsmParameter:
             #     SSM String Parameter with a base64 encoded munge key to use for the cluster.
@@ -334,32 +321,9 @@ def get_config_schema(config):
             # SlurmCtl:
             #     Required, but can be an empty dict to accept all of the defaults
             'SlurmCtl': {
-                # NumberOfControllers
-                #     For high availability configure multiple controllers
-                Optional('SlurmctldPort', default='6817'): str, # Needs to be a string because it can be a range of ports.
-                Optional('SlurmctldPortMin', default=6817): int,
-                Optional('SlurmctldPortMax', default=6817): int,
                 Optional('SlurmdPort', default=6818): int,
-                Optional('NumberOfControllers', default=1): And(Use(int), lambda n: 1 <= n <= 3),
-                Optional('SubnetIds'): [
-                    And(str, lambda subnetid: re.match('subnet-', subnetid))
-                ],
-                Optional('BaseHostname', default='slurmctl'): str,
-                Optional('architecture', default='arm64'): And(str, lambda s: s in architectures),
-                Optional('instance_type', default='c6g.large'): str,
+                Optional('instance_type', default='c6a.large'): str,
                 Optional('volume_size', default=200): int,
-                #
-                # SuspendAction:
-                #     Set to stop or terminate.
-                #     Stopped nodes will restart quicker, but you will continue to be charged for the EBS volumes
-                #     attached to the instance.
-                Optional('SuspendAction', default='stop'): And(str, lambda s: s in ['stop', 'terminate']),
-                #
-                # MaxStoppedDuration:
-                #     In ISO 8601 duration format: https://en.wikipedia.org/wiki/ISO_8601#Durations
-                #     Default: 1 hour = P0Y0M0DT1H0M0S
-                #     Evaluated at least hourly by cron job.
-                Optional('MaxStoppedDuration', default='P0Y0M0DT1H0M0S'): str,
                 Optional('CloudWatchPeriod', default=5): int,
                 Optional('PreemptMode', default='REQUEUE'): And(str, lambda s: s in ['OFF', 'CANCEL', 'GANG', 'REQUEUE', 'SUSPEND']),
                 Optional('PreemptType', default='preempt/partition_prio'): And(str, lambda s: s in ['preempt/none', 'preempt/partition_prio', 'preempt/qos']),
@@ -369,82 +333,18 @@ def get_config_schema(config):
                 #     File that will be included at end of slurm.conf to override configuration parameters.
                 Optional('SlurmConfOverrides'): str,
                 Optional('SlurmrestdUid', default=901): int,
-                Optional('SlurmrestdPort', default=6820): int,
                 Optional('SlurmRestApiVersion', default=get_default_slurm_rest_api_version(config)): str,
-            },
-            #
-            # The accounting database is required to enable fairshare scheduling
-            # It is managed by the Slurm Database Daemon (slurmdbd) instance
-            # The instance can be created as part of the cluster or can use an existing instance in a federation of clusters.
-            #
-            # SlurmDbd:
-            #     It is recommended to get the basic cluster configured and working before enabling the accounting database
-            Optional('SlurmdbdPort', default=6819): int,
-            Optional('SlurmDbd'): {
-                Optional('UseSlurmDbd', default=True): bool,
-                Optional('Hostname', default='slurmdbd'): str,
-                Optional('architecture', default='arm64'): And(str, lambda s: s in architectures),
-                Optional('instance_type', default='m6g.large'): str,
-                Optional('volume_size', default=200): int,
-                Optional('database', default={'port': 3306}): {
-                    'port': int,
-                },
-                Optional('subnets', default=[]): [
-                    And(str, lambda s: re.match('subnet-', s))
-                ]
-            },
-            #
-            # ExistingSlurmDbd:
-            #     Used for federated clusters that must share a common slurmdbd instance.
-            Optional('ExistingSlurmDbd'): {
-                Optional('UseSlurmDbd', default=True): bool,
-                Optional('StackName'): str,
-                Optional('SecurityGroup'): {str: And(str, lambda s: re.match('sg-', s))},
-                Optional('HostnameFQDN'): str,
-                Optional('Port', default=3306): int,
-                Optional('UserName'): str,
-                Optional('PasswordSecretArn'): And(str, lambda s: s.startswith('arn:')),
-            },
-            Optional('Federation'): {
-                'Name': str,
-                Optional('FederatedClusterStackNames'): [str],
-                Optional('SlurmCtlSecurityGroups', default={}): {
-                    Optional(str): And(str, lambda s: re.match('sg-', s))
-                },
-                Optional('SlurmNodeSecurityGroups', default={}): {
-                    Optional(str): And(str, lambda s: re.match('sg-', s))
-                },
-            },
-            Optional('SlurmNodeAmis', default={'instance_type': {'x86_64': 'm5.large', 'arm64': 'm6g.large'}}): {
-                Optional('instance_type', default={'x86_64': 'm5.large', 'arm64': 'm6g.large'}): {
-                    'arm64': str,
-                    'x86_64': str,
-                },
-                #
-                # BaseAmis:
-                #     Customized AMIs with file system mounts, packages, etc. configured.
-                #     If these aren't defined then the generic base AMIs are used.
-                Optional('BaseAmis'): {
-                    And(str, lambda s: s in valid_regions): { # region
-                        And(str, lambda s: s in os_distributions): { # Distribution
-                            And(int, lambda n: n in [2, 7, 8]): { # distribution_major_version
-                                str: { # architecture
-                                    'ImageId': And(str, lambda s: re.match('ami-', s)),
-                                    Optional('RootDeviceSize'): str,
-                                }
-                            }
-                        }
-                    }
-                },
             },
             #
             # SubmitterSecurityGroupIds:
             #     External security groups that should be able to use the cluster
+            #     Rules will be added to allow it to interact with Slurm.
             Optional('SubmitterSecurityGroupIds', default={}): {
                 Optional(str): And(str, lambda s: re.match(r'sg-', s))
             },
             # SubmitterInstanceTags:
-            #    Tags of instances configure to submit to the cluster. When the cluster is deleted the tag is used unmount the slurm filesystem from the instannces using SSM.
+            #    Tags of instances that can be configured to submit to the cluster.
+            #    When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.
             Optional('SubmitterInstanceTags'): {str: [str]},
             #
             # InstanceConfig:
@@ -454,13 +354,6 @@ def get_config_schema(config):
                 # UseSpot:
                 #     Configure spot instances
                 Optional('UseSpot', default=True): bool,
-                'BaseOsArchitecture': {
-                    And(str, lambda s: s in os_distributions): { # Distribution
-                        And(int, lambda n: n in [2, 7, 8]): [ # distribution_major_version
-                            And(str, lambda s: s in architectures) # architecture
-                        ]
-                    }
-                },
                 # Include*/Exclude*:
                 #     Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
                 #     Exclude patterns are processed first and take precesdence over any includes.
@@ -501,100 +394,14 @@ def get_config_schema(config):
                         ],
                     }
                 },
-                Optional('AlwaysOnNodes', default=[]): [
-                    str # Nodelist
-                ],
-                Optional('AlwaysOnPartitions', default=[]): [
-                    str # Partitionlist
-                ],
                 Optional('OnPremComputeNodes'): {
                     'ConfigFile': str,
                     'CIDR': str,
                     Optional('Partition', default='onprem'): str,
                 }
             },
-            #
-            # ElasticSearch:
-            # Configure the ElasticSearch/OpenSearch domain used by the slurm cluster
-            # If not specified then won't be created or used by the cluster.
-            Optional('ElasticSearch'): {
-                Optional('ebs_volume_size', default=20): int,
-                Optional('ebs_volume_type', default='GP2'): str,
-                Optional('enable_version_upgrade', default=False): bool,
-                Optional('number_of_azs', default=2): int,
-                Optional('master_nodes', default=2): int,
-                Optional('master_node_instance_type', default='m5.large.search'): str,
-                #
-                # data_nodes:
-                #     Must be a multiple of number_of_azs
-                Optional('data_nodes', default=1): int,
-                Optional('data_node_instance_type', default='m5.large.search'): str,
-                Optional('warm_nodes', default=0): int,
-                Optional('warm_instance_type', default='ultrawarm.medium.search'): str,
-                Optional('subnets', default=[]): [
-                    And(str, lambda s: re.match('subnet-', s))
-                ]
-            },
-            #
-            # JobCompType:
-            #     Job completion database type.
-            #     This is independent and separate from the slurmdbd results database and has less information.
-            Optional('JobCompType', default='jobcomp/filetxt'): And(str, lambda s: s in ('jobcomp/none', 'jobcomp/elasticsearch', 'jobcomp/filetxt')),
-            #
-            # JobCompLoc:
-            #     Used with jobcomp/elasticsearch
-            #     A complete URL endpoint with format <host>:<port>/<target>/_doc
-            #     http://{{EsDomain}}.{{Region}}.es.amazonaws.com/slurm/_doc
-            Optional('JobCompLoc'): str,
             Optional('SlurmUid', default=900): int,
             Optional('storage'): {
-                #
-                # mount_path:
-                # Default is /opt/slurm/{{cluster_name}}
-                Optional('mount_path'): str,
-                Optional('provider'): And(str, lambda s: s in ('efs', 'ontap', 'zfs')),
-                #
-                # removal_policy:
-                # RETAIN will preserve the EFS even if you delete the stack.
-                # Any other value will delete EFS if you delete the CFN stack
-                Optional('removal_policy'): And(str, lambda s: s in ('DESTROY', 'RETAIN', 'SNAPSHOT')),
-                Optional('kms_key_arn'): str,
-                Optional('efs'): {
-                    Optional('enable_automatic_backups', default=False): bool,
-                    #
-                    # lifecycle_policy
-                    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-efs-filesystem-lifecyclepolicy.html
-                    Optional('lifecycle_policy', default='AFTER_30_DAYS'): And(str, lambda s: s in filesystem_lifecycle_policies),
-                    Optional('use_efs_helper', default=False): bool,
-                    Optional('throughput_mode', default='BURSTING'): And(str, lambda s: s in ('BURSTING', 'PROVISIONED')),
-                    #
-                    # provisioned_throughput_per_second:
-                    #     In MiB/s. Minimum value of 1
-                    Optional('provisioned_throughput_per_second'): int,
-                    Optional('performance_mode', default='GENERAL_PURPOSE'): And(str, lambda s: s in ('GENERAL_PURPOSE', 'MAX_IO')),
-                    #
-                    # encrypted
-                    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-efs-filesystem.html#cfn-efs-filesystem-encrypted
-                    Optional('encrypted', default=True): bool,
-                    Optional('subnets', default=[]): [
-                        And(str, lambda s: re.match('subnet-', s))
-                    ]
-                },
-                Optional('ontap'): {
-                    Optional('deployment_type', default='SINGLE_AZ_1'): And(str, lambda s: s in ('SINGLE_AZ_1', 'MULTI_AZ_1')),
-                    Optional('storage_capacity', default=1024): And(int, lambda s: s >= 1024 and s <= 196608), # 1024 GiB up to 196,608 GiB (192 TiB)
-                    Optional('iops'): int,
-                    Optional('throughput_capacity', default=128): And(int, lambda s: s in [128, 256, 512, 1024, 2048]),
-                    Optional('tiering_policy', default='AUTO'): And(str, lambda s: s in ('ALL', 'AUTO', 'NONE', 'SNAPSHOT_ONLY')),
-                    Optional('cooling_period', default=31): And(int, lambda s: (s >= 2 and s <= 183)),
-                    Optional('extra_subnet'): And(str, lambda s: re.match('subnet-', s)),
-                },
-                Optional('zfs'): {
-                    Optional('storage_capacity', default=64): And(int, lambda s: s >= 64 and s <= 524288),
-                    Optional('iops'): int,
-                    Optional('throughput_capacity', default=64): And(int, lambda s: s in [64, 128, 256, 512, 1024, 2048, 3072, 4096]),
-                    Optional('data_compression_type', default='ZSTD'): And(str, lambda s: s in ('NONE', 'ZSTD', 'LZ4')),
-                },
                 #
                 # ExtraMounts
                 # Additional mounts for compute nodes.
@@ -615,12 +422,6 @@ def get_config_schema(config):
                     Optional(Or('nfs', 'zfs', 'lustre')): {
                         str: And(str, lambda s: re.match(r'sg-', s))
                     }
-                },
-                # ExtraMountCidrs
-                Optional('ExtraMountCidrs', default={}): {
-                    Optional(Or('nfs', 'zfs', 'lustre')): {
-                        str: And(str, lambda s: re.match(r'\d+\.\d+\.\d+\.\d+/\d+', s))
-                    }
                 }
             },
         },
@@ -631,19 +432,6 @@ def get_config_schema(config):
                 Optional('Port'): str,
                 Optional('ServerType'): str,
                 Optional('StatusScript'): str,
-            }
-        },
-        Optional('AmiMap', default={}): {
-            #str: { # Region
-            And(str, lambda s: s in valid_regions, error=f"Invalid region. valid_regions={valid_regions}"): { # Region
-                And(str, lambda s: s in os_distributions): { # Distribution
-                    And(int, lambda n: n in [2, 7, 8]): { # distribution_major_version
-                        And(str, lambda s: s in architectures): {
-                            'ImageId': str,
-                            'RootDeviceName': str
-                        }
-                    }
-                }
             }
         }
     }

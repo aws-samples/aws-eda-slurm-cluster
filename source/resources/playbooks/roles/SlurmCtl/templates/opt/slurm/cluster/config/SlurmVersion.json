@@ -1,4 +1,0 @@
-{
-    "SlurmVersion": "{{SlurmVersion}}",
-    "SLURM_ROOT": "{{SlurmRoot}}"
-}

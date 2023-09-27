@@ -1,9 +1,0 @@
-[Unit]
-Description=Clean up down slurm nodes
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=1day
-
-[Install]
-WantedBy=timers.target
