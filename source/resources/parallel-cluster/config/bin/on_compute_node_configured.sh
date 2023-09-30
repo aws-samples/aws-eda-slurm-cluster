@@ -1,5 +1,9 @@
 #!/bin/bash -x
 
+set -x
+
+exec 1> >(logger -s -t on_compute_node_configured.sh) 2>&1
+
 full_script=$(realpath $0)
 script_dir=$(dirname $full_script)
 base_script=$(basename $full_script)
@@ -20,7 +24,12 @@ if [ $full_script != $dest_script ]; then
     chmod 0700 $dest_script
 fi
 
-ansible_compute_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_compute_node_vars.yml"
+export PATH=/usr/sbin:$PATH
+
+echo "Creating users and groups"
+$config_bin_dir/create_users_groups.py -i $config_dir/users_groups.json
+
+# ansible_compute_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_compute_node_vars.yml"
 
 # # Configure using ansible
 # if ! yum list installed ansible &> /dev/null; then

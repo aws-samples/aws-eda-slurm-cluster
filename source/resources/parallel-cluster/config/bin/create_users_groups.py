@@ -26,7 +26,7 @@ import re
 import subprocess
 
 logger = logging.getLogger(__file__)
-logger_formatter = logging.Formatter('%(levelname)s: %(message)s')
+logger_formatter = logging.Formatter('%(levelname)s:%(asctime)s: %(message)s')
 logger_streamHandler = logging.StreamHandler()
 logger_streamHandler.setFormatter(logger_formatter)
 logger.addHandler(logger_streamHandler)
@@ -46,7 +46,8 @@ def main(filename):
             continue
         logger.debug("Creating group {}({})".format(gid, group_name))
         try:
-            subprocess.check_output(['groupadd', '-g', gid, group_name], stderr=subprocess.STDOUT)
+            subprocess.check_output(['/usr/sbin/groupadd', '-g', gid, group_name], stderr=subprocess.STDOUT)
+            logger.info("Created group {}({})".format(gid, group_name))
         except subprocess.CalledProcessError as e:
             lines = e.output.decode('utf-8')
             if 'is not a valid group name' in lines:
@@ -75,12 +76,13 @@ def main(filename):
             if invalid_gid in gids:
                 logger.debug("Removed {}".format(invalid_gid))
                 gids.remove(invalid_gid)
-        useradd_args = ['useradd', '--uid', uid, '--gid', gid, '--groups', ','.join(gids), user, '--no-create-home']
+        useradd_args = ['/usr/sbin/useradd', '--uid', uid, '--gid', gid, '--groups', ','.join(gids), user, '--no-create-home']
         if config['users'][user].get('home', None):
             useradd_args.append('--home-dir')
             useradd_args.append(config['users'][user]['home'])
         try:
             subprocess.check_output(useradd_args, stderr=subprocess.STDOUT)
+            logger.info("Created user {}({})".format(uid, user))
         except subprocess.CalledProcessError as e:
             lines = e.output.decode('utf-8')
             logger.debug(f"lines:\n{lines}")
@@ -98,11 +100,6 @@ if __name__ == '__main__':
     parser.add_argument('--debug', '-d', action='count', default=False, help="Enable debug messages")
     args = parser.parse_args()
 
-    logger_formatter = logging.Formatter('%(levelname)s:%(asctime)s: %(message)s')
-    logger_streamHandler = logging.StreamHandler()
-    logger_streamHandler.setFormatter(logger_formatter)
-    logger.addHandler(logger_streamHandler)
-    logger.setLevel(logging.INFO)
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
