@@ -50,25 +50,32 @@ logger.setLevel(logging.INFO)
 #       flexibly across the various queues as long as the cluster contains a maximum of 50 compute resources.
 #     * Allow to specify a sequence of multiple custom actions scripts per event for OnNodeStart, OnNodeConfigured and OnNodeUpdated parameters.
 #     * Upgrade Slurm to version 23.02.2.
-# 3.7.0b1:
+# 3.7.0:
 #     * Login Nodes
 #     * Add support for configurable node weights within queue
+# 3.7.1:
+#     * Fix pmix CVE
+#     * Use Slurm 23.02.5
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
-DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.7.0')
+DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.7.1')
 DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION = '0.5.15'
 DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.6.0':   '0.5.15',
     '3.6.1':   '0.5.15',
+    '3.7.0':   '0.5.15',
+    '3.7.1':   '0.5.15',
 }
 DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION = '3.9.16'
 DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     '3.6.0':   '3.9.16',
     '3.6.1':   '3.9.16',
-    '3.7.0b1': '3.9.16',
+    '3.7.0':   '3.9.16',
+    '3.7.1':   '3.9.16',
 }
 DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION = '23-02-3-1'
 DEFAULT_PARALLEL_CLUSTER_SLURM_VERSIONS = {
-    '3.7.0b1': DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION,
+    '3.7.0': DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION,
+    '3.7.1': DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION,
 }
 
 def get_DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION(config):
