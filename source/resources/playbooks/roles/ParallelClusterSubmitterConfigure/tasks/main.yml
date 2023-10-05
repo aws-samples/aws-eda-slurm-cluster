@@ -24,7 +24,7 @@
 
 - name: Add /opt/slurm/{{ClusterName}} to /etc/fstab
   mount:
-    path: /opts/slurm/{{ClusterName}}
+    path: /opt/slurm/{{ClusterName}}
     src: "{{head_node_ip_address.stdout_lines[0]}}:/opt/slurm /opt/slurm/{{ClusterName}}"
     fstype: nfs
     backup: true
