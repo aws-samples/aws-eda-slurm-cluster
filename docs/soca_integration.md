@@ -1,5 +1,9 @@
 # SOCA Integration
 
+[Scale Out Computing on AWS (SOCA)](https://aws.amazon.com/solutions/implementations/scale-out-computing-on-aws/) is an AWS solution that
+was the basis for the [Research and Engineering Studion (RES)](https://docs.aws.amazon.com/res/latest/ug/overview.html) service.
+Unless you are already a SOCA user, it is highly recommended that you use RES, which is a fully supported AWS service.
+
 Integration with SOCA is straightforward.
 
 Set the following parameters in your config file.

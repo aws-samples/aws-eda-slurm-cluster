@@ -67,7 +67,7 @@ export PATH=/usr/sbin:$PATH
 
 $config_bin_dir/create_users_groups.py -i $config_dir/users_groups.json
 
-# Configure using ansible
+# Install ansible
 if ! yum list installed ansible &> /dev/null; then
     yum install -y ansible || amazon-linux-extras install -y ansible2
 fi

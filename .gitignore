@@ -3,3 +3,4 @@
 _site
 site/
 .vscode/
+source/resources/parallel-cluster/config/build-files/*/*/parallelcluster-*.yml

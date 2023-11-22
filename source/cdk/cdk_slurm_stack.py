@@ -50,12 +50,13 @@ from aws_cdk import (
     )
 import base64
 import boto3
+from botocore.exceptions import ClientError
 from constructs import Construct
 from copy import copy, deepcopy
 from jinja2 import Template as Template
 import json
 import logging
-from os import path
+from os import makedirs, path
 from os.path import dirname, realpath
 from packaging.version import parse as parse_version
 from pprint import PrettyPrinter
@@ -113,6 +114,8 @@ class CdkSlurmStack(Stack):
         self.check_config()
 
         self.cluster_region = self.config['Region']
+
+        self.ec2_client = boto3.client('ec2', region_name=self.cluster_region)
 
         self.create_vpc()
 
@@ -309,6 +312,19 @@ class CdkSlurmStack(Stack):
 
             if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
                 cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
+                # Check to make sure that the database is in the same VPC.
+                parameter_dicts = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks'][0]['Parameters']
+                vpc_checked = False
+                for parameter_dict in parameter_dicts:
+                    if parameter_dict['ParameterKey'] == 'Vpc':
+                        database_vpc_id = parameter_dict['ParameterValue']
+                        if database_vpc_id != self.config['VpcId']:
+                            logger.error(f"Config slurm/ParallelClusterConfig/Database/DatabaseStackName({self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}) is deployed in {database_vpc_id} but needs to be in {self.config['VpcId']}")
+                            config_errors += 1
+                        vpc_checked = True
+                        break
+                assert vpc_checked, f"Didn't find vpc for database in\n{json.dumps(parameter_dicts, indent=4)}"
+
                 stack_outputs = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks'][0]['Outputs']
                 output_to_key_map = {
                     'DatabaseHost': 'FQDN',
@@ -407,6 +423,7 @@ class CdkSlurmStack(Stack):
     def create_parallel_cluster_assets(self):
         self.parallel_cluster_asset_read_policy = iam.ManagedPolicy(
             self, "ParallelClusterAssetReadPolicy",
+            path = '/parallelcluster/',
             managed_policy_name = f"{self.stack_name}-ParallelClusterAssetReadPolicy",
         )
 
@@ -447,11 +464,15 @@ class CdkSlurmStack(Stack):
             'assets_bucket': self.assets_bucket,
             'assets_base_key': self.assets_base_key,
             'ClusterName': self.config['slurm']['ClusterName'],
+            'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
             'playbooks_s3_url': self.playbooks_s3_url,
+            'Region': self.cluster_region,
+            'SubnetId': self.config['SubnetId'],
             'SubmitterSlurmConfigDir': f"/opt/slurm/{self.config['slurm']['ClusterName']}/config"
         }
         # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
         files_to_upload = [
+            'config/bin/configure-eda.sh',
             'config/bin/create_or_update_users_groups_json.sh',
             'config/bin/create_users_groups_json.py',
             'config/bin/create_users_groups_json_configure.sh',
@@ -478,6 +499,98 @@ class CdkSlurmStack(Stack):
                 Key    = s3_key,
                 Body   = local_file_content
             )
+
+        ami_builds = {
+            'amzn': {
+                '2': {
+                    'arm64': {},
+                    'x86_64': {}
+                }
+            },
+            'centos': {
+                '7': {
+                    'x86_64': {}
+                }
+            },
+            'rhel': {
+                '8': {
+                    'arm64': {},
+                    'x86_64': {}
+                },
+            },
+            'Rocky': {
+                '8': {
+                    'arm64': {},
+                    'x86_64': {}
+                }
+            },
+        }
+        template_vars['ComponentS3Url'] = self.custom_action_s3_urls['config/bin/configure-eda.sh']
+        cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
+        cfn_list_resources_paginator = cfn_client.get_paginator('list_stack_resources')
+        try:
+            response_iterator = cfn_list_resources_paginator.paginate(
+                StackName = self.stack_name
+            )
+            imagebuilder_sg_id = None
+            asset_read_policy_arn = None
+            for response in response_iterator:
+                for stack_resource_summary in response['StackResourceSummaries']:
+                    if stack_resource_summary['LogicalResourceId'].startswith('ImageBuilderSG'):
+                        imagebuilder_sg_id = stack_resource_summary['PhysicalResourceId']
+                    if stack_resource_summary['LogicalResourceId'].startswith('ParallelClusterAssetReadPolicy'):
+                        asset_read_policy_arn = stack_resource_summary['PhysicalResourceId']
+                    if imagebuilder_sg_id and asset_read_policy_arn:
+                        break
+                if imagebuilder_sg_id and asset_read_policy_arn:
+                    break
+            template_vars['ImageBuilderSecurityGroupId'] = imagebuilder_sg_id
+            template_vars['AssetReadPolicy'] = asset_read_policy_arn
+        except:
+            template_vars['ImageBuilderSecurityGroupId'] = self.imagebuilder_sg.security_group_id
+            template_vars['AssetReadPolicy'] = self.parallel_cluster_asset_read_policy.managed_policy_arn
+        parallelcluster_version = self.config['slurm']['ParallelClusterConfig']['Version']
+        parallelcluster_version_name = parallelcluster_version.replace('.', '-')
+        build_file_path = f"resources/parallel-cluster/config/build-files"
+        build_file_template_path = f"{build_file_path}/build-file.yml"
+        build_files_path = f"{build_file_path}/{parallelcluster_version}/{self.config['slurm']['ClusterName']}"
+        makedirs(build_files_path, exist_ok=True)
+        for distribution in ami_builds:
+            for version in ami_builds[distribution]:
+                for architecture in ami_builds[distribution][version]:
+                    template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-eda-{distribution}-{version}-{architecture}".replace('_', '-')
+                    if architecture == 'arm64':
+                        template_vars['InstanceType'] = 'c6g.2xlarge'
+                    else:
+                        template_vars['InstanceType'] = 'c6i.2xlarge'
+                    template_vars['ParentImage'] = self.get_image_builder_parent_image(distribution, version, architecture)
+                    template_vars['RootVolumeSize'] = int(self.get_ami_root_volume_size(template_vars['ParentImage'])) + 10
+                    logger.info(f"{distribution}-{version}-{architecture} image id: {template_vars['ParentImage']} root volume size={template_vars['RootVolumeSize']}")
+                    build_file_template = Template(open(build_file_template_path, 'r').read())
+                    build_file_content = build_file_template.render(**template_vars)
+                    s3_client.put_object(
+                        Bucket = self.assets_bucket,
+                        Key    = f"{self.assets_base_key}/config/build-files/{template_vars['ImageName']}.yml",
+                        Body   = build_file_content
+                    )
+                    fh = open(f"{build_files_path}/{template_vars['ImageName']}.yml", 'w')
+                    fh.write(build_file_content)
+
+                    template_vars['ParentImage'] = self.get_fpga_developer_image(distribution, version, architecture)
+                    if not template_vars['ParentImage']:
+                        logger.debug(f"No FPGA Developer AMI found for {distribution}{version} {architecture}")
+                        continue
+                    template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-fpga-{distribution}-{version}-{architecture}".replace('_', '-')
+                    template_vars['RootVolumeSize'] = int(self.get_ami_root_volume_size(template_vars['ParentImage'])) + 10
+                    logger.info(f"{distribution}-{version}-{architecture} fpga developer image id: {template_vars['ParentImage']} root volume size={template_vars['RootVolumeSize']}")
+                    build_file_content = build_file_template.render(**template_vars)
+                    s3_client.put_object(
+                        Bucket = self.assets_bucket,
+                        Key    = f"{self.assets_base_key}/config/build-files/{template_vars['ImageName']}.yml",
+                        Body   = build_file_content
+                    )
+                    fh = open(f"{build_files_path}/{template_vars['ImageName']}.yml", 'w')
+                    fh.write(build_file_content)
 
         ansible_head_node_template_vars = self.get_instance_template_vars('ParallelClusterHeadNode')
         fh = NamedTemporaryFile('w', delete=False)
@@ -519,6 +632,80 @@ class CdkSlurmStack(Stack):
             s3_key)
 
         self.create_munge_ssm_parameter()
+
+    def get_image_builder_parent_image(self, distribution, version, architecture):
+        filters = [
+            {'Name': 'architecture', 'Values': [architecture]},
+            {'Name': 'is-public', 'Values': ['true']},
+            {'Name': 'state', 'Values': ['available']},
+        ]
+        if distribution == 'Rocky':
+            filters.extend(
+                [
+                    {'Name': 'owner-alias', 'Values': ['aws-marketplace']},
+                    {'Name': 'name', 'Values': [f"Rocky-{version}-EC2-Base-{version}.*"]},
+                ],
+            )
+        else:
+            parallelcluster_version = self.config['slurm']['ParallelClusterConfig']['Version']
+            filters.extend(
+                [
+                    {'Name': 'owner-alias', 'Values': ['amazon']},
+                    {'Name': 'name', 'Values': [f"aws-parallelcluster-{parallelcluster_version}-{distribution}{version}*"]},
+                ],
+            )
+        response = self.ec2_client.describe_images(
+            Filters = filters
+        )
+        logger.debug(f"Images:\n{json.dumps(response['Images'], indent=4)}")
+        images = sorted(response['Images'], key=lambda image: image['CreationDate'], reverse=True)
+        image_id = images[0]['ImageId']
+        return image_id
+
+    def get_fpga_developer_image(self, distribution, version, architecture):
+        valid_distributions = {
+            'amzn': ['2'],
+            'centos': ['7']
+        }
+        valid_architectures = ['x86_64']
+        if distribution not in valid_distributions:
+            return None
+        if version not in valid_distributions[distribution]:
+            return None
+        if architecture not in valid_architectures:
+            return None
+        filters = [
+            {'Name': 'architecture', 'Values': [architecture]},
+            {'Name': 'is-public', 'Values': ['true']},
+            {'Name': 'state', 'Values': ['available']},
+        ]
+        if distribution == 'amzn':
+            name_filter = "FPGA Developer AMI(AL2) - *"
+        elif distribution == 'centos':
+            name_filter = "FPGA Developer AMI - *"
+        filters.extend(
+            [
+                {'Name': 'owner-alias', 'Values': ['aws-marketplace']},
+                {'Name': 'name', 'Values': [name_filter]},
+            ],
+        )
+        response = self.ec2_client.describe_images(
+            Filters = filters
+        )
+        logger.debug(f"Images:\n{json.dumps(response['Images'], indent=4)}")
+        images = sorted(response['Images'], key=lambda image: image['CreationDate'], reverse=True)
+        if not images:
+            return None
+        image_id = images[0]['ImageId']
+        return image_id
+
+    def get_ami_root_volume_size(self, image_id: str):
+        response = self.ec2_client.describe_images(
+            ImageIds = [image_id]
+        )
+        logger.debug(f"{json.dumps(response, indent=4)}")
+        root_volume_size = response['Images'][0]['BlockDeviceMappings'][0]['Ebs']['VolumeSize']
+        return root_volume_size
 
     def create_vpc(self):
         logger.info(f"VpcId: {self.config['VpcId']}")
@@ -756,6 +943,9 @@ class CdkSlurmStack(Stack):
         self.slurmd_port = 6818
         self.slurmdbd_port = 6819
         self.slurmrestd_port = 6830
+
+        self.imagebuilder_sg = ec2.SecurityGroup(self, "ImageBuilderSG", vpc=self.vpc, allow_all_outbound=True, description="ImageBuilder Security Group")
+        Tags.of(self.imagebuilder_sg).add("Name", f"{self.stack_name}-ImageBuilderSG")
 
         self.nfs_sg = ec2.SecurityGroup(self, "NfsSG", vpc=self.vpc, allow_all_outbound=False, description="Nfs Security Group")
         Tags.of(self.nfs_sg).add("Name", f"{self.stack_name}-NfsSG")
@@ -1306,8 +1496,7 @@ class CdkSlurmStack(Stack):
             'HeadNode': {
                 'Dcv': {
                     'Enabled': self.config['slurm']['ParallelClusterConfig']['Dcv']['Enable'],
-                    'Port': self.config['slurm']['ParallelClusterConfig']['Dcv']['Port'],
-                    'AllowedIps': self.config['slurm']['ParallelClusterConfig']['Dcv']['AllowedIps'],
+                    'Port': self.config['slurm']['ParallelClusterConfig']['Dcv']['Port']
                 },
                 'Iam': {
                     'AdditionalIamPolicies': [
@@ -1411,6 +1600,12 @@ class CdkSlurmStack(Stack):
                 }
             ]
         }
+
+        if 'AllowedIps' in self.config['slurm']['ParallelClusterConfig']['Dcv']:
+            self.parallel_cluster_config['HeadNode']['Dcv']['AllowedIps'] = self.config['slurm']['ParallelClusterConfig']['AllowedIps']
+
+        if 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
+            self.parallel_cluster_config['Image']['CustomAmi'] = self.config['slurm']['ParallelClusterConfig']['Image']['CustomAmi']
 
         if 'volume_size' in self.config['slurm']['SlurmCtl']:
             self.parallel_cluster_config['HeadNode']['LocalStorage'] = {

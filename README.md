@@ -2,13 +2,14 @@
 
 This repository contains an AWS Cloud Development Kit (CDK) application that creates a Slurm cluster that is suitable for running production EDA workloads on AWS.
 
-The original (legacy) version of this repo used a custom Python plugin to integrate Slurm with AWS.
+The original (legacy) version of this repo that used a custom Python plugin to integrate Slurm with AWS has been deprecated and is no longer supported.
+It can be found on the v1 branch.
 The latest version of the repo uses AWS ParallelCluster for the core Slurm infrastructure and AWS integration.
 The big advantage of moving to AWS ParallelCluster is that it is a supported AWS service.
 Currently, some of the features of the legacy version are not supported in the ParallelCluster version, but
-work continues to add features to ParallelCluster so that those features can be supported in the future.
+work continues to add features to ParallelCluster so that those features may be supported in the future.
 
-Key features are supported by both versions are:
+Key features are:
 
 * Automatic scaling of AWS EC2 instances based on demand
 * Use any AWS EC2 instance type including Graviton2
@@ -58,21 +59,9 @@ ParallelCluster:
 * CentOS 7
 * RedHat 7 and 8
 
-Legacy:
-
-* Alma Linux 8
-* Amazon Linux 2
-* CentOS 7
-* RedHat 7 and 8
-* Rocky Linux 8
-
-RedHat stopped supporting CentOS 8, so for a similar RedHat 8 binary compatible distribution we support Alma Linux and
-Rocky Linux as replacements for CentOS.
-These RHEL 8 downstreams are not currently supported by ParallelCluster.
-
 This Slurm cluster supports both Intel/AMD (x86_64) based instances and ARM Graviton2 (arm64/aarch64) based instances.
 
-[Graviton instances require](https://github.com/aws/aws-graviton-getting-started/blob/main/os.md) Amazon Linux 2, RedHat 8, AlmaLinux 8, or RockyLinux 8 operating systems.
+[Graviton instances require](https://github.com/aws/aws-graviton-getting-started/blob/main/os.md) Amazon Linux 2 or RedHat 8 operating systems.
 RedHat 7 and CentOS 7 do not support Graviton 2.
 
 This provides the following different combinations of OS and processor architecture.
@@ -86,20 +75,7 @@ ParallelCluster:
 * RedHat 8 and arm64
 * RedHat 8 and x86_64
 
-Legacy:
-
-* Alma Linux 8 and arm64
-* Alma Linux 8 and x86_64
-* Amazon Linux 2 and arm64
-* Amazon Linux 2 and x86_64
-* CentOS 7 and x86_64
-* RedHat 7 and x86_64
-* RedHat 8 and arm64
-* RedHat 8 and x86_64
-* Rocky Linux 8 and arm64
-* Rocky Linux 8 and x86_64
-
-Note that in the ParallelCluster version, all compute nodes must have the same OS and architecture.
+Note that in ParallelCluster, all compute nodes must have the same OS and architecture.
 
 ## Documentation
 

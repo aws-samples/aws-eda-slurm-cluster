@@ -1,17 +1,14 @@
-# Deploy ParallelCluster
+# Deploy AWS ParallelCluster
 
-The original (legacy) version used a custom Slurm plugin for orchestrating the EC2 compute nodes.
-The latest version uses ParallelCluster to provision the core Slurm infrastructure.
-When using ParallelCluster, a ParallelCluster configuration will be generated and used to create a ParallelCluster slurm cluster.
+A ParallelCluster configuration will be generated and used to create a ParallelCluster slurm cluster.
 The first supported ParallelCluster version is 3.6.0.
 Version 3.7.0 is the recommended minimum version because it support compute node weighting that is proportional to instance type
 cost so that the least expensive instance types that meet job requirements are used.
+The current latest version is 3.7.2.
 
 ## Prerequisites
 
 See [Deployment Prerequisites](deployment-prerequisites.md) page.
-
-The following are prerequisites that are specific to ParallelCluster.
 
 ### Create ParallelCluster UI (optional but recommended)
 

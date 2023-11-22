@@ -253,7 +253,8 @@ def get_config_schema(config):
                 Optional('MungeVersion', default=get_DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION(config)): str,
                 Optional('PythonVersion', default=get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config)): str,
                 Optional('Image', default={'Os': 'centos7'}): {
-                    Optional('Os', default='centos7'): And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES)
+                    'Os': And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES, ),
+                    Optional('CustomAmi'): And(str, lambda s: s.startswith('ami-')),
                 },
                 Optional('Architecture', default='x86_64'): And(str, lambda s: s in ['arm64', 'x86_64']),
                 Optional('ComputeNodeAmi'): And(str, lambda s: s.startswith('ami-')),
@@ -273,7 +274,7 @@ def get_config_schema(config):
                 Optional('Dcv', default={}): {
                     Optional('Enable', default=False): bool,
                     Optional('Port', default=8443): int,
-                    Optional('AllowedIps', default='10.0.0.0/32'): str
+                    Optional('AllowedIps'): str # Can't set a default without know the VPC's CIDR range.
                 },
                 Optional('LoginNodes'): {
                     'Pools': [
@@ -316,7 +317,8 @@ def get_config_schema(config):
             Optional('SlurmVersion', default=get_DEFAULT_SLURM_VERSION(config)): str,
             #
             # ClusterName:
-            #     Default to the StackName
+            #     Name of the ParallelCluster cluster.
+            #     Default to StackName-cl
             Optional('ClusterName'): And(str, lambda s: s != config['StackName']),
             #
             # MungeKeySsmParameter:

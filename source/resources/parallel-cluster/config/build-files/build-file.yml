@@ -1,0 +1,24 @@
+# Template build file
+
+Image:
+  Name: {{ImageName}}
+  RootVolume:
+    Size: {{RootVolumeSize}}
+
+Build:
+  InstanceType: {{InstanceType}}
+  SubnetId: {{SubnetId}}
+  SecurityGroupIds:
+    - {{ImageBuilderSecurityGroupId}}
+  ParentImage: {{ParentImage}}
+  UpdateOsPackages:
+    Enabled: false
+  Components:
+    - Type: script
+      Value: {{ComponentS3Url}}
+  Iam:
+    AdditionalIamPolicies:
+      - Policy: {{AssetReadPolicy}}
+
+DevSettings:
+  TerminateInstanceOnFailure: false
