@@ -8,7 +8,7 @@
         
         
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>Deploy ParallelCluster - EDA SLURM Cluster on AWS</title>
+        <title>Deploy AWS ParallelCluster - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
@@ -42,7 +42,10 @@
                                 <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
                             </li>
                             <li class="navitem active">
-                                <a href="./" class="nav-link">Deploy ParallelCluster</a>
+                                <a href="./" class="nav-link">Deploy AWS ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
@@ -57,22 +60,13 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
-                            </li>
-                            <li class="navitem">
                                 <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../federation/" class="nav-link">Federation (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
@@ -97,7 +91,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../soca_integration/" class="nav-link">
+                                <a rel="next" href="../res_integration/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -122,7 +116,7 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#deploy-parallelcluster" class="nav-link">Deploy ParallelCluster</a>
+            <li class="nav-item" data-level="1"><a href="#deploy-aws-parallelcluster" class="nav-link">Deploy AWS ParallelCluster</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-level="2"><a href="#prerequisites" class="nav-link">Prerequisites</a>
               <ul class="nav flex-column">
@@ -167,16 +161,14 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="deploy-parallelcluster">Deploy ParallelCluster</h1>
-<p>The original (legacy) version used a custom Slurm plugin for orchestrating the EC2 compute nodes.
-The latest version uses ParallelCluster to provision the core Slurm infrastructure.
-When using ParallelCluster, a ParallelCluster configuration will be generated and used to create a ParallelCluster slurm cluster.
+<h1 id="deploy-aws-parallelcluster">Deploy AWS ParallelCluster</h1>
+<p>A ParallelCluster configuration will be generated and used to create a ParallelCluster slurm cluster.
 The first supported ParallelCluster version is 3.6.0.
 Version 3.7.0 is the recommended minimum version because it support compute node weighting that is proportional to instance type
-cost so that the least expensive instance types that meet job requirements are used.</p>
+cost so that the least expensive instance types that meet job requirements are used.
+The current latest version is 3.7.2.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>See <a href="../deployment-prerequisites/">Deployment Prerequisites</a> page.</p>
-<p>The following are prerequisites that are specific to ParallelCluster.</p>
 <h3 id="create-parallelcluster-ui-optional-but-recommended">Create ParallelCluster UI (optional but recommended)</h3>
 <p>It is highly recommended to create a ParallelCluster UI to manage your ParallelCluster clusters.
 A different UI is required for each version of ParallelCluster that you are using.

@@ -42,7 +42,10 @@
                                 <a href="deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
                             </li>
                             <li class="navitem">
-                                <a href="deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                                <a href="deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="soca_integration/" class="nav-link">SOCA Integration</a>
@@ -57,22 +60,13 @@
                                 <a href="rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
-                            </li>
-                            <li class="navitem">
                                 <a href="onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
+                                <a href="custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="federation/" class="nav-link">Federation (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
@@ -149,12 +143,13 @@
 
 <h1 id="aws-eda-slurm-cluster">AWS EDA Slurm Cluster</h1>
 <p>This repository contains an AWS Cloud Development Kit (CDK) application that creates a Slurm cluster that is suitable for running production EDA workloads on AWS.</p>
-<p>The original (legacy) version of this repo used a custom Python plugin to integrate Slurm with AWS.
+<p>The original (legacy) version of this repo that used a custom Python plugin to integrate Slurm with AWS has been deprecated and is no longer supported.
+It can be found on the v1 branch.
 The latest version of the repo uses AWS ParallelCluster for the core Slurm infrastructure and AWS integration.
 The big advantage of moving to AWS ParallelCluster is that it is a supported AWS service.
 Currently, some of the features of the legacy version are not supported in the ParallelCluster version, but
-work continues to add features to ParallelCluster so that those features can be supported in the future.</p>
-<p>Key features are supported by both versions are:</p>
+work continues to add features to ParallelCluster so that those features may be supported in the future.</p>
+<p>Key features are:</p>
 <ul>
 <li>Automatic scaling of AWS EC2 instances based on demand</li>
 <li>Use any AWS EC2 instance type including Graviton2</li>
@@ -202,19 +197,8 @@ work continues to add features to ParallelCluster so that those features can be 
 <li>CentOS 7</li>
 <li>RedHat 7 and 8</li>
 </ul>
-<p>Legacy:</p>
-<ul>
-<li>Alma Linux 8</li>
-<li>Amazon Linux 2</li>
-<li>CentOS 7</li>
-<li>RedHat 7 and 8</li>
-<li>Rocky Linux 8</li>
-</ul>
-<p>RedHat stopped supporting CentOS 8, so for a similar RedHat 8 binary compatible distribution we support Alma Linux and
-Rocky Linux as replacements for CentOS.
-These RHEL 8 downstreams are not currently supported by ParallelCluster.</p>
 <p>This Slurm cluster supports both Intel/AMD (x86_64) based instances and ARM Graviton2 (arm64/aarch64) based instances.</p>
-<p><a href="https://github.com/aws/aws-graviton-getting-started/blob/main/os.md">Graviton instances require</a> Amazon Linux 2, RedHat 8, AlmaLinux 8, or RockyLinux 8 operating systems.
+<p><a href="https://github.com/aws/aws-graviton-getting-started/blob/main/os.md">Graviton instances require</a> Amazon Linux 2 or RedHat 8 operating systems.
 RedHat 7 and CentOS 7 do not support Graviton 2.</p>
 <p>This provides the following different combinations of OS and processor architecture.</p>
 <p>ParallelCluster:</p>
@@ -226,20 +210,7 @@ RedHat 7 and CentOS 7 do not support Graviton 2.</p>
 <li>RedHat 8 and arm64</li>
 <li>RedHat 8 and x86_64</li>
 </ul>
-<p>Legacy:</p>
-<ul>
-<li>Alma Linux 8 and arm64</li>
-<li>Alma Linux 8 and x86_64</li>
-<li>Amazon Linux 2 and arm64</li>
-<li>Amazon Linux 2 and x86_64</li>
-<li>CentOS 7 and x86_64</li>
-<li>RedHat 7 and x86_64</li>
-<li>RedHat 8 and arm64</li>
-<li>RedHat 8 and x86_64</li>
-<li>Rocky Linux 8 and arm64</li>
-<li>Rocky Linux 8 and x86_64</li>
-</ul>
-<p>Note that in the ParallelCluster version, all compute nodes must have the same OS and architecture.</p>
+<p>Note that in ParallelCluster, all compute nodes must have the same OS and architecture.</p>
 <h2 id="documentation">Documentation</h2>
 <p><a href="https://aws-samples.github.io/aws-eda-slurm-cluster/">View on GitHub Pages</a></p>
 <p>You can also view the docs locally,
@@ -342,5 +313,5 @@ firefox http://127.0.0.1:8000/ &amp;
 
 <!--
 MkDocs version : 1.3.0
-Build Date UTC : 2023-09-02 01:34:12.664294+00:00
+Build Date UTC : 2023-11-23 05:58:10.808991+00:00
 -->

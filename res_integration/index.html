@@ -8,7 +8,7 @@
         
         
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>Implementation Details (legacy) - EDA SLURM Cluster on AWS</title>
+        <title>RES Integration - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
@@ -44,8 +44,8 @@
                             <li class="navitem">
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
-                            <li class="navitem">
-                                <a href="../res_integration/" class="nav-link">RES Integration</a>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
@@ -71,8 +71,8 @@
                             <li class="navitem">
                                 <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
                             </li>
-                            <li class="navitem active">
-                                <a href="./" class="nav-link">Implementation Details (legacy)</a>
+                            <li class="navitem">
+                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -86,17 +86,17 @@
                             </a>
                         </li>
                             <li class="nav-item">
-                                <a rel="prev" href="../delete-cluster/" class="nav-link">
+                                <a rel="prev" href="../deploy-parallel-cluster/" class="nav-link">
                                     <i class="fa fa-arrow-left"></i> Previous
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../debug/" class="nav-link">
+                                <a rel="next" href="../soca_integration/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/implementation.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/res_integration.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
                             </li>
                     </ul>
                 </div>
@@ -116,28 +116,8 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#implementation-details-legacy" class="nav-link">Implementation Details (legacy)</a>
+            <li class="nav-item" data-level="1"><a href="#res-integration" class="nav-link">RES Integration</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="2"><a href="#slurm-infrastructure" class="nav-link">Slurm Infrastructure</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#directory-structure" class="nav-link">Directory Structure</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#cloudwatch-metrics" class="nav-link">CloudWatch Metrics</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#down-node-handling" class="nav-link">Down Node Handling</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#insufficient-capacity-exception-ice-handling" class="nav-link">Insufficient Capacity Exception (ICE) Handling</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
               </ul>
             </li>
         </ul>
@@ -145,62 +125,129 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="implementation-details-legacy">Implementation Details (legacy)</h1>
-<h2 id="slurm-infrastructure">Slurm Infrastructure</h2>
-<p>All hosts in the cluster must share a uniform user and group namespace.</p>
-<p>The munged service must be running before starting any slurm daemons.</p>
-<h2 id="directory-structure">Directory Structure</h2>
-<p>All of the configuration files, scripts, and logs can be found under the following directory.</p>
-<pre><code>/opt/slurm/{{ClusterName}}
+<h1 id="res-integration">RES Integration</h1>
+<p>Integration with <a href="https://docs.aws.amazon.com/res/latest/ug/overview.html">Research and Engineering Studion (RES)</a> is straightforward.</p>
+<p>Set the following parameters in your config file.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>VpcId</td>
+<td>VPC id for the RES cluster</td>
+<td>vpc-xxxxxx</td>
+</tr>
+<tr>
+<td>SubnetId</td>
+<td>Private subnet in the RES VPC.</td>
+<td>subnet-xxxxx</td>
+</tr>
+<tr>
+<td>SubmitterSecurityGroupIds</td>
+<td>The security group name and id used by RES VDIs. The name will be something like <em>EnvironmentName</em>-vdc-dcv-host-security-group</td>
+<td><em>EnvironmentName</em>-<em>VDISG</em>: sg-xxxxxxxx</td>
+</tr>
+<tr>
+<td>SubmitterInstanceTags</td>
+<td>The tag of VDI instances.</td>
+<td>'res:EnvironmentName': <em>EnvironmentName</em>'</td>
+</tr>
+<tr>
+<td>ExtraMounts</td>
+<td>Add the mount parameters for the /home directory. This is required for access to the home directory.</td>
+<td></td>
+</tr>
+<tr>
+<td>ExtraMountSecurityGroups</td>
+<td>Security groups that give access to the ExtraMounts. These will be added to compute nodes so they can access the file systems.</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The following example shows the configuration parameters for a RES with the EnvironmentName=res-eda.</p>
+<pre><code>---
+#====================================================================
+# EDA Slurm cluster for RES using ParallelCluster
+#
+# Defaults and valid configuration options are in source/config_schema.py.
+# Command line values override values in the config file.
+#====================================================================
+
+StackName: res-eda-pc-3-7-2-r8-x86-config
+
+Region: &lt;region&gt;
+SshKeyPair: &lt;key-name&gt;
+
+VpcId: vpc-xxxxxxxxxxxxxxxxx # res-bi
+
+SubnetId: subnet-xxxxxxxxxxxxxxxxx # res-bi, res-bi-Networking-xxxxxxxxxxxxx:PrivateSubnetA-&lt;region&gt;
+
+ErrorSnsTopicArn: &lt;topic-arn&gt;
+
+TimeZone: 'US/Central'
+
+slurm:
+  ClusterName: res-eda-pc-3-7-2-r8-x86
+
+  ParallelClusterConfig:
+    Version: '3.7.2'
+    Image:
+      Os: 'rhel8'
+    Architecture: 'x86_64'
+    Database:
+      DatabaseStackName: pcluster-slurm-db-res
+
+  # External security groups that should be able to use the cluster
+  SubmitterSecurityGroupIds:
+    res-eda-DCV-SG: sg-xxxxxxxxxxxxxxxxx # res-eda-vdc-dcv-host-security-group
+
+  SubmitterInstanceTags:
+    'res:EnvironmentName': ['res-eda']
+
+  SlurmCtl: {}
+
+  # Configure typical EDA instance types
+  # A partition will be created for each combination of Base OS, Architecture, and Spot
+  InstanceConfig:
+    UseSpot: true
+    NodeCounts:
+      DefaultMaxCount: 10
+
+  storage:
+    ExtraMounts:
+      - dest: /home
+        StorageType: Efs
+        FileSystemId: 'fs-06613eabfa09fe039'
+        FileSystemId: 'fs-xxxxxxxxxxxxxxxxx'
+        src: fs-xxxxxxxxxxxxxxxxx.efs.&lt;region&gt;.amazonaws.com:/
+        type: nfs4
+        options: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport
+    ExtraMountSecurityGroups:
+      nfs:
+        res-eda-DCV-SG: sg-xxxxxxxxxxxxxxxxx # res-eda-vdc-dcv-host-security-group
+
+Licenses:
+  vcs:
+    Count: 10
+    Server: synopsys_licenses
+    Port: '24680'
+    ServerType: flexlm
+  ansys:
+    Count: 1
+    Server: ansys_licenses
+    Port: '2200'
 </code></pre>
-<h2 id="cloudwatch-metrics">CloudWatch Metrics</h2>
-<p>CloudWatch metrics are published by the following sources, but the code is all in <code>SlurmPlugin.py</code>.</p>
-<ul>
-<li>Slurm power saving scripts<ul>
-<li><code>/opt/slurm/{{ClusterName}}/bin/slurm_ec2_resume.py</code></li>
-<li><code>/opt/slurm/{{ClusterName}}/bin/slurm_ec2_resume_fail.py</code></li>
-<li><code>/opt/slurm/{{ClusterName}}/bin/slurm_ec2_stop.py</code></li>
-<li><code>/opt/slurm/{{ClusterName}}/bin/slurm_ec2_terminate.py</code></li>
-</ul>
-</li>
-<li>Spot monitor running on compute nodes<ul>
-<li><code>/opt/slurm/{{ClusterName}}/bin/spot_monitor.py</code></li>
-</ul>
-</li>
-<li>Cron jobs running on the Slurm controller<ul>
-<li><code>/opt/slurm/{{ClusterName}}/bin/slurm_ec2_publish_cw.py</code></li>
-<li><code>/opt/slurm/{{ClusterName}}/bin/terminate_old_instances.py</code></li>
-</ul>
-</li>
-</ul>
-<h2 id="down-node-handling">Down Node Handling</h2>
-<p>If a node has a problem running jobs then Slurm can mark it DOWN.
-This includes if the resume script cannot start an instance for any reason include insufficient EC2 capacity.
-This can create 2 issues. First, if the compute node is running then it is wasting EC2 costs.
-Second, the node will be unavailable for scheduling which reduces the configured capacity of the cluster.</p>
-<p>The cluster is configured to periodically check for DOWN nodes so that they aren't left running and wasting compute costs.
-This is done by <code>/opt/slurm/{{ClusterName}}/bin/slurm_down_nodes_clean.sh</code>.</p>
-<p>The script is called every day by a systemd service:</p>
-<p><code>/etc/systemd/system/slurm_down_nodes_clean.service</code></p>
-<p>This service is run at boot and once a day as defined in</p>
-<p><code>/etc/systemd/system/slurm_down_nodes_clean.timer</code></p>
-<h2 id="insufficient-capacity-exception-ice-handling">Insufficient Capacity Exception (ICE) Handling</h2>
-<p>When Slurm schedules a powered down node it calls the ResumeScript defined in <code>slurm.conf</code>.
-This is in <code>/opt/slurm/{{ClusterName}}/bin/slurm_ec2_resume.py</code>.
-The script will attempt to start an EC2 instance and if it receives and InsufficientCapacityException (ICE) then the node will be marked down and Slurm will requeue the job.
-However, this is inadequate because if there are a large number of instances of that instance type configured then
-Slurm will schedule them and try to start them with the same result.
-Eventually all of the powered down nodes will be marked DOWN and depending on the job requirements the job will be allocated
-to a node with a different instance type or it will fail.
-This can take a substantial amount of time so <code>SlurmPlugin.py</code> does the following when it receives an ICE.</p>
-<ul>
-<li>Mark the node as DRAIN so no new jobs are scheduled on it.</li>
-<li>Find all other powered down nodes of the same type and mark them DOWN so that they won't be scheduled after this node is marked DOWN. Nodes that are running will be left alone.</li>
-<li>Requeue jobs on the node that failed to resume because of ICE.</li>
-<li>Mark the node DOWN.</li>
-<li>Power down the node. This is so that Slurm knows that the node is powered down so that when it is marked IDLE it will be powered up when a job is scheduled on it.</li>
-<li>The <code>slurm_down_nodes_clean.service</code> periodically finds all DOWN Slurm nodes, powers them down, and then marks them IDLE so that they can have jobs scheduled on them. This will allow Slurm to attempt to use more nodes of the instance type in the hopes that there is more capacity. If not, then the cycle repeats.</li>
-</ul></div>
+<p>Deploy your cluster.</p>
+<p>Connect to the RES cluster manager instance and follow the instructions to <a href="../deploy-parallel-cluster/#create-users_groupsjson">Create users_groups.json</a>.</p>
+<p>Connect to a remote desktop instance and follow the instructions in <a href="../deploy-parallel-cluster/#configure-submission-hosts-to-use-the-cluster">Configure submission hosts to use the cluster</a>.
+If all users need to use the cluster then it is probably best to create a custom AMI that is configured with the configuration
+commands.</p>
+<p>You are now ready to run jobs from your RES DCV desktop.</p></div>
             </div>
         </div>
 

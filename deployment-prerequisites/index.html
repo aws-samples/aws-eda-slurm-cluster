@@ -42,7 +42,10 @@
                                 <a href="./" class="nav-link">Deployment Prerequisites</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy ParallelCluster</a>
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
@@ -57,22 +60,13 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../deploy-legacy-cluster/" class="nav-link">Deploy Legacy Cluster</a>
-                            </li>
-                            <li class="navitem">
                                 <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
                             </li>
                             <li class="navitem">
-                                <a href="../f1-ami/" class="nav-link">SLURM AMI Based On FPGA Developer AMI (legacy)</a>
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../federation/" class="nav-link">Federation (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../multi-region/" class="nav-link">Multi-AZ and Multi-Region Support (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../plugin-integration/" class="nav-link">Plugin Integration Into Existing Slurm Cluster (legacy)</a>
                             </li>
                             <li class="navitem">
                                 <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
@@ -148,14 +142,6 @@
               <ul class="nav flex-column">
             <li class="nav-item" data-level="3"><a href="#configure-the-compute-instances" class="nav-link">Configure the Compute Instances</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="4"><a href="#parallelcluster" class="nav-link">ParallelCluster</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#legacy" class="nav-link">Legacy</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
               </ul>
             </li>
             <li class="nav-item" data-level="3"><a href="#configure-fair-share-scheduling-optional" class="nav-link">Configure Fair Share Scheduling (Optional)</a>
@@ -176,9 +162,7 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="deployment-prerequisites">Deployment Prerequisites</h1>
-<p>The original (legacy) version used a custom Slurm plugin for orchestrating the EC2 compute nodes.
-The latest version uses ParallelCluster to provision the core Slurm infrastructure.</p>
-<p>This page shows common prerequisites that need to be done for deploying either version.</p>
+<p>This page shows common prerequisites that need to be done before deployment.</p>
 <h2 id="configure-aws-cli-credentials">Configure AWS CLI Credentials</h2>
 <p>You will needs AWS credentials that provide admin access to deploy the cluster.</p>
 <h2 id="clone-or-download-the-repository">Clone or Download the Repository</h2>
@@ -225,7 +209,7 @@ The version that has been tested is in the CDK_VERSION variable in the install s
 A default configuration file is found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">source/resources/config/default_config.yml</a>.
 You should create a new config file and update the parameters for your cluster.
 Ideally you should version control this file so you can keep track of changes.</p>
-<p>The schema for the config file along with its default values can be found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L204-L631">source/cdk/config_schema.py</a>.
+<p>The schema for the config file along with its default values can be found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L230-L445">source/cdk/config_schema.py</a>.
 The schema is defined in python, but the actual config file should be in yaml format.</p>
 <p>The following are key parameters that you will need to update.
 If you do not have the required parameters in your config file then the installer script will fail unless you specify the <code>--prompt</code> option.
@@ -283,12 +267,6 @@ You should save your selections in the config file.</p>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L250-L312">slurm/ParallelClusterConfig/enable</a></td>
-<td>Use ParallelCluster</td>
-<td>true, false</td>
-<td>false</td>
-</tr>
-<tr>
 <td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509">slurm/InstanceConfig</a></td>
 <td>Configure instance types that the cluster can use and number of nodes.</td>
 <td></td>
@@ -301,7 +279,6 @@ You should save your selections in the config file.</p>
 and instance types that the Slurm cluster should support.
 ParallelCluster currently doesn't support heterogeneous clusters;
 all nodes must have the same architecture and Base OS.</p>
-<h4 id="parallelcluster">ParallelCluster</h4>
 <table>
 <thead>
 <tr>
@@ -324,41 +301,6 @@ all nodes must have the same architecture and Base OS.</p>
 </tr>
 <tr>
 <td>RedHat 8</td>
-<td>x86_64, arm64</td>
-</tr>
-</tbody>
-</table>
-<h4 id="legacy">Legacy</h4>
-<table>
-<thead>
-<tr>
-<th>Base OS</th>
-<th>CPU Architectures</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Alma Linux 8</td>
-<td>x86_64, arm64</td>
-</tr>
-<tr>
-<td>Amazon Linux 2</td>
-<td>x86_64, arm64</td>
-</tr>
-<tr>
-<td>CentOS 7</td>
-<td>x86_64</td>
-</tr>
-<tr>
-<td>RedHat 7</td>
-<td>x86_64</td>
-</tr>
-<tr>
-<td>RedHat 8</td>
-<td>x86_64, arm64</td>
-</tr>
-<tr>
-<td>Rocky Linux 8</td>
 <td>x86_64, arm64</td>
 </tr>
 </tbody>
@@ -428,7 +370,7 @@ To do this add a MinCount greater than 0 for the compute resources that contain 
 <h3 id="configure-fair-share-scheduling-optional">Configure Fair Share Scheduling (Optional)</h3>
 <p>Slurm supports <a href="https://slurm.schedmd.com/fair_tree.html">fair share scheduling</a>, but it requires the fair share policy to be configured.
 By default, all users will be put into a default group that has a low fair share.
-The configuration file is at <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example">source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example</a>
+The configuration file is at <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/ParallelClusterHeadNode/files/opt/slurm/config/accounts.yml.example">source/resources/playbooks/roles/ParallelClusterHeadNode/files/opt/slurm/config/accounts.yml.example</a>
 in the repository and is deployed to <strong>/opt/slurm/{{ClusterName}}/conf/accounts.yml</strong>.</p>
 <p>The file is a simple yaml file that allows you to configure groups, the users that belong to the group, and a fair share weight for the group.
 Refer to the Slurm documentation for details on how the fair share weight is calculated.
