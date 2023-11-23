@@ -34,6 +34,23 @@ logger.setLevel(logging.INFO)
 
 pp = pprint.PrettyPrinter(indent=4)
 
+# Linux standard:
+# 0-99: statically allocated by system
+# 100-499: Reserved for dynamic allocation by system admins and post install scripts
+# 500-999: Reserved
+MIN_UID = 1000
+MIN_GID = 1000
+
+RESERVED_USERS = [
+    'ec2-user',
+    'nfsnobody',
+    'ssm-user'
+    ]
+
+RESERVED_GROUPS = [
+    'nfsnobody',
+    ]
+
 def main(filename):
     config = {}
     config['users'] = {}
@@ -42,41 +59,60 @@ def main(filename):
         users = subprocess.check_output(['wbinfo', '-u'], encoding='UTF-8').split()
     except FileNotFoundError:
         users = subprocess.check_output('getent passwd | cut -d: -f1', shell=True, encoding='UTF-8').split()
+    logger.debug(f"Found {len(users)} users")
     for user in users:
         if ' ' in user:
             continue
         if '$' in user:
             continue
-        if user in ['nfsnobody']:
+        logger.debug(f"User {user}:")
+        if user in RESERVED_USERS:
+            logger.debug(f"    Skipping reserved user")
             continue
         try:
             uid = subprocess.check_output(['id', '-u', user], encoding='UTF-8').split()[0]
         except subprocess.CalledProcessError:
+            logger.debug(f"    Can't get uid of {user}")
             continue
-        if int(uid) < 1024:
+        if int(uid) < MIN_UID:
+            logger.debug(f"    Skipping {user} because uid={uid} < {MIN_UID}")
             continue
-        logger.debug('user: ' + user)
-        config['users'][user] = {}
-        config['users'][user]['uid'] = uid
-        config['users'][user]['gid'] = subprocess.check_output(['id', '-g', user], encoding='UTF-8').split()[0]
-        logger.debug(subprocess.check_output(['id', '-G', user], encoding='UTF-8'))
-        logger.debug(subprocess.check_output(['id', '-G', user], encoding='UTF-8').split('\n'))
-        logger.debug(subprocess.check_output(['id', '-G', user], encoding='UTF-8').split('\n')[0])
-        config['users'][user]['gids'] = sorted(subprocess.check_output(['id', '-G', user], encoding='UTF-8').split('\n')[0].split(' '))
+        gid = subprocess.check_output(['id', '-g', user], encoding='UTF-8').split()[0]
+        logger.debug(f"    gid: {gid}")
+        if int(gid) < MIN_GID:
+            logger.debug(f"    Skipping {user} because gid={gid} < {MIN_GID}")
+            continue
+        all_gids = subprocess.check_output(['id', '-G', user], encoding='UTF-8').split('\n')[0].split(' ')
+        logger.debug(f"    gids: {all_gids}")
+        if not all_gids:
+            logger.debug(f"    Skipping {user} because no gids found")
+            continue
+        gids = []
+        for g in all_gids:
+            if not g: # Ignore blank values
+                continue
+            if int(g) < MIN_GID:
+                logger.debug(f"    Not using gid={g} because < {MIN_GID}")
+                continue
+            gids.append(g)
+        gids = sorted(gids)
         try:
             home_dir = subprocess.check_output(f'getent passwd {user}| cut -d: -f6', shell=True, encoding='UTF-8').split()[0]
         except:
-            logger.exception(f"Couldn't get home dir for {user}")
+            logger.exception(f"    Couldn't get home dir for {user}")
             home_dir = ''
+        config['users'][user] = {}
+        config['users'][user]['uid'] = uid
+        config['users'][user]['gid'] = gid
+        config['users'][user]['gids'] = sorted(gids)
         config['users'][user]['home'] = home_dir
 
         for gid in config['users'][user]['gids']:
             config['gids'][str(gid)] = ''
+
     for gid in config['gids'].keys():
-        if int(gid) < 1024:
-            continue
         group_name = get_group_name(int(gid))
-        if group_name in ['nfsnobody']:
+        if group_name in RESERVED_GROUPS:
             continue
         config['gids'][gid] = group_name
     with open(filename, 'w') as fh:
@@ -102,11 +138,6 @@ if __name__ == '__main__':
     parser.add_argument('--debug', '-d', action='count', default=False, help="Enable debug messages")
     args = parser.parse_args()
 
-    logger_formatter = logging.Formatter('%(levelname)s:%(asctime)s: %(message)s')
-    logger_streamHandler = logging.StreamHandler()
-    logger_streamHandler.setFormatter(logger_formatter)
-    logger.addHandler(logger_streamHandler)
-    logger.setLevel(logging.INFO)
     if args.debug:
         logger.setLevel(logging.DEBUG)
 

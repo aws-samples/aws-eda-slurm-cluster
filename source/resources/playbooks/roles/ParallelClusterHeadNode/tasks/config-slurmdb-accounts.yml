@@ -52,7 +52,7 @@
       set -ex
 
       export SLURM_ROOT={{SlurmRoot}}
-      {{SlurmConfigDir}}/bin/create_slurm_accounts.py --accounts {{SlurmConfigDir}}/accounts.yml --users {{SlurmConfigDir}}/users_groups.json --default-account unassigned
+      {{SlurmConfigDir}}/bin/create_slurm_accounts.py --accounts {{SlurmConfigDir}}/accounts.yml --users {{SlurmConfigDir}}/users_groups.json --default-account unassigned -d
 
 - name: Create /etc/cron.d/slurm_accounts
   when: PrimaryController|bool

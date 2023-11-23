@@ -34,47 +34,66 @@ logger.setLevel(logging.INFO)
 
 pp = pprint.PrettyPrinter(indent=4)
 
+# Linux standard:
+# 0-99: statically allocated by system
+# 100-499: Reserved for dynamic allocation by system admins and post install scripts
+# 500-999: Reserved
+MIN_UID = 1000
+MIN_GID = 1000
+
+RESERVED_USERS = [
+    'ec2-user',
+    'nfsnobody',
+    'ssm-user'
+    ]
+
+RESERVED_GROUPS = [
+    'nfsnobody',
+    ]
+
 def main(filename):
     with open(filename, 'r') as fh:
         config = json.load(fh)
     invalid_gids = []
+    logger.debug(f"Creating {len(config['gids'])} groups:")
     for gid in config['gids'].keys():
         group_name = config['gids'][gid]
-        if int(gid) < 1024 or group_name in ['nfsnobody']:
+        if int(gid) < MIN_GID or group_name in RESERVED_GROUPS:
             logger.debug(f"Skipping privileged group {group_name}({gid})")
             invalid_gids.append(gid)
             continue
-        logger.debug("Creating group {}({})".format(gid, group_name))
+        logger.debug(f"Creating group {gid}({group_name})")
         try:
             subprocess.check_output(['/usr/sbin/groupadd', '-g', gid, group_name], stderr=subprocess.STDOUT)
-            logger.info("Created group {}({})".format(gid, group_name))
+            logger.info(f"    Created group {gid}({group_name})")
         except subprocess.CalledProcessError as e:
             lines = e.output.decode('utf-8')
             if 'is not a valid group name' in lines:
-                logger.info("group {}({}) is not a valid group name".format(gid, group_name))
+                logger.info(f"    group {gid}({group_name}) is not a valid group name")
                 invalid_gids.append(gid)
             elif 'already exists' in lines:
-                logger.info("group {}({}) already exists".format(gid, group_name))
+                logger.info(f"    group {gid}({group_name}) already exists")
             else:
-                logger.exception(f"group add of {group_name}({gid}) failed. output:\n{lines}")
-    logger.debug("invalid_gids: {}".format(invalid_gids))
+                logger.exception(f"    group add of {group_name}({gid}) failed. output:\n{lines}")
+    logger.debug(f"invalid_gids: {invalid_gids}")
+    logger.debug(f"Creating {len(config['users'])} users")
     for user in sorted(config['users'].keys()):
         uid = config['users'][user]['uid']
-        if int(uid) < 1024 or user in ['nfsnobody']:
-            logger.debug(f"Skipping privileged group {group_name}({gid})")
+        if int(uid) < MIN_UID or user in RESERVED_USERS:
+            logger.debug(f"Skipping privileged user {uid}({user})")
             continue
-        logger.debug("Creating user {}({})".format(uid, user))
+        logger.debug(f"Creating user {uid}({user})")
         gid = config['users'][user]['gid']
-        logger.debug("gid: {}".format(gid))
+        logger.debug(f"    gid: {gid}")
         if gid in invalid_gids:
-            logger.debug('gid is invalid')
+            logger.debug('    gid is invalid')
             continue
         gids = config['users'][user]['gids']
-        logger.debug("gids: {}".format(gids))
+        logger.debug(f"    gids: {gids}")
         for invalid_gid in invalid_gids:
-            logger.debug("invalid gid: {}".format(invalid_gid))
+            logger.debug(f"invalid gid: {invalid_gid}")
             if invalid_gid in gids:
-                logger.debug("Removed {}".format(invalid_gid))
+                logger.debug(f"    Removed {invalid_gid}")
                 gids.remove(invalid_gid)
         useradd_args = ['/usr/sbin/useradd', '--uid', uid, '--gid', gid, '--groups', ','.join(gids), user, '--no-create-home']
         if config['users'][user].get('home', None):
@@ -82,17 +101,15 @@ def main(filename):
             useradd_args.append(config['users'][user]['home'])
         try:
             subprocess.check_output(useradd_args, stderr=subprocess.STDOUT)
-            logger.info("Created user {}({})".format(uid, user))
+            logger.info(f"    Created user {uid}({user})")
         except subprocess.CalledProcessError as e:
             lines = e.output.decode('utf-8')
-            logger.debug(f"lines:\n{lines}")
-            if 'is not a valid group name' in lines:
-                logger.info("group {}({}) is not a valid group name".format(gid, group_name))
-                invalid_gids.append(gid)
-            elif 'already exists' in lines:
-                logger.info("group {}({}) already exists".format(gid, group_name))
+            if 'is not a valid user name' in lines:
+                logger.info(f"    user {uid}({user}) is not a valid user name")
+            elif ' is not unique' in lines or 'already exists' in lines:
+                logger.info(f"    user {uid}({user}) already exists")
             else:
-                logger.exception(f"group add of {user}({uid}) failed. output:\n{lines}")
+                logger.exception(f"    user add of {user}({uid}) failed. output:\n{lines}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Create users/groups using info from a json file")

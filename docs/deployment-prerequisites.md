@@ -1,9 +1,6 @@
 # Deployment Prerequisites
 
-The original (legacy) version used a custom Slurm plugin for orchestrating the EC2 compute nodes.
-The latest version uses ParallelCluster to provision the core Slurm infrastructure.
-
-This page shows common prerequisites that need to be done for deploying either version.
+This page shows common prerequisites that need to be done before deployment.
 
 ## Configure AWS CLI Credentials
 
@@ -81,7 +78,7 @@ A default configuration file is found in [source/resources/config/default_config
 You should create a new config file and update the parameters for your cluster.
 Ideally you should version control this file so you can keep track of changes.
 
-The schema for the config file along with its default values can be found in [source/cdk/config_schema.py](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L204-L631).
+The schema for the config file along with its default values can be found in [source/cdk/config_schema.py](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L230-L445).
 The schema is defined in python, but the actual config file should be in yaml format.
 
 The following are key parameters that you will need to update.
@@ -97,7 +94,6 @@ You should save your selections in the config file.
 | [SshKeyPair](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L224-L225) | EC2 Keypair to use for instances | | None
 | [slurm/SubmitterSecurityGroupIds](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L435-L439) | Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource. | sg-* | None
 | [ErrorSnsTopicArn](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L233-L234) | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
-| [slurm/ParallelClusterConfig/enable](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L250-L312) | Use ParallelCluster | true, false | false
 | [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509) | Configure instance types that the cluster can use and number of nodes. | | See [default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml)
 
 ### Configure the Compute Instances
@@ -107,25 +103,12 @@ and instance types that the Slurm cluster should support.
 ParallelCluster currently doesn't support heterogeneous clusters;
 all nodes must have the same architecture and Base OS.
 
-#### ParallelCluster
-
 | Base OS        | CPU Architectures
 |----------------|------------------
 | Amazon Linux 2 | x86_64, arm64
 | CentOS 7       | x86_64
 | RedHat 7       | x86_64
 | RedHat 8       | x86_64, arm64
-
-#### Legacy
-
-| Base OS        | CPU Architectures
-|----------------|------------------
-| Alma Linux 8   | x86_64, arm64
-| Amazon Linux 2 | x86_64, arm64
-| CentOS 7       | x86_64
-| RedHat 7       | x86_64
-| RedHat 8       | x86_64, arm64
-| Rocky Linux 8  | x86_64, arm64
 
 You can exclude instances types by family or specific instance type.
 By default the InstanceConfig excludes older generation instance families.
@@ -207,7 +190,7 @@ slurm:
 
 Slurm supports [fair share scheduling](https://slurm.schedmd.com/fair_tree.html), but it requires the fair share policy to be configured.
 By default, all users will be put into a default group that has a low fair share.
-The configuration file is at [source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/SlurmCtl/templates/opt/slurm/cluster/etc/accounts.yml.example)
+The configuration file is at [source/resources/playbooks/roles/ParallelClusterHeadNode/files/opt/slurm/config/accounts.yml.example](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/ParallelClusterHeadNode/files/opt/slurm/config/accounts.yml.example)
 in the repository and is deployed to **/opt/slurm/{{ClusterName}}/conf/accounts.yml**.
 
 The file is a simple yaml file that allows you to configure groups, the users that belong to the group, and a fair share weight for the group.
