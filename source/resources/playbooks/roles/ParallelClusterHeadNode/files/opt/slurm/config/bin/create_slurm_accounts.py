@@ -61,7 +61,7 @@ class SlurmAccountManager:
 
         self.devnull = open(os.devnull, 'w')
 
-        logger.debug(f"Configured accounts:\n{json.dumps(self.accounts, indent=4)}")
+        logger.debug(f"Configured accounts:\n{json.dumps(self.accounts, indent=4, sort_keys=True)}")
 
         # Get all mapped users
         self.users_to_accounts_map = {}
@@ -85,12 +85,12 @@ class SlurmAccountManager:
                 self.accounts[self.default_account]['users'].append(user)
 
         self.slurm_user_account_dict = self.get_slurm_user_account_dict()
-        logger.debug(f"Current users and accounts in slurmdb:\n{json.dumps(self.slurm_user_account_dict, indent=4)}")
+        logger.debug(f"Current users and accounts in slurmdb:\n{json.dumps(self.slurm_user_account_dict, indent=4, sort_keys=True)}")
 
         number_of_changes = self.update_slurm()
 
         self.slurm_user_account_dict = self.get_slurm_user_account_dict()
-        logger.debug(f"Current users and accounts in slurmdb:\n{json.dumps(self.slurm_user_account_dict, indent=4)}")
+        logger.debug(f"Current users and accounts in slurmdb:\n{json.dumps(self.slurm_user_account_dict, indent=4, sort_keys=True)}")
 
         number_of_changes = self.update_slurm()
 
@@ -163,6 +163,10 @@ class SlurmAccountManager:
                 logger.info(f"Creating user {user} with account={default_account}")
                 try:
                     subprocess.run([self.sacctmgr, '-i', 'add', 'user', user, f'Account={default_account}'], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
+                    self.slurm_user_account_dict['users'][user] = {
+                        'default-account': default_account,
+                        'accounts': {default_account: 1}
+                    }
                 except subprocess.CalledProcessError as e:
                     logger.exception(f"Couldn't add user {user}.\ncommand: {e.cmd}\noutput:\n{e.output}")
                     number_of_errors += 1
@@ -177,10 +181,11 @@ class SlurmAccountManager:
                 try:
                     subprocess.run([self.sacctmgr, '-i', 'add', 'user', user, f'account={account}'], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') # nosec
                 except subprocess.CalledProcessError as e:
-                    logger.info(f"Default account of {user} already {account}.")
-                    if 'Nothing new added' not in e.output:
-                        logger.exception(f"Couldn't change default account of {user} to {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
-                    number_of_errors += 1
+                    if 'Nothing new added' in e.output:
+                        logger.info(f"    Default account of {user} already {account}.")
+                    else:
+                        logger.exception(f"    Couldn't change default account of {user} to {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
+                        number_of_errors += 1
                 number_of_changes += 1
 
         # Make sure default account of users is correct
@@ -229,8 +234,11 @@ class SlurmAccountManager:
                 try:
                     subprocess.run([self.sacctmgr, '-i', 'delete', 'user', user, 'where', f'Account={account}'], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') #nosec
                 except subprocess.CalledProcessError as e:
-                    logger.error(f"Couldn't delete user {user} from account {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
-                    number_of_errors += 1
+                    if 'Nothing deleted' in e.output:
+                        logger.warning(f"        Couldn't delete user {user} from account {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
+                    else:
+                        logger.error(f"        Couldn't delete user {user} from account {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
+                        number_of_errors += 1
                 number_of_changes += 1
 
             # Delete unused accounts
@@ -243,9 +251,22 @@ class SlurmAccountManager:
                     number_of_errors += 1
                 number_of_changes += 1
 
-        logger.debug(f"Delete unconfigured users")
-        for user in sorted(self.slurm_user_account_dict['users']):
+        # Update the state of slurmdbd users and accounts
+        self.slurm_user_account_dict = self.get_slurm_user_account_dict()
 
+        logger.info(f"Delete unconfigured users")
+        for user in sorted(self.slurm_user_account_dict['users']):
+            if user in self.SYSTEM_USERS:
+                logger.debug(f"    Skipping system user {user}")
+                continue
+            if user not in self.users_to_accounts_map:
+                logger.info(f"    Deleting user {user} from slurmdbd")
+                try:
+                    subprocess.run([self.sacctmgr, '-i', 'delete', 'user', user], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') #nosec
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Couldn't delete user {user} from slurmdbd.\ncommand: {e.cmd}\noutput:\n{e.output}")
+                    number_of_errors += 1
+                number_of_changes += 1
 
         if number_of_errors:
             raise RuntimeError("Some slurm updates failed")
