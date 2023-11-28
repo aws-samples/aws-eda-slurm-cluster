@@ -517,13 +517,7 @@ class CdkSlurmStack(Stack):
                     'arm64': {},
                     'x86_64': {}
                 },
-            },
-            'Rocky': {
-                '8': {
-                    'arm64': {},
-                    'x86_64': {}
-                }
-            },
+            }
         }
         template_vars['ComponentS3Url'] = self.custom_action_s3_urls['config/bin/configure-eda.sh']
         cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])

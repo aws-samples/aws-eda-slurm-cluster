@@ -29,9 +29,20 @@ import yaml
 
 logger = logging.getLogger(__file__)
 
-pp = pprint.PrettyPrinter(indent=4)
-
 class SlurmAccountManager:
+
+    # Accounts and users that should never be deleted
+    SYSTEM_ACCOUNTS = [
+        'pcdefault',
+        'root',
+    ]
+    SYSTEM_USERS = [
+        'centos',
+        'ec2-user',
+        'rocky',
+        'root',
+        'slurm'
+    ]
     def __init__(self, accounts_filename, users_filename, default_account):
         logger.info("")
         logger.info("Creating/updating Slurm users and groups")
@@ -50,7 +61,7 @@ class SlurmAccountManager:
 
         self.devnull = open(os.devnull, 'w')
 
-        logger.debug(f"accounts:\n{pp.pformat(self.accounts)}")
+        logger.debug(f"Configured accounts:\n{json.dumps(self.accounts, indent=4)}")
 
         # Get all mapped users
         self.users_to_accounts_map = {}
@@ -68,18 +79,18 @@ class SlurmAccountManager:
         # If not then map to the default account
         for user in sorted(self.users_groups['users'].keys()):
             if user not in self.users_to_accounts_map:
-                logger.info(f"Assigning {user:15s} to {self.default_account}")
+                logger.info(f"{user:15s} not assigned to account. Defaulting to {self.default_account}")
                 if 'users' not in self.accounts[self.default_account]:
                     self.accounts[self.default_account]['users'] = []
                 self.accounts[self.default_account]['users'].append(user)
 
         self.slurm_user_account_dict = self.get_slurm_user_account_dict()
-        logger.debug(f"Current users and accounts:\n{json.dumps(self.slurm_user_account_dict, indent=4)}")
+        logger.debug(f"Current users and accounts in slurmdb:\n{json.dumps(self.slurm_user_account_dict, indent=4)}")
 
         number_of_changes = self.update_slurm()
 
         self.slurm_user_account_dict = self.get_slurm_user_account_dict()
-        logger.debug(f"Current users and accounts:\n{json.dumps(self.slurm_user_account_dict, indent=4)}")
+        logger.debug(f"Current users and accounts in slurmdb:\n{json.dumps(self.slurm_user_account_dict, indent=4)}")
 
         number_of_changes = self.update_slurm()
 
@@ -92,6 +103,7 @@ class SlurmAccountManager:
         number_of_changes = 0
         number_of_errors = 0
         # Create/update accounts
+        logger.info(f"Create/update accounts:")
         for account in sorted(self.accounts.keys()):
             logger.debug(f"Checking account {account} existence and fairshare")
             account_info = self.accounts[account]
@@ -100,13 +112,18 @@ class SlurmAccountManager:
             fairshare = self.accounts[account].get('fairshare', 1)
             if account not in self.slurm_user_account_dict['accounts']:
                 # Account doesn't exist so create it
-                logger.info(f"Creating account {account} with fairshare={fairshare}")
                 cmd = [self.sacctmgr, 'add', '-i', 'account', account, f'Description={description}', f'Organization={organization}', f'Fairshare={fairshare}']
                 parent = account_info.get('parent', None)
                 if parent:
                     cmd.append(f'Parent={parent}')
+                logger.info(f"    Creating account {account} with fairshare={fairshare}, parent={parent}")
                 try:
                     subprocess.check_output(cmd, encoding='UTF-8') # nosec
+                    self.slurm_user_account_dict['accounts'][account] = {
+                        'parent_name': parent,
+                        'users': [],
+                        'share': fairshare
+                    }
                 except subprocess.CalledProcessError as e:
                     logger.exception(f"Couldn't add account {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
                     number_of_errors += 1
@@ -115,7 +132,7 @@ class SlurmAccountManager:
                 # Account exists so make sure fairshare is correct
                 act_fairshare = self.slurm_user_account_dict['accounts'][account]['share']
                 if fairshare != int(act_fairshare):
-                    logger.info(f'Updating account {account} fairshare from {act_fairshare} to {fairshare}')
+                    logger.info(f'    Updating account {account} fairshare from {act_fairshare} to {fairshare}')
                     try:
                         subprocess.check_output([self.sacctmgr, 'modify', '-i', 'account', account, 'set', f'Fairshare={fairshare}'], encoding='UTF-8', stderr=self.devnull) # nosec
                     except subprocess.CalledProcessError as e:
@@ -125,7 +142,7 @@ class SlurmAccountManager:
 
         # After all projects have been created, make sure that the parent's are correct
         for account in sorted(self.accounts.keys()):
-            logger.debug(f"Checking account {account} parent")
+            logger.debug(f"Checking account {account}'s parent")
             account_info = self.accounts[account]
             exp_parent = account_info.get('parent', 'root')
             act_parent = self.slurm_user_account_dict['accounts'][account]['parent_name']
@@ -183,32 +200,52 @@ class SlurmAccountManager:
                 number_of_changes += 1
 
         # Delete old user/account associations
+        logger.debug(f"Checking for users and accounts to be deleted:")
         for account in sorted(self.slurm_user_account_dict['accounts']):
+            if account in self.SYSTEM_ACCOUNTS:
+                logger.debug(f"    Skipping system account {account}")
+                continue
+            logger.debug(f"    Checking account {account}:")
             if account not in self.accounts:
                 users_to_delete_from_account = self.slurm_user_account_dict['accounts'][account]['users']
                 if not sorted(users_to_delete_from_account):
-                    logger.info(f"The {account} account exists in slurm but is not being used.")
+                    logger.info(f"        The {account} account exists in slurm but is not being used.")
                 else:
-                    logger.info(f"The {account} account exists in slurm and has {len(users_to_delete_from_account)} users that will be removed from the account.")
+                    logger.info(f"        The {account} account exists in slurm and has {len(users_to_delete_from_account)} users that will be removed from the account.")
             else:
+                logger.info(f"        The {account} account exists in slurm and is being used.")
                 users_to_delete_from_account = []
                 for user in sorted(self.slurm_user_account_dict['accounts'][account]['users']):
                     if user not in self.accounts[account]['users']:
+                        logger.debug(f"        Deleting user {user} from {account}")
                         users_to_delete_from_account.append(user)
+            if users_to_delete_from_account:
+                logger.debug(f"        Deleting {len(users_to_delete_from_account)} users from {account}")
             for user in users_to_delete_from_account:
-                if user == 'root' and account == 'root':
+                if user in self.SYSTEM_USERS:
+                    logger.debug(f"        Skipping system user {user}")
                     continue
-                if user in ['centos', 'ec2-user', 'slurm'] and account == 'pcdefault':
-                    continue
-                logger.info(f"Deleting user {user} from account {account}")
+                logger.info(f"        Deleting user {user} from account {account}")
                 try:
                     subprocess.run([self.sacctmgr, '-i', 'delete', 'user', user, 'where', f'Account={account}'], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') #nosec
                 except subprocess.CalledProcessError as e:
-                    logger.exception(f"Couldn't set default account of {user} to {default_account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
+                    logger.error(f"Couldn't delete user {user} from account {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
                     number_of_errors += 1
                 number_of_changes += 1
 
-        # Should we delete users and accounts that are no longer needed?
+            # Delete unused accounts
+            if account not in self.accounts:
+                logger.debug(f"        Deleting account {account}")
+                try:
+                    subprocess.run([self.sacctmgr, '-i', 'delete', 'account', account], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='UTF-8') #nosec
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"Couldn't delete user {user} from account {account}.\ncommand: {e.cmd}\noutput:\n{e.output}")
+                    number_of_errors += 1
+                number_of_changes += 1
+
+        logger.debug(f"Delete unconfigured users")
+        for user in sorted(self.slurm_user_account_dict['users']):
+
 
         if number_of_errors:
             raise RuntimeError("Some slurm updates failed")
@@ -216,12 +253,12 @@ class SlurmAccountManager:
         return number_of_changes
 
     def get_slurm_user_account_dict(self):
-        #logger.debug(f"get_slurm_user_account_dict()")
+        logger.debug(f"get_slurm_user_account_dict()")
         user_account_dict = {
             'accounts': {},
             'users': {}
         }
-        # Get all user associations
+        logger.debug(f"Get all user associations:")
         try:
             lines = subprocess.check_output([self.sacctmgr, '--noheader', '--parsable2', 'list', 'assoc', 'format=Cluster,Account,User,Share,ParentName'], stderr=self.devnull, encoding='UTF-8').split('\n') # nosec
         except subprocess.CalledProcessError as e:
@@ -229,7 +266,9 @@ class SlurmAccountManager:
             raise
         for line in lines:
             if len(line) == 0: continue
+            #logger.debug(f"{line}")
             (cluster,account,user,share,parent_name) = line.split('|')
+            logger.debug(f"    account={account:15s} user={user:15s} share={share:5s} parent={parent_name}")
             if user:
                 if user not in user_account_dict['users']:
                     user_account_dict['users'][user] = {
@@ -251,16 +290,22 @@ class SlurmAccountManager:
             else:
                 user_account_dict['accounts'][account]['share'] = int(share)
 
-        # Get the default account for each user
+        logger.debug(f"Get the default account for each user:")
         try:
             lines = subprocess.check_output([self.sacctmgr, '--noheader', '--parsable2', 'list', 'users', 'format=User,DefaultAccount'], stderr=self.devnull, encoding='UTF-8').split('\n') # nosec
         except subprocess.CalledProcessError as e:
             logger.exception(f"Couldn't list users.\ncommand: {e.cmd}\noutput:\n{e.output}")
             raise
-        #logger.debug("Default accounts for users")
+        logger.debug("Get default accounts for users")
         for line in lines:
+            logger.debug(f"{line}")
             if len(line) == 0: continue
             (user, default_account) = line.split('|')
+            if user not in user_account_dict['users']:
+                user_account_dict['users'][user] = {
+                    'default-account': None,
+                    'accounts': {}
+                }
             user_account_dict['users'][user]['default-account'] = default_account
         return user_account_dict
 
