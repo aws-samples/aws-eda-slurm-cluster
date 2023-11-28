@@ -2,8 +2,8 @@
 
 - { include: config-users-groups.yml,    tags: users-groups }
 - { include: config-high-throughput.yml, tags: high-throughput }
-- { include: config-slurmdb-accounts.yml, tags: accouints }
-- { include: config-licenses.yml, tags: licenses }
-- { include: config-slurmrestd.yml, tags: slurmrestd }
-- { include: config-sshd.yml, tags: sshd }
 - { include: config-submitter-access.yml, tags: submitter }
+- { include: config-sshd.yml, tags: sshd }
+- { include: config-slurmrestd.yml, tags: slurmrestd }
+- { include: config-licenses.yml, tags: licenses }
+- { include: config-slurmdb-accounts.yml, tags: accounts }
