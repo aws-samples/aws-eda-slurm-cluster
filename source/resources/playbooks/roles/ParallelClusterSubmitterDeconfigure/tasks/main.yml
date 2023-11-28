@@ -12,7 +12,7 @@
 
 - name: Remove /opt/slurm/{{ClusterName}} from /etc/fstab
   mount:
-    path: /opts/slurm/{{ClusterName}}
+    path: /opt/slurm/{{ClusterName}}
     backup: true
     fstype: nfs
     state: absent
