@@ -102,31 +102,39 @@ def lambda_handler(event, context):
         commands = f"""
 set -ex
 
-if ! [ -e /opt/slurm/{cluster_name} ]; then
-    echo "/opt/slurm/{cluster_name} doesn't exist"
+# Handle case where cluster was already deleted so the mountpoint is hung
+if ! timeout 1s /opt/slurm/{cluster_name}; then
+    echo "Mount point (/opt/slurm/{cluster_name}) is hung. Source may have already been deleted."
+    timeout 5s sudo umount -lf /opt/slurm/{cluster_name}
+    timeout 1s rm -rf /opt/slurm/{cluster_name}
 fi
-if ! mountpoint /opt/slurm/{cluster_name}; then
-    echo "/opt/slurm/{cluster_name} is not a mountpoint"
-    if [ -e /opt/slurm/{cluster_name} ]; then
-        rmdir /opt/slurm/{cluster_name}
-    fi
-    exit 0
-fi
-echo "/opt/slurm/{cluster_name} is a mountpoint"
 
 script="/opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh"
-if ! [ -e $script ]; then
+if ! timeout ls $script; then
     echo "$script doesn't exist"
-    exit 1
+else
+    sudo $script
 fi
 
-sudo $script
+# Do manual cleanup just in case something above failed.
 
-if mountpoint /opt/slurm/{cluster_name}; then
-    sudo umount /opt/slurm/{cluster_name}
+sudo rm -f /etc/profile.d/slurm_{cluster_name}_modulefiles.sh
+
+sudo grep -v ' /opt/slurm/{cluster_name} ' /etc/fstab > /etc/fstab.new
+if diff -q /etc/fstab /etc/fstab.new; then
+    sudo rm -f /etc/fstab.new
+else
+    sudo cp /etc/fstab /etc/fstab.$(date '+%Y-%m-%d@%H:%M:%S~')
+    sudo mv -f /etc/fstab.new /etc/fstab
 fi
-if [ -e /opt/slurm/{cluster_name} ]; then
-    rmdir /opt/slurm/{cluster_name}
+
+if timeout 1s mountpoint /opt/slurm/{cluster_name}; then
+    echo "/opt/slurm/{cluster_name} is a mountpoint"
+    sudo umount -lf /opt/slurm/{cluster_name}
+fi
+
+if timeout 1s ls /opt/slurm/{cluster_name} ]; then
+    sudo rmdir /opt/slurm/{cluster_name}
 fi
         """
         response = ssm_client.send_command(

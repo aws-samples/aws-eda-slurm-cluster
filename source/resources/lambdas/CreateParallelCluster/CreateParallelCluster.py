@@ -260,7 +260,7 @@ def lambda_handler(event, context):
             # For example, cannot delete the head node security group until the head node has been deleted.
             while cluster_status:
                 logger.info(f"Waiting for {cluster_name} to be deleted. Status={cluster_status}")
-                time.sleep(60)
+                sleep(60)
                 cluster_status = get_cluster_status(cluster_name, cluster_region)
                 if not cluster_status:
                     logger.info(f"{cluster_name} doesn't exist so delete complete.")

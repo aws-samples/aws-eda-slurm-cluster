@@ -309,6 +309,14 @@ class CdkSlurmStack(Stack):
                         self.mount_home_src = mount_dict['src']
                         logger.info(f"Mounting /home from {self.mount_home_src} on compute nodes")
 
+        if self.config['slurm']['ParallelClusterConfig']['Image']['Os'] == 'rocky8':
+            if not config_schema.PARALLEL_CLUSTER_SUPPORTS_CUSTOM_ROCKY_8(self.PARALLEL_CLUSTER_VERSION):
+                logger.error(f"rocky8 is not supported in ParallelCluster version {self.PARALLEL_CLUSTER_VERSION}. Support added in {PARALLEL_CLUSTER_SUPPORTS_CUSTOM_ROCKY_8_VERSION}.")
+                config_errors += 1
+            if 'CustomAmi' not in self.config['slurm']['ParallelClusterConfig']['Image']:
+                logger.error(f"Must specify config slurm/ParallelClusterConfig/Image/Os/CustomAmi with rocky8.")
+                config_errors += 1
+
         if 'Database' in self.config['slurm']['ParallelClusterConfig']:
             if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database'] and 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
                 logger.error(f"Cannot specify both slurm/ParallelClusterConfig/Database/DatabaseStackName and slurm/ParallelClusterConfig/Database/EdaSlurmClusterStackName")
@@ -646,6 +654,13 @@ class CdkSlurmStack(Stack):
                 },
             }
         }
+        if config_schema.PARALLEL_CLUSTER_SUPPORTS_CUSTOM_ROCKY_8(self.PARALLEL_CLUSTER_VERSION):
+            ami_builds['Rocky'] = {
+                '8': {
+                    'arm64': {},
+                    'x86_64': {}
+                }
+            }
         template_vars['ComponentS3Url'] = self.custom_action_s3_urls['config/bin/configure-eda.sh']
         cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
         cfn_list_resources_paginator = cfn_client.get_paginator('list_stack_resources')
@@ -2040,7 +2055,11 @@ class CdkSlurmStack(Stack):
         # Check the architecture of the ComputeNodeAmi
         if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
             compute_node_ami = self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
-            ami_info = self.ec2_client.describe_images(ImageIds=[compute_node_ami])['Images'][0]
+            images_info = self.ec2_client.describe_images(ImageIds=[compute_node_ami])['Images']
+            if not images_info:
+                logger.error(f"ComputeNodeAmi({compute_node_ami}) doesn't exist.")
+                exit(1)
+            ami_info = images_info[0]
             ami_architecture = ami_info['Architecture']
             cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
             if ami_architecture != cluster_architecture:
@@ -2159,6 +2178,9 @@ class CdkSlurmStack(Stack):
 
         if 'AllowedIps' in self.config['slurm']['ParallelClusterConfig']['Dcv']:
             self.parallel_cluster_config['HeadNode']['Dcv']['AllowedIps'] = self.config['slurm']['ParallelClusterConfig']['AllowedIps']
+
+        if self.munge_key_secret_arn:
+                self.parallel_cluster_config['Scheduling']['SlurmSettings']['MungeKeySecretArn'] = self.munge_key_secret_arn
 
         if 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
             self.parallel_cluster_config['Image']['CustomAmi'] = self.config['slurm']['ParallelClusterConfig']['Image']['CustomAmi']

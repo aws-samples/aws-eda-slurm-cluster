@@ -54,6 +54,7 @@ export PATH=/usr/sbin:$PATH
 # Rerun on_head_node_start.sh to download latest versions of all config files and scripts
 $config_bin_dir/on_head_node_start.sh
 
+# This is handled directly by ParallelCluster starting in 3.8.0.
 if ! [ -z $MungeKeySecretId ]; then
     echo "Download munge key from $MungeKeySecretId"
     munge_key_b64=$(aws secretsmanager get-secret-value --secret-id $MungeKeySecretId --query 'SecretString' --output text)
