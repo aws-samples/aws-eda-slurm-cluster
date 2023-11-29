@@ -31,7 +31,7 @@
 
       source /opt/parallelcluster/pyenv/versions/{{ParallelClusterPythonVersion}}/envs/cookbook_virtualenv/bin/activate
 
-      cd /etc/chef/local-mode-cache/cache/slurm-slurm-{{SlurmVersion}}
+      cd /etc/chef/local-mode-cache/cache/slurm-slurm-{{PCSlurmVersion}}
       ./configure --prefix /opt/slurm --with-pmix=/opt/pmix --with-slurmrestd --enable-slurmrestd &> configure.log
       CORES=$(grep processor /proc/cpuinfo | wc -l)
       make -j $CORES         &> make_all.log

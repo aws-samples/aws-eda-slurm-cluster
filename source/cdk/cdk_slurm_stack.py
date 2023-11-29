@@ -27,6 +27,7 @@ from aws_cdk import (
     aws_iam as iam,
     aws_kms as kms,
     aws_lambda as aws_lambda,
+    aws_lambda_event_sources as lambda_event_sources,
     aws_logs as logs,
     aws_opensearchservice as opensearch,
     aws_rds as rds,
@@ -51,24 +52,27 @@ from aws_cdk import (
 import base64
 import boto3
 from botocore.exceptions import ClientError
-from config_schema import get_PARALLEL_CLUSTER_MUNGE_VERSION, get_PARALLEL_CLUSTER_PYTHON_VERSION, get_SLURM_VERSION
+import config_schema
+from config_schema import get_PARALLEL_CLUSTER_MUNGE_VERSION, get_PARALLEL_CLUSTER_PYTHON_VERSION, get_PC_SLURM_VERSION, get_SLURM_VERSION
 from constructs import Construct
 from copy import copy, deepcopy
+from hashlib import sha512
 from jinja2 import Template as Template
 import json
 import logging
+import os
 from os import makedirs, path
 from os.path import dirname, realpath
 from packaging.version import parse as parse_version
 from pprint import PrettyPrinter
 import re
+from shutil import make_archive
 import subprocess
 from subprocess import check_output
 import sys
 from sys import exit
 from tempfile import NamedTemporaryFile
 from textwrap import dedent
-from types import SimpleNamespace
 import yaml
 from yaml.scanner import ScannerError
 
@@ -124,9 +128,11 @@ class CdkSlurmStack(Stack):
 
         self.create_security_groups()
 
-        self.create_parallel_cluster_lambdas()
-
+        # Assets needs ARNs of topics used to trigger Lambdas so must be declared as part of assets
         self.create_parallel_cluster_assets()
+
+        # Lambdas need ARNs from assets in IAM permissions
+        self.create_parallel_cluster_lambdas()
 
         self.create_parallel_cluster_config()
 
@@ -288,10 +294,20 @@ class CdkSlurmStack(Stack):
 
         self.PARALLEL_CLUSTER_VERSION = parse_version(self.config['slurm']['ParallelClusterConfig']['Version'])
 
-        if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0'):
+        if not config_schema.PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES(self.PARALLEL_CLUSTER_VERSION):
             if 'LoginNodes' in self.config['slurm']['ParallelClusterConfig']:
-                logger.error(f"slurm/ParallelClusterConfig/LoginNodes not supported before version 3.7.0")
+                logger.error(f"slurm/ParallelClusterConfig/LoginNodes not supported before version {config_schema.PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES_VERSION}")
                 config_errors += 1
+
+        self.mount_home = False
+        if not config_schema.PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(self.PARALLEL_CLUSTER_VERSION):
+            if 'storage' in self.config['slurm']:
+                for mount_dict in self.config['slurm']['storage']['ExtraMounts']:
+                    logger.info(f"mount_dict={mount_dict}")
+                    if mount_dict['dest'] == '/home':
+                        self.mount_home = True
+                        self.mount_home_src = mount_dict['src']
+                        logger.info(f"Mounting /home from {self.mount_home_src} on compute nodes")
 
         if 'Database' in self.config['slurm']['ParallelClusterConfig']:
             if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database'] and 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
@@ -422,55 +438,164 @@ class CdkSlurmStack(Stack):
         self.config = validated_config
 
     def create_parallel_cluster_assets(self):
+        # Create a secure hash of all of the assets so that changes can be easily detected to trigger cluster updates.
+        self.assets_hash = sha512()
+
         self.parallel_cluster_asset_read_policy = iam.ManagedPolicy(
             self, "ParallelClusterAssetReadPolicy",
             path = '/parallelcluster/',
-            managed_policy_name = f"{self.stack_name}-ParallelClusterAssetReadPolicy",
+            #managed_policy_name = f"{self.stack_name}-ParallelClusterAssetReadPolicy",
         )
+        # If use managed_policy_name, then get the following cfn_nag warning.
+        # W28: Resource found with an explicit name, this disallows updates that require replacement of this resource
 
-        self.parallel_cluster_jwt_write_policy = iam.ManagedPolicy(
-            self, "ParallelClusterJwtWritePolicy",
-            managed_policy_name = f"{self.stack_name}-ParallelClusterJwtWritePolicy",
-        )
-        self.jwt_token_for_root_ssm_parameter.grant_write(self.parallel_cluster_jwt_write_policy)
-        self.jwt_token_for_slurmrestd_ssm_parameter.grant_write(self.parallel_cluster_jwt_write_policy)
+        self.create_munge_key_secret()
 
         self.playbooks_asset = s3_assets.Asset(self, 'Playbooks',
             path = 'resources/playbooks',
             follow_symlinks = SymlinkFollowMode.ALWAYS
         )
         self.playbooks_asset.grant_read(self.parallel_cluster_asset_read_policy)
-        self.playbooks_s3_url = self.playbooks_asset.s3_object_url
+        self.playbooks_asset_bucket = self.playbooks_asset.s3_bucket_name
+        self.playbooks_asset_key    = self.playbooks_asset.s3_object_key
 
         self.assets_bucket = self.playbooks_asset.s3_bucket_name
         self.assets_base_key = self.config['slurm']['ClusterName']
 
+        self.parallel_cluster_config_json_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.json"
+        self.parallel_cluster_config_yaml_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.yml"
+
         self.parallel_cluster_munge_key_write_policy = iam.ManagedPolicy(
             self, "ParallelClusterMungeKeyWritePolicy",
-            managed_policy_name = f"{self.stack_name}-ParallelClusterMungeKeyWritePolicy",
+            #managed_policy_name = f"{self.stack_name}-ParallelClusterMungeKeyWritePolicy",
             statements = [
                 iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
                         's3:PutObject',
                     ],
-                    resources=[f"arn:aws:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/config/munge.key"]
+                    resources=[f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/config/munge.key"]
                 )
             ]
         )
+        # If use managed_policy_name, then get the following cfn_nag warning.
+        # W28: Resource found with an explicit name, this disallows updates that require replacement of this resource
+
+        self.parallel_cluster_sns_publish_policy = iam.ManagedPolicy(
+            self, "ParallelClusterSnsPublishPolicy",
+            path = '/parallelcluster/',
+            #managed_policy_name = f"{self.stack_name}-ParallelClusterSnspublishPolicy",
+        )
+
+        if 'ErrorSnsTopicArn' in self.config:
+            self.error_sns_topic = sns.Topic.from_topic_arn(
+                self, 'ErrorSnsTopic',
+                topic_arn = self.config['ErrorSnsTopicArn']
+            )
+            self.error_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+
+        # SNS topic that gets notified when cluster is created and triggers a lambda to create the head nodes's A record
+        self.create_head_node_a_record_sns_topic = sns.Topic(
+            self, "CreateHeadNodeARecordSnsTopic",
+            topic_name = f"{self.config['slurm']['ClusterName']}CreateHeadNodeARecord"
+            )
+        # W47:SNS Topic should specify KmsMasterKeyId property
+        self.suppress_cfn_nag(self.create_head_node_a_record_sns_topic, 'W47', 'Use default KMS key.')
+        if 'RESEnvironmentName' in self.config:
+            # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
+            self.configure_cluster_manager_sns_topic = sns.Topic(
+                self, "ConfigureClusterManagerSnsTopic",
+                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureClusterManager"
+                )
+            # W47:SNS Topic should specify KmsMasterKeyId property
+            self.suppress_cfn_nag(self.configure_cluster_manager_sns_topic, 'W47', 'Use default KMS key.')
+            # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
+            self.configure_submitters_sns_topic = sns.Topic(
+                self, "ConfigureSubmittersSnsTopic",
+                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureSubmitters"
+                )
+            # W47:SNS Topic should specify KmsMasterKeyId property
+            self.suppress_cfn_nag(self.configure_submitters_sns_topic, 'W47', 'Use default KMS key.')
+
+        # Create an SSM parameter to store the JWT tokens for root and slurmrestd
+        self.jwt_token_for_root_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/root"
+        self.jwt_token_for_root_ssm_parameter = ssm.StringParameter(
+            self, f"JwtTokenForRootParameter",
+            parameter_name = self.jwt_token_for_root_ssm_parameter_name,
+            string_value = 'None'
+        )
+        self.jwt_token_for_slurmrestd_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/slurmrestd"
+        self.jwt_token_for_slurmrestd_ssm_parameter = ssm.StringParameter(
+            self, f"JwtTokenForSlurmrestdParameter",
+            parameter_name = self.jwt_token_for_slurmrestd_ssm_parameter_name,
+            string_value = 'None'
+        )
 
         s3_client = boto3.client('s3', region_name=self.cluster_region)
+
+        # The asset isn't uploaded right away so create our own zipfile and upload it
+        playbooks_zipfile_base_filename = f"/tmp/{self.config['slurm']['ClusterName']}_playbooks"
+        playbooks_zipfile_filename = playbooks_zipfile_base_filename + '.zip'
+        make_archive(playbooks_zipfile_base_filename, 'zip', 'resources/playbooks')
+        self.playbooks_bucket = self.playbooks_asset_bucket
+        self.playbooks_key = f"{self.assets_base_key}/playbooks.zip"
+        self.playbooks_s3_url = f"s3://{self.playbooks_bucket}/{self.playbooks_key}"
+        with open(playbooks_zipfile_filename, 'rb') as playbooks_zipfile_fh:
+            self.assets_hash.update(playbooks_zipfile_fh.read())
+        with open(playbooks_zipfile_filename, 'rb') as playbooks_zipfile_fh:
+            s3_client.put_object(
+                Bucket = self.assets_bucket,
+                Key    = self.playbooks_key,
+                Body   = playbooks_zipfile_fh
+            )
+        os.remove(playbooks_zipfile_filename)
+
+        self.configure_cluster_manager_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureClusterManagerSnsTopicArn"
+        self.configure_cluster_manager_sns_topic_arn_parameter = ssm.StringParameter(
+            self, f"ConfigureClusterManagerSnsTopicArnParameter",
+            parameter_name = self.configure_cluster_manager_sns_topic_arn_parameter_name,
+            string_value = self.configure_cluster_manager_sns_topic.topic_arn
+        )
+        self.configure_cluster_manager_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
+
+        self.configure_submitters_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureSubmittersSnsTopicArn"
+        self.configure_submitters_sns_topic_arn_parameter = ssm.StringParameter(
+            self, f"ConfigureSubmittersSnsTopicArnParameter",
+            parameter_name = self.configure_submitters_sns_topic_arn_parameter_name,
+            string_value = self.configure_submitters_sns_topic.topic_arn
+        )
+        self.configure_submitters_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
+
+        self.create_head_node_a_record_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/CreateHeadNodeARecordSnsTopicArn"
+        self.create_head_node_a_record_sns_topic_arn_parameter = ssm.StringParameter(
+            self, f"CreateHeadNodeARecordSnsTopicArnParameter",
+            parameter_name = self.create_head_node_a_record_sns_topic_arn_parameter_name,
+            string_value = self.create_head_node_a_record_sns_topic.topic_arn
+        )
+        self.create_head_node_a_record_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
 
         template_vars = {
             'assets_bucket': self.assets_bucket,
             'assets_base_key': self.assets_base_key,
             'ClusterName': self.config['slurm']['ClusterName'],
+            'ConfigureClusterManagerSnsTopicArnParameter': self.configure_cluster_manager_sns_topic_arn_parameter_name,
+            'ConfigureSubmittersSnsTopicArnParameter': self.configure_submitters_sns_topic_arn_parameter_name,
+            'CreateHeadNodeARecordSnsTopicArnParameter': self.create_head_node_a_record_sns_topic_arn_parameter_name,
             'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
             'playbooks_s3_url': self.playbooks_s3_url,
             'Region': self.cluster_region,
             'SubnetId': self.config['SubnetId'],
             'SubmitterSlurmConfigDir': f"/opt/slurm/{self.config['slurm']['ClusterName']}/config"
         }
+        if config_schema.PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY(self.PARALLEL_CLUSTER_VERSION):
+            template_vars['MungeKeySecretId'] = ''
+        else:
+            template_vars['MungeKeySecretId'] = self.config['slurm'].get('MungeKeySecret', '')
+        if self.mount_home and not config_schema.PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(self.PARALLEL_CLUSTER_VERSION):
+            template_vars['HomeMountSrc'] = self.mount_home_src
+        else:
+            template_vars['HomeMountSrc'] = ''
+
         # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
         files_to_upload = [
             'config/bin/configure-eda.sh',
@@ -500,6 +625,7 @@ class CdkSlurmStack(Stack):
                 Key    = s3_key,
                 Body   = local_file_content
             )
+            self.assets_hash.update(bytes(local_file_content, 'utf-8'))
 
         ami_builds = {
             'amzn': {
@@ -568,6 +694,7 @@ class CdkSlurmStack(Stack):
                         Key    = f"{self.assets_base_key}/config/build-files/{template_vars['ImageName']}.yml",
                         Body   = build_file_content
                     )
+                    self.assets_hash.update(bytes(build_file_content, 'utf-8'))
                     fh = open(f"{build_files_path}/{template_vars['ImageName']}.yml", 'w')
                     fh.write(build_file_content)
 
@@ -584,6 +711,7 @@ class CdkSlurmStack(Stack):
                         Key    = f"{self.assets_base_key}/config/build-files/{template_vars['ImageName']}.yml",
                         Body   = build_file_content
                     )
+                    self.assets_hash.update(bytes(build_file_content, 'utf-8'))
                     fh = open(f"{build_files_path}/{template_vars['ImageName']}.yml", 'w')
                     fh.write(build_file_content)
 
@@ -599,6 +727,8 @@ class CdkSlurmStack(Stack):
             local_file,
             self.assets_bucket,
             s3_key)
+        with open(local_file, 'rb') as fh:
+            self.assets_hash.update(fh.read())
 
         ansible_compute_node_template_vars = self.get_instance_template_vars('ParallelClusterComputeNode')
         fh = NamedTemporaryFile('w', delete=False)
@@ -612,6 +742,8 @@ class CdkSlurmStack(Stack):
             local_file,
             self.assets_bucket,
             s3_key)
+        with open(local_file, 'rb') as fh:
+            self.assets_hash.update(fh.read())
 
         ansible_submitter_template_vars = self.get_instance_template_vars('ParallelClusterSubmitter')
         fh = NamedTemporaryFile('w', delete=False)
@@ -625,8 +757,8 @@ class CdkSlurmStack(Stack):
             local_file,
             self.assets_bucket,
             s3_key)
-
-        self.create_munge_ssm_parameter()
+        with open(local_file, 'rb') as fh:
+            self.assets_hash.update(fh.read())
 
     def get_image_builder_parent_image(self, distribution, version, architecture):
         filters = [
@@ -869,14 +1001,89 @@ class CdkSlurmStack(Stack):
             handler="CreateParallelCluster.lambda_handler",
             code=aws_lambda.Code.from_bucket(createParallelClusterLambdaAsset.bucket, createParallelClusterLambdaAsset.s3_object_key),
             layers=[self.parallel_cluster_lambda_layer],
-            vpc = self.vpc,
-            allow_all_outbound = True
         )
         self.create_parallel_cluster_lambda.add_to_role_policy(
             statement=iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
                 actions=[
-                    's3:*',
+                    's3:DeleteObject',
+                    's3:GetObject',
+                    's3:PutObject'
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/*",
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/{self.parallel_cluster_config_json_s3_key}"
+                    ]
+                )
+            )
+        # From https://docs.aws.amazon.com/parallelcluster/latest/ug/iam-roles-in-parallelcluster-v3.html#iam-roles-in-parallelcluster-v3-base-user-policy
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "cloudformation:*",
+                    "cloudwatch:DeleteAlarms",
+                    "cloudwatch:DeleteDashboards",
+                    "cloudwatch:DescribeAlarms",
+                    "cloudwatch:GetDashboard",
+                    "cloudwatch:ListDashboards",
+                    "cloudwatch:PutDashboard",
+                    "cloudwatch:PutCompositeAlarm",
+                    "cloudwatch:PutMetricAlarm",
+                    'ec2:AllocateAddress',
+                    'ec2:AssociateAddress',
+                    'ec2:AttachNetworkInterface',
+                    'ec2:AuthorizeSecurityGroupEgress',
+                    'ec2:AuthorizeSecurityGroupIngress',
+                    'ec2:CreateFleet',
+                    'ec2:CreateLaunchTemplate',
+                    'ec2:CreateLaunchTemplateVersion',
+                    'ec2:CreateNetworkInterface',
+                    'ec2:CreatePlacementGroup',
+                    'ec2:CreateSecurityGroup',
+                    'ec2:CreateSnapshot',
+                    'ec2:CreateTags',
+                    'ec2:CreateVolume',
+                    'ec2:DeleteLaunchTemplate',
+                    'ec2:DeleteNetworkInterface',
+                    'ec2:DeletePlacementGroup',
+                    'ec2:DeleteSecurityGroup',
+                    'ec2:DeleteVolume',
+                    'ec2:Describe*',
+                    'ec2:DisassociateAddress',
+                    'ec2:ModifyLaunchTemplate',
+                    'ec2:ModifyNetworkInterfaceAttribute',
+                    'ec2:ModifyVolume',
+                    'ec2:ModifyVolumeAttribute',
+                    'ec2:ReleaseAddress',
+                    'ec2:RevokeSecurityGroupEgress',
+                    'ec2:RevokeSecurityGroupIngress',
+                    'ec2:RunInstances',
+                    'ec2:TerminateInstances',
+                    "fsx:DescribeFileCaches",
+                    "logs:DeleteLogGroup",
+                    "logs:PutRetentionPolicy",
+                    "logs:DescribeLogGroups",
+                    "logs:CreateLogGroup",
+                    "logs:TagResource",
+                    "logs:UntagResource",
+                    "logs:FilterLogEvents",
+                    "logs:GetLogEvents",
+                    "logs:CreateExportTask",
+                    "logs:DescribeLogStreams",
+                    "logs:DescribeExportTasks",
+                    "logs:DescribeMetricFilters",
+                    "logs:PutMetricFilter",
+                    "logs:DeleteMetricFilter",
+                    "resource-groups:ListGroupResources",
+                    "route53:ChangeResourceRecordSets",
+                    "route53:ChangeTagsForResource",
+                    "route53:CreateHostedZone",
+                    "route53:DeleteHostedZone",
+                    "route53:GetChange",
+                    "route53:GetHostedZone",
+                    "route53:ListResourceRecordSets",
+                    "route53:ListQueryLoggingConfigs",
                 ],
                 resources=['*']
                 )
@@ -885,11 +1092,345 @@ class CdkSlurmStack(Stack):
             statement=iam.PolicyStatement(
                 effect=iam.Effect.ALLOW,
                 actions=[
-                    '*',
+                    'dynamodb:DescribeTable',
+                    'dynamodb:ListTagsOfResource',
+                    'dynamodb:CreateTable',
+                    'dynamodb:DeleteTable',
+                    'dynamodb:GetItem',
+                    'dynamodb:PutItem',
+                    'dynamodb:UpdateItem',
+                    'dynamodb:Query',
+                    'dynamodb:TagResource'
+                ],
+                resources=[f"arn:{Aws.PARTITION}:dynamodb:*:{Aws.ACCOUNT_ID}:table/parallelcluster-*"]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "iam:GetRole",
+                    "iam:GetRolePolicy",
+                    "iam:GetPolicy",
+                    "iam:SimulatePrincipalPolicy",
+                    "iam:GetInstanceProfile"
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:role/*",
+                    f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:policy/*",
+                    f"arn:{Aws.PARTITION}:iam::aws:policy/*",
+                    f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:instance-profile/*"
+                    ]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "iam:CreateInstanceProfile",
+                    "iam:DeleteInstanceProfile",
+                    "iam:AddRoleToInstanceProfile",
+                    "iam:RemoveRoleFromInstanceProfile"
+                ],
+                resources=[f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:instance-profile/parallelcluster/*"]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "iam:PassRole"
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:role/parallelcluster/*"
+                    ]
+                )
+                # "Condition": {
+                #     "StringEqualsIfExists": {
+                #         "iam:PassedToService": [
+                #             "lambda.amazonaws.com",
+                #             "ec2.amazonaws.com",
+                #             "spotfleet.amazonaws.com"
+                #         ]
+                #     }
+                #  },
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "lambda:CreateFunction",
+                    "lambda:DeleteFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:GetFunction",
+                    "lambda:InvokeFunction",
+                    "lambda:AddPermission",
+                    "lambda:RemovePermission",
+                    "lambda:UpdateFunctionConfiguration",
+                    "lambda:TagResource",
+                    "lambda:ListTags",
+                    "lambda:UntagResource"
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:lambda:*:{Aws.ACCOUNT_ID}:function:parallelcluster-*",
+                    f"arn:{Aws.PARTITION}:lambda:*:{Aws.ACCOUNT_ID}:function:pcluster-*"
+                    ]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "s3:*"
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:s3:::parallelcluster-*",
+                    f"arn:{Aws.PARTITION}:s3:::aws-parallelcluster-*"
+                    ]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "s3:Get*",
+                    "s3:List*"
+                ],
+                resources=[f"arn:{Aws.PARTITION}:s3:::*-aws-parallelcluster*"]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "elasticfilesystem:*"
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:elasticfilesystem:*:{Aws.ACCOUNT_ID}:*"
+                    ]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "secretsmanager:DescribeSecret"
+                ],
+                resources=[f"arn:{Aws.PARTITION}:secretsmanager:{self.config['Region']}:{Aws.ACCOUNT_ID}:secret:*"]
+                )
+            )
+        # https://docs.aws.amazon.com/parallelcluster/latest/ug/iam-roles-in-parallelcluster-v3.html#iam-roles-in-parallelcluster-v3-user-policy-manage-iam
+        # From Privileged IAM access mode
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "iam:AttachRolePolicy",
+                    "iam:CreateRole",
+                    "iam:CreateServiceLinkedRole",
+                    "iam:DeleteRole",
+                    "iam:DeleteRolePolicy",
+                    "iam:DetachRolePolicy",
+                    "iam:PutRolePolicy",
+                    "iam:TagRole",
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:role/parallelcluster/*"
+                    ]
+                )
+            )
+
+        createHeadNodeARecordAsset = s3_assets.Asset(self, "CreateHeadNodeARecordAsset", path="resources/lambdas/CreateHeadNodeARecord")
+        self.create_head_node_a_record_lambda = aws_lambda.Function(
+            self, "CreateHeadNodeARecordLambda",
+            function_name=f"{self.stack_name}-CreateHeadNodeARecord",
+            description="Create head node A record",
+            memory_size=2048,
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CreateHeadNodeARecord.lambda_handler",
+            code=aws_lambda.Code.from_bucket(createHeadNodeARecordAsset.bucket, createHeadNodeARecordAsset.s3_object_key),
+            environment = {
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'Region': self.cluster_region
+            }
+        )
+        self.create_head_node_a_record_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'ec2:DescribeInstances',
+                    'route53:ChangeResourceRecordSets',
+                    'route53:ListHostedZones',
+                    'route53:ListResourceRecordSets',
                 ],
                 resources=['*']
                 )
             )
+        self.create_head_node_a_record_lambda.add_event_source(
+            lambda_event_sources.SnsEventSource(self.create_head_node_a_record_sns_topic)
+        )
+        self.create_head_node_a_record_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+
+        updateHeadNodeLambdaAsset = s3_assets.Asset(self, "UpdateHeadNodeAsset", path="resources/lambdas/UpdateHeadNode")
+        self.update_head_node_lambda = aws_lambda.Function(
+            self, "UpdateHeadNodeLambda",
+            function_name=f"{self.stack_name}-UpdateHeadNode",
+            description="Update head node",
+            memory_size=2048,
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="UpdateHeadNode.lambda_handler",
+            code=aws_lambda.Code.from_bucket(updateHeadNodeLambdaAsset.bucket, updateHeadNodeLambdaAsset.s3_object_key),
+            environment = {
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'Region': self.cluster_region
+            }
+        )
+        self.update_head_node_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'ec2:DescribeInstances',
+                    'ssm:GetCommandInvocation',
+                    'ssm:SendCommand',
+                ],
+                resources=['*']
+                )
+            )
+
+        if 'RESEnvironmentName' in self.config:
+            configureClusterManagerLambdaAsset = s3_assets.Asset(self, "ConfigureClusterManagerAsset", path="resources/lambdas/ConfigureClusterManager")
+            self.configure_cluster_manager_lambda = aws_lambda.Function(
+                self, "ConfigureClusterManagerLambda",
+                function_name=f"{self.stack_name}-ConfigureClusterManager",
+                description="Configure RES cluster manager",
+                memory_size=2048,
+                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                architecture=aws_lambda.Architecture.X86_64,
+                timeout=Duration.minutes(15),
+                log_retention=logs.RetentionDays.INFINITE,
+                handler="ConfigureClusterManager.lambda_handler",
+                code=aws_lambda.Code.from_bucket(configureClusterManagerLambdaAsset.bucket, configureClusterManagerLambdaAsset.s3_object_key),
+                environment = {
+                    'ClusterName': self.config['slurm']['ClusterName'],
+                    'Region': self.cluster_region,
+                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                }
+            )
+            self.configure_cluster_manager_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'ec2:DescribeInstances',
+                        'ssm:GetCommandInvocation',
+                        'ssm:SendCommand',
+                    ],
+                    resources=['*']
+                    )
+                )
+            self.configure_cluster_manager_lambda.add_event_source(
+                lambda_event_sources.SnsEventSource(self.configure_cluster_manager_sns_topic)
+            )
+            self.configure_cluster_manager_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+
+            configureSubmittersLambdaAsset = s3_assets.Asset(self, "ConfigureSubmittersAsset", path="resources/lambdas/ConfigureSubmitters")
+            self.configure_submitters_lambda = aws_lambda.Function(
+                self, "ConfigureSubmittersLambda",
+                function_name=f"{self.stack_name}-ConfigureSubmitters",
+                description="Configure submitters",
+                memory_size=2048,
+                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                architecture=aws_lambda.Architecture.X86_64,
+                timeout=Duration.minutes(15),
+                log_retention=logs.RetentionDays.INFINITE,
+                handler="ConfigureSubmitters.lambda_handler",
+                code=aws_lambda.Code.from_bucket(configureSubmittersLambdaAsset.bucket, configureSubmittersLambdaAsset.s3_object_key),
+                environment = {
+                    'Region': self.cluster_region,
+                    'ClusterName': self.config['slurm']['ClusterName'],
+                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                }
+            )
+            self.configure_submitters_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'ec2:DescribeInstances',
+                        'ssm:GetCommandInvocation',
+                        'ssm:SendCommand',
+                    ],
+                    resources=['*']
+                    )
+                )
+            self.configure_submitters_lambda.add_event_source(
+                lambda_event_sources.SnsEventSource(self.configure_submitters_sns_topic)
+            )
+            self.configure_submitters_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+
+            self.deconfigureClusterManagerLambdaAsset = s3_assets.Asset(self, "DeconfigureClusterManagerAsset", path="resources/lambdas/DeconfigureClusterManager")
+            self.deconfigure_cluster_manager_lambda = aws_lambda.Function(
+                self, "DeconfigureClusterManagerLambda",
+                function_name=f"{self.stack_name}-DeconfigureClusterManager",
+                description="Deconfigure RES cluster manager",
+                memory_size=2048,
+                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                architecture=aws_lambda.Architecture.X86_64,
+                timeout=Duration.minutes(15),
+                log_retention=logs.RetentionDays.INFINITE,
+                handler="DeconfigureClusterManager.lambda_handler",
+                code=aws_lambda.Code.from_bucket(self.deconfigureClusterManagerLambdaAsset.bucket, self.deconfigureClusterManagerLambdaAsset.s3_object_key),
+                environment = {
+                    'ClusterName': self.config['slurm']['ClusterName'],
+                    'Region': self.cluster_region,
+                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                }
+            )
+            self.deconfigure_cluster_manager_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'ec2:DescribeInstances',
+                        'ssm:GetCommandInvocation',
+                        'ssm:SendCommand',
+                    ],
+                    resources=['*']
+                    )
+                )
+
+            deconfigureSubmittersLambdaAsset = s3_assets.Asset(self, "DeconfigureSubmittersAsset", path="resources/lambdas/DeconfigureSubmitters")
+            self.deconfigure_submitters_lambda = aws_lambda.Function(
+                self, "DeconfigureSubmittersLambda",
+                function_name=f"{self.stack_name}-DeconfigureSubmitters",
+                description="Deconfigure submitters",
+                memory_size=2048,
+                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                architecture=aws_lambda.Architecture.X86_64,
+                timeout=Duration.minutes(15),
+                log_retention=logs.RetentionDays.INFINITE,
+                handler="DeconfigureSubmitters.lambda_handler",
+                code=aws_lambda.Code.from_bucket(deconfigureSubmittersLambdaAsset.bucket, deconfigureSubmittersLambdaAsset.s3_object_key),
+                environment = {
+                    'ClusterName': self.config['slurm']['ClusterName'],
+                    'Region': self.cluster_region,
+                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                }
+            )
+            self.deconfigure_submitters_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'ec2:DescribeInstances',
+                        'ssm:GetCommandInvocation',
+                        'ssm:SendCommand',
+                    ],
+                    resources=['*']
+                    )
+                )
 
     def create_callSlurmRestApiLambda(self):
         callSlurmRestApiLambdaAsset = s3_assets.Asset(self, "CallSlurmRestApiLambdaAsset", path="resources/lambdas/CallSlurmRestApi")
@@ -914,24 +1455,19 @@ class CdkSlurmStack(Stack):
                 }
         )
 
-        # Create an SSM parameter to store the JWT tokens for root and slurmrestd
-        self.jwt_token_for_root_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/root"
-        self.jwt_token_for_root_ssm_parameter = ssm.StringParameter(
-            self, f"JwtTokenForRootParameter",
-            parameter_name = self.jwt_token_for_root_ssm_parameter_name,
-            string_value = 'None'
-        )
         self.jwt_token_for_root_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
 
-        self.jwt_token_for_slurmrestd_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/slurmrestd"
-        self.jwt_token_for_slurmrestd_ssm_parameter = ssm.StringParameter(
-            self, f"JwtTokenForSlurmrestdParameter",
-            parameter_name = self.jwt_token_for_slurmrestd_ssm_parameter_name,
-            string_value = 'None'
-        )
         self.jwt_token_for_slurmrestd_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
 
+        self.parallel_cluster_jwt_write_policy = iam.ManagedPolicy(
+            self, "ParallelClusterJwtWritePolicy",
+            #managed_policy_name = f"{self.stack_name}-ParallelClusterJwtWritePolicy",
+        )
+        self.jwt_token_for_root_ssm_parameter.grant_write(self.parallel_cluster_jwt_write_policy)
+        self.jwt_token_for_slurmrestd_ssm_parameter.grant_write(self.parallel_cluster_jwt_write_policy)
+
     def create_security_groups(self):
+        self.NFS_PORT = 2049
         self.slurmctld_port_min = 6820
         self.slurmctld_port_max = 6829
         self.slurmctld_port = '6820-6829'
@@ -941,6 +1477,10 @@ class CdkSlurmStack(Stack):
 
         self.imagebuilder_sg = ec2.SecurityGroup(self, "ImageBuilderSG", vpc=self.vpc, allow_all_outbound=True, description="ImageBuilder Security Group")
         Tags.of(self.imagebuilder_sg).add("Name", f"{self.stack_name}-ImageBuilderSG")
+        # W5:Security Groups found with cidr open to world on egress
+        self.suppress_cfn_nag(self.imagebuilder_sg, 'W5', 'All outbound allowed.')
+        # W40:Security Groups egress with an IpProtocol of -1 found
+        self.suppress_cfn_nag(self.imagebuilder_sg, 'W40', 'All outbound allowed.')
 
         self.nfs_sg = ec2.SecurityGroup(self, "NfsSG", vpc=self.vpc, allow_all_outbound=False, description="Nfs Security Group")
         Tags.of(self.nfs_sg).add("Name", f"{self.stack_name}-NfsSG")
@@ -949,7 +1489,11 @@ class CdkSlurmStack(Stack):
         # FSxZ requires all output access
         self.zfs_sg = ec2.SecurityGroup(self, "ZfsSG", vpc=self.vpc, allow_all_outbound=True, description="Zfs Security Group")
         Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
-        self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
+        # W5:Security Groups found with cidr open to world on egress
+        self.suppress_cfn_nag(self.zfs_sg, 'W5', 'FSxZ requires all egress access.')
+        # W40:Security Groups egress with an IpProtocol of -1 found
+        self.suppress_cfn_nag(self.zfs_sg, 'W40', 'FSxZ requires all egress access.')
+        #self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
 
         # Compute nodes may use lustre file systems so create a security group with the required ports.
         self.lustre_sg = ec2.SecurityGroup(self, "LustreSG", vpc=self.vpc, allow_all_outbound=False, description="Lustre Security Group")
@@ -1056,20 +1600,20 @@ class CdkSlurmStack(Stack):
         if self.slurmdbd_sg and 'ExistingSlurmDbd' not in self.config['slurm']:
             fs_client_sgs['SlurmDbd'] = self.slurmdbd_sg
         for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
-            fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(2049), f"{fs_client_sg_name} to Nfs")
+            fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(self.NFS_PORT), f"{fs_client_sg_name} to Nfs")
         if self.onprem_cidr:
-            self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Nfs')
+            self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.NFS_PORT), 'OnPremNodes to Nfs')
         # Allow compute nodes in remote regions access to NFS
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.nfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(2049), f"{compute_region} to Nfs")
+            self.nfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.NFS_PORT), f"{compute_region} to Nfs")
 
         # ZFS Connections
         # https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html
         for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
             fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(111), f"{fs_client_sg_name} to Zfs")
             fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(111), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(2049), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(2049), f"{fs_client_sg_name} to Zfs")
+            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(self.NFS_PORT), f"{fs_client_sg_name} to Zfs")
+            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(self.NFS_PORT), f"{fs_client_sg_name} to Zfs")
             fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
             fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
             self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
@@ -1078,8 +1622,8 @@ class CdkSlurmStack(Stack):
         if self.onprem_cidr:
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(111), 'OnPremNodes to Zfs')
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(111), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(2049), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(2049), 'OnPremNodes to Zfs')
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.NFS_PORT), 'OnPremNodes to Zfs')
+            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(self.NFS_PORT), 'OnPremNodes to Zfs')
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(20001, 20003), 'OnPremNodes to Zfs')
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp_range(20001, 20003), 'OnPremNodes to Zfs')
             self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
@@ -1088,8 +1632,8 @@ class CdkSlurmStack(Stack):
         for compute_region, compute_region_cidr in self.remote_compute_regions.items():
             self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(111), f"{compute_region} to Zfs")
             self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(111), f"{compute_region} to Zfs")
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(2049), f"{compute_region} to Zfs")
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(2049), f"{compute_region} to Zfs")
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.NFS_PORT), f"{compute_region} to Zfs")
+            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(self.NFS_PORT), f"{compute_region} to Zfs")
             self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(20001, 20003), f"{compute_region} to Zfs")
             self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp_range(20001, 20003), f"{compute_region} to Zfs")
 
@@ -1121,11 +1665,11 @@ class CdkSlurmStack(Stack):
         for fs_type in self.extra_mount_security_groups.keys():
             for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
                 if fs_type in ['nfs', 'zfs']:
-                    self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp(2049), f"SlurmNode to {extra_mount_sg_name} - Nfs")
+                    self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp(self.NFS_PORT), f"SlurmNode to {extra_mount_sg_name} - Nfs")
                     if fs_type == 'zfs':
                         self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp(111), f"SlurmNode to {extra_mount_sg_name} - Zfs")
                         self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp(111), f"SlurmNode to {extra_mount_sg_name} - Zfs")
-                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp(2049), f"SlurmNode to {extra_mount_sg_name} - Zfs")
+                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp(self.NFS_PORT), f"SlurmNode to {extra_mount_sg_name} - Zfs")
                         self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp_range(20001, 20003), f"SlurmNode to {extra_mount_sg_name} - Zfs")
                         self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp_range(20001, 20003), f"SlurmNode to {extra_mount_sg_name} - Zfs")
                         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
@@ -1220,6 +1764,7 @@ class CdkSlurmStack(Stack):
         # slurm submitter connections
         # egress
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
+            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.NFS_PORT), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name} - NFS")
             slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name}")
             slurm_submitter_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(self.slurmd_port), f"{slurm_submitter_sg_name} to {self.slurmnode_sg_name} - srun")
             if self.slurmdbd_sg:
@@ -1229,6 +1774,8 @@ class CdkSlurmStack(Stack):
                 slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
             for compute_region, compute_region_cidr in self.remote_compute_regions.items():
                 slurm_submitter_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.slurmd_port), f"{slurm_submitter_sg_name} to {compute_region} - srun")
+            # W29:Security Groups found egress with port range instead of just a single port
+            self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Port range ok. Submitter to SlurmCtl requires range for slurmctld ports')
 
         # Try to suppress cfn_nag warnings on ingress/egress rules
         for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
@@ -1262,10 +1809,9 @@ class CdkSlurmStack(Stack):
             instance_template_vars['FileSystemMountPath'] = '/opt/slurm'
             instance_template_vars['ParallelClusterVersion'] = self.config['slurm']['ParallelClusterConfig']['Version']
             instance_template_vars['SlurmBaseDir'] = '/opt/slurm'
-            instance_template_vars['SlurmOSDir'] = '/opt/slurm'
-            instance_template_vars['SlurmVersion'] =  get_SLURM_VERSION(self.config)
 
         if instance_role == 'ParallelClusterHeadNode':
+            instance_template_vars['PCSlurmVersion'] =  get_PC_SLURM_VERSION(self.config)
             if 'Database' in self.config['slurm']['ParallelClusterConfig']:
                 instance_template_vars['AccountingStorageHost'] = 'pcvluster-head-node'
             else:
@@ -1284,10 +1830,16 @@ class CdkSlurmStack(Stack):
             instance_template_vars['SlurmrestdSocket'] = f"{instance_template_vars['SlurmrestdSocketDir']}/slurmrestd.socket"
             instance_template_vars['SlurmrestdUid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
         elif instance_role == 'ParallelClusterSubmitter':
-            instance_template_vars['FileSystemMountPath'] = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['SlurmVersion']                = get_SLURM_VERSION(self.config)
             instance_template_vars['ParallelClusterMungeVersion'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
-            instance_template_vars['SlurmBaseDir'] = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['SlurmOSDir'] = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['SlurmrestdPort']        = self.slurmrestd_port
+            instance_template_vars['FileSystemMountPath']   = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['SlurmBaseDir']          = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['SubmitterSlurmBaseDir'] = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['SlurmConfigDir']        = f'/opt/slurm/{cluster_name}/config'
+            instance_template_vars['SlurmSrcDir']           = f'/opt/slurm/{cluster_name}/config/src'
+            instance_template_vars['SlurmEtcDir']           = f'/opt/slurm/{cluster_name}/etc'
+            instance_template_vars['ModulefilesBaseDir']    = f'/opt/slurm/{cluster_name}/config/modules/modulefiles'
 
         elif instance_role == 'ParallelClusterComputeNode':
             pass
@@ -1296,32 +1848,46 @@ class CdkSlurmStack(Stack):
 
         return instance_template_vars
 
-    def create_munge_ssm_parameter(self):
-        ssm_client = boto3.client('ssm', region_name=self.cluster_region)
-        response = ssm_client.describe_parameters(
-            ParameterFilters = [
-                {
-                    'Key': 'Name',
-                    'Option': 'Equals',
-                    'Values': [self.config['slurm']['MungeKeySsmParameter']]
-                }
-            ]
-        )['Parameters']
-        if response:
-            logger.info(f"{self.config['slurm']['MungeKeySsmParameter']} SSM parameter exists and will be used.")
-            self.munge_key_ssm_parameter = ssm.StringParameter.from_string_parameter_name(
-                self, f"MungeKeySsmParamter",
-                string_parameter_name  = f"{self.config['slurm']['MungeKeySsmParameter']}"
+    def create_munge_key_secret(self):
+        self.munge_key_secret_arn = None
+        if 'MungeKeySecret' not in self.config['slurm']:
+            return
+
+        # Check to see if secret exists
+        # Use it if it exists, otherwise create a new secret
+        secretsmanager_client = boto3.client('secretsmanager', region_name=self.cluster_region)
+        try:
+            response = secretsmanager_client.get_secret_value(
+                SecretId = self.config['slurm']['MungeKeySecret']
             )
-        else:
-            logger.info(f"{self.config['slurm']['MungeKeySsmParameter']} SSM parameter doesn't exist. Creating it so can give IAM permissions to it.")
+            self.munge_key_secret_arn = response['ARN']
+            secret_string = response['SecretString']
+            logger.info(f"Munge key secret exists and will be used: {secret_string} length={len(secret_string)}")
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                logger.info(f"MungeKeySecret {self.config['slurm']['MungeKeySecret']} doesn't exist so creating for you.")
+            else:
+                logger.exception("Error getting MungeKeySecret {self.config['slurm']['MungeKeySecret']}")
+
+        if not self.munge_key_secret_arn:
+            logger.info(f"{self.config['slurm']['MungeKeySecret']} doesn't exist so creating it. This isn't a stack resource and will not be deleted with the stack.")
             output = check_output(['dd if=/dev/random bs=1 count=1024 | base64 -w 0'], shell=True, stderr=subprocess.DEVNULL, encoding='utf8', errors='ignore')
             munge_key = output.split('\n')[0]
-            self.munge_key_ssm_parameter = ssm.StringParameter(
-                self, f"MungeKeySsmParamter",
-                parameter_name  = f"{self.config['slurm']['MungeKeySsmParameter']}",
-                string_value = f"{munge_key}"
+            secretsmanager_client.create_secret(
+                Name = self.config['slurm']['MungeKeySecret'],
+                SecretString = munge_key
             )
+            self.munge_key_secret_arn = secretsmanager_client.get_secret_value(
+                SecretId = self.config['slurm']['MungeKeySecret']
+            )['ARN']
+
+        if self.munge_key_secret_arn:
+            self.munge_key_secret = secretsmanager.Secret.from_secret_complete_arn(
+                self, 'MungeKeySecret',
+                secret_complete_arn = self.munge_key_secret_arn
+            )
+            self.munge_key_secret.grant_read(self.parallel_cluster_asset_read_policy)
+            logger.info(f"Munge key secret arn: {self.munge_key_secret_arn}")
 
     def create_fault_injection_templates(self):
         self.fis_spot_termination_role = iam.Role(
@@ -1363,6 +1929,8 @@ class CdkSlurmStack(Stack):
             "FISLogGroup",
             retention = logs.RetentionDays.TEN_YEARS
             )
+        # W84: CloudWatchLogs LogGroup should specify a KMS Key Id to encrypt the log data
+        self.suppress_cfn_nag(fis_log_group, 'W84', 'Use default KMS key.')
         fis_log_group.grant_write(self.fis_spot_termination_role)
         fis_log_configuration = fis.CfnExperimentTemplate.ExperimentTemplateLogConfigurationProperty(
             log_schema_version = 1,
@@ -1468,14 +2036,6 @@ class CdkSlurmStack(Stack):
     def create_parallel_cluster_config(self):
         MAX_NUMBER_OF_QUEUES = 50
         MAX_NUMBER_OF_COMPUTE_RESOURCES = 50
-        if self.PARALLEL_CLUSTER_VERSION < parse_version('3.7.0'):
-            # ParallelCluster has a restriction where a queue can have only 1 instance type with memory based scheduling
-            # So, for now creating a queue for each instance type and purchase option
-            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE = False
-            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE = False
-        else:
-            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE = True
-            PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE = True
 
         # Check the architecture of the ComputeNodeAmi
         if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
@@ -1497,6 +2057,7 @@ class CdkSlurmStack(Stack):
                     'AdditionalIamPolicies': [
                         {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
                         {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
+                        {'Policy': self.parallel_cluster_sns_publish_policy.managed_policy_arn},
                         {'Policy': self.parallel_cluster_jwt_write_policy.managed_policy_arn},
                         {'Policy': self.parallel_cluster_munge_key_write_policy.managed_policy_arn},
                     ],
@@ -1650,13 +2211,13 @@ class CdkSlurmStack(Stack):
         for cores in sorted(instance_types_by_core_memory):
             logger.info(f"        {cores} core(s)")
             for mem_gb in instance_types_by_core_memory[cores]:
-                logger.info(f"            {len(instance_types_by_core_memory[cores][mem_gb])} instance type with {mem_gb} GB")
+                logger.info(f"            {len(instance_types_by_core_memory[cores][mem_gb])} instance type with {mem_gb:4} GB: {instance_types_by_core_memory[cores][mem_gb]}")
         logger.info("Instance type by memory and core:")
         logger.info(f"    {len(instance_types_by_memory_core)} unique memory size:")
         for mem_gb in sorted(instance_types_by_memory_core):
             logger.info(f"        {mem_gb} GB")
             for cores in sorted(instance_types_by_memory_core[mem_gb]):
-                logger.info(f"            {len(instance_types_by_memory_core[mem_gb][cores])} instance type with {cores} core(s)")
+                logger.info(f"            {len(instance_types_by_memory_core[mem_gb][cores])} instance type with {cores:3} core(s): {instance_types_by_memory_core[mem_gb][cores]}")
 
         purchase_options = ['ONDEMAND']
         if self.config['slurm']['InstanceConfig']['UseSpot']:
@@ -1665,12 +2226,13 @@ class CdkSlurmStack(Stack):
         nodesets = {}
         number_of_queues = 0
         number_of_compute_resources = 0
-        if PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE and PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE:
+        for purchase_option in purchase_options:
+            nodesets[purchase_option] = []
+        if config_schema.PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE(self.PARALLEL_CLUSTER_VERSION) and config_schema.PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE(self.PARALLEL_CLUSTER_VERSION):
             # Creating a queue for each memory size
-            # In each queue, create a CR for each permutation of memmory and core count
-            for purchase_option in purchase_options:
-                nodesets[purchase_option] = []
-                for mem_gb in sorted(instance_types_by_memory_core.keys()):
+            # In each queue, create a CR for each permutation of memory and core count
+            for mem_gb in sorted(instance_types_by_memory_core.keys()):
+                for purchase_option in purchase_options:
                     if purchase_option == 'ONDEMAND':
                         queue_name_prefix = "od"
                         allocation_strategy = 'lowest-price'
@@ -1684,6 +2246,7 @@ class CdkSlurmStack(Stack):
                     if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
                         logger.warning(f"Skipping {queue_name} queue because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES}")
                         continue
+                    logger.info(f"Configuring {queue_name} queue:")
                     nodeset = f"{queue_name}_nodes"
                     nodesets[purchase_option].append(nodeset)
                     parallel_cluster_queue = {
@@ -1720,6 +2283,7 @@ class CdkSlurmStack(Stack):
                             'AdditionalIamPolicies': [
                                 {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
                                 {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
+                                {'Policy': self.parallel_cluster_sns_publish_policy.managed_policy_arn}
                             ]
                         },
                         'Networking': {
@@ -1741,13 +2305,16 @@ class CdkSlurmStack(Stack):
 
                     for num_cores in sorted(instance_types_by_memory_core[mem_gb].keys()):
                         compute_resource_name = f"{queue_name_prefix}-{mem_gb}gb-{num_cores}-cores"
+                        instance_types = sorted(instance_types_by_memory_core[mem_gb][num_cores])
+                        # If we do multiple CRs per queue then we hit the CR limit without being able to create queues for all memory sizes.
+                        # Select the instance types with the lowest core count for higher memory/core ratio and lower cost.
                         if len(parallel_cluster_queue['ComputeResources']):
-                            logger.warning(f"Skipping {compute_resource_name} compute resource to reduce the number of compute resources to 1 per queue")
+                            logger.info(f"    Skipping {compute_resource_name:18} compute resource: {instance_types} to reduce number of CRs.")
                             continue
                         if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
-                            logger.warning(f"Skipping {compute_resource_name} compute resource because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES}")
+                            logger.warning(f" Skipping {compute_resource_name:18} compute resource: {instance_types} because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES}")
                             continue
-                        instance_types = sorted(instance_types_by_memory_core[mem_gb][num_cores])
+                        logger.info(f"    Adding   {compute_resource_name:18} compute resource: {instance_types}")
                         if compute_resource_name in self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts']:
                             min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MinCount']
                             max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MaxCount']
@@ -1794,8 +2361,9 @@ class CdkSlurmStack(Stack):
                         number_of_compute_resources += 1
                     self.parallel_cluster_config['Scheduling']['SlurmQueues'].append(parallel_cluster_queue)
         else:
+            # ParallelCluster has a restriction where a queue can have only 1 instance type with memory based scheduling
+            # So, for now creating a queue for each instance type and purchase option
             for purchase_option in purchase_options:
-                nodesets[purchase_option] = []
                 for instance_type in self.instance_types:
                     efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
                     if purchase_option == 'ONDEMAND':
@@ -1844,6 +2412,7 @@ class CdkSlurmStack(Stack):
                             'AdditionalIamPolicies': [
                                 {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
                                 {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
+                                {'Policy': self.parallel_cluster_sns_publish_policy.managed_policy_arn}
                             ]
                         },
                         'Networking': {
@@ -2008,6 +2577,8 @@ class CdkSlurmStack(Stack):
         self.parallel_cluster_config['SharedStorage'] = []
         for extra_mount_dict in self.config['slurm'].get('storage', {}).get('ExtraMounts', {}):
             mount_dir = extra_mount_dict['dest']
+            if mount_dir == '/home' and not config_schema.PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(self.PARALLEL_CLUSTER_VERSION):
+                continue
             storage_type = extra_mount_dict['StorageType']
             if storage_type == 'Efs':
                 parallel_cluster_storage_dict = {
@@ -2039,13 +2610,11 @@ class CdkSlurmStack(Stack):
                 }
             self.parallel_cluster_config['SharedStorage'].append(parallel_cluster_storage_dict)
 
-        self.parallel_cluster_config_json_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.json"
-        self.parallel_cluster_config_yaml_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.yml"
-
         self.parallel_cluster = CustomResource(
             self, "ParallelCluster",
             service_token = self.create_parallel_cluster_lambda.function_arn,
             properties = {
+                'ParallelClusterConfigHash': self.assets_hash.hexdigest(),
                 'ParallelClusterConfigJson': json.dumps(self.parallel_cluster_config, sort_keys=False),
                 'ParallelClusterConfigS3Bucket': self.assets_bucket,
                 'ParallelClusterConfigJsonS3Key': self.parallel_cluster_config_json_s3_key,
@@ -2056,6 +2625,43 @@ class CdkSlurmStack(Stack):
         )
         self.parallel_cluster_config_json_s3_url = self.parallel_cluster.get_att_string('ConfigJsonS3Url')
         self.parallel_cluster_config_yaml_s3_url = self.parallel_cluster.get_att_string('ConfigYamlS3Url')
+        # The lambda to create an A record for the head node must be built before the parallel cluster.
+        self.parallel_cluster.node.add_dependency(self.create_head_node_a_record_lambda)
+        self.parallel_cluster.node.add_dependency(self.update_head_node_lambda)
+        # The lambdas to configure instances must exist befor the cluster so they can be called.
+        self.parallel_cluster.node.add_dependency(self.configure_cluster_manager_lambda)
+        self.parallel_cluster.node.add_dependency(self.configure_submitters_lambda)
+
+        self.call_slurm_rest_api_lambda.node.add_dependency(self.parallel_cluster)
+
+        # Custom resource to update the head node anytime the assets_hash changes
+        self.update_head_node = CustomResource(
+            self, "UpdateHeadNode",
+            service_token = self.update_head_node_lambda.function_arn,
+            properties = {
+                'ParallelClusterConfigHash': self.assets_hash.hexdigest(),
+            }
+        )
+        self.update_head_node.node.add_dependency(self.parallel_cluster)
+
+        if 'RESEnvironmentName' in self.config:
+            # Custom resource to deconfigure cluster manager before deleting cluster
+            self.deconfigure_cluster_manager = CustomResource(
+                self, "DeconfigureClusterManager",
+                service_token = self.deconfigure_cluster_manager_lambda.function_arn,
+                properties = {
+                }
+            )
+            self.deconfigure_cluster_manager.node.add_dependency(self.parallel_cluster)
+
+            # Custom resource to deconfigure submitters before deleting cluster
+            self.deconfigure_submitters = CustomResource(
+                self, "DeconfigureSubmitters",
+                service_token = self.deconfigure_submitters_lambda.function_arn,
+                properties = {
+                }
+            )
+            self.deconfigure_submitters.node.add_dependency(self.parallel_cluster)
 
         CfnOutput(self, "ParallelClusterConfigJsonS3Url",
             value = self.parallel_cluster_config_json_s3_url
@@ -2063,19 +2669,13 @@ class CdkSlurmStack(Stack):
         CfnOutput(self, "ParallelClusterConfigYamlS3Url",
             value = self.parallel_cluster_config_yaml_s3_url
         )
-        CfnOutput(self, "MungeParameterName",
-            value = self.munge_key_ssm_parameter.parameter_name
-        )
-        CfnOutput(self, "MungeParameterArn",
-            value = self.munge_key_ssm_parameter.parameter_arn
-        )
         CfnOutput(self, "PlaybookS3Url",
             value = self.playbooks_asset.s3_object_url
         )
         region = self.cluster_region
         cluster_name = self.config['slurm']['ClusterName']
         CfnOutput(self, "Command01_SubmitterMountHeadNode",
-            value = f"head_ip=$(aws ec2 describe-instances --region {region} --filters 'Name=tag:parallelcluster:cluster-name,Values={cluster_name}' 'Name=tag:parallelcluster:node-type,Values=HeadNode' --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text) && sudo mkdir -p /opt/slurm/{cluster_name} && sudo mount $head_ip:/opt/slurm /opt/slurm/{cluster_name}"
+            value = f"head_ip=head_node.{self.config['slurm']['ClusterName']}.pcluster && sudo mkdir -p /opt/slurm/{cluster_name} && sudo mount $head_ip:/opt/slurm /opt/slurm/{cluster_name}"
         )
         CfnOutput(self, "Command02_CreateUsersGroupsJsonConfigure",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_configure.sh"

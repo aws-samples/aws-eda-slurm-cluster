@@ -1,4 +1,6 @@
 #!/bin/bash -xe
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 
 full_script=$(realpath $0)
 script_dir=$(dirname $full_script)
@@ -7,14 +9,20 @@ base_script=$(basename $full_script)
 date
 echo "Started submitter_deconfigure.sh: $full_script"
 
+ErrorSnsTopicArn={{ErrorSnsTopicArn}}
+
 config_dir={{SubmitterSlurmConfigDir}}
 config_bin_dir=$config_dir/bin
 
 temp_config_dir=/tmp/{{ClusterName}}_config
-rm -rf $temp_config_dir
-cp -r $config_dir $temp_config_dir
+temp_config_bin_dir=$temp_config_dir/bin
+if [[ $script_dir != $temp_config_bin_dir ]]; then
+    rm -rf $temp_config_dir
+    cp -r $config_dir $temp_config_dir
+    exec $temp_config_dir/bin/$base_script
+fi
 
-# Configure using ansible
+# Install ansible
 if ! yum list installed ansible &> /dev/null; then
     yum install -y ansible || amazon-linux-extras install -y ansible2
 fi

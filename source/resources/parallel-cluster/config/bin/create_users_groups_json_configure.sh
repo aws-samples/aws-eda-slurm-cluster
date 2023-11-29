@@ -1,4 +1,7 @@
 #!/bin/bash -xe
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
 # This script creates the json file with user and group information.
 # It also creates a crontab entry to update the json file every hour.
 

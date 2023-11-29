@@ -8,26 +8,10 @@
       Region:                     {{Region}}
       SlurmBaseDir:               {{SlurmBaseDir}}
 
-- name: Get ip address of {{ClusterName}} head node
-  shell:
-    cmd: |
-      set -e
-
-      head_ip_address=$(aws ec2 describe-instances --region {{Region}} --filters 'Name=tag:parallelcluster:cluster-name,Values={{ClusterName}}' 'Name=tag:parallelcluster:node-type,Values=HeadNode' --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
-      echo $head_ip_address
-  register: head_node_ip_address_results
-
-- name: Show ip address results
-  debug:
-    msg: |
-      head_node_ip_address_results: {{head_node_ip_address_results}}
-      head_node_ip_address_results.stdout_lines[0]: {{head_node_ip_address_results.stdout_lines[0]}}
-      head_node_ip_address_results.stdout:          {{head_node_ip_address_results.stdout}}
-
 - name: Add /opt/slurm/{{ClusterName}} to /etc/fstab
   mount:
     path: /opt/slurm/{{ClusterName}}
-    src: "{{head_node_ip_address_results.stdout_lines[0]}}:/opt/slurm"
+    src: "head_node.{{ClusterName}}.pcluster:/opt/slurm"
     fstype: nfs
     backup: true
     state: present # Should already be mounted

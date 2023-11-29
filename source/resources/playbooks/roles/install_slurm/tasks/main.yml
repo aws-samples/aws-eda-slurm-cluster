@@ -1,0 +1,272 @@
+---
+# tasks file for install_slurm
+
+- name: Show variables used by this role
+  debug:
+    msg: |
+      ansible_architecture:       {{ansible_architecture}}
+      Architecture:               {{Architecture}}
+      distribution:               {{distribution}}
+      distribution_major_version: {{distribution_major_version}}
+      distribution_version:       {{distribution_version}}
+
+      amazonlinux2:   {{amazonlinux2}}
+      alma:           {{alma}}
+      alma8:          {{alma8}}
+      centos:         {{centos}}
+      centos7:        {{centos7}}
+      rhel:           {{rhel}}
+      rhel7:          {{rhel7}}
+      rhel8:          {{rhel8}}
+      rocky:          {{rocky}}
+      rocky8:         {{rocky8}}
+      rhelclone:      {{rhelclone}}
+      rhel8clone:     {{rhel8clone}}
+      centos7_5_to_6: {{centos7_5_to_6}}
+      centos7_5_to_9: {{centos7_5_to_9}}
+      centos7_7_to_9: {{centos7_7_to_9}}
+
+- name: Set variables used by this playbook
+  set_fact:
+    SlurmOSDir:  "/opt/slurm/{{ClusterName}}/config/os/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
+
+- name: Set variables used by this playbook
+  set_fact:
+    SlurmBinDir: "{{SlurmOSDir}}/bin"
+
+- name: Show variables used by this role
+  debug:
+    msg: |
+      SlurmVersion:       {{SlurmVersion}}
+      SlurmSrcDir:        {{SlurmSrcDir}}
+      SlurmBinDir:        {{SlurmBinDir}}
+      SlurmConfigDir:     {{SlurmConfigDir}}
+      SlurmOSDir:         {{SlurmOSDir}}
+      SlurmrestdPort:     {{SlurmrestdPort}}
+      SlurmEtcDir:        {{SlurmEtcDir}}
+      ModulefilesBaseDir: {{ModulefilesBaseDir}}
+      SubmitterSlurmBaseDir: {{SubmitterSlurmBaseDir}}
+
+- name: Install epel from amazon-linux-extras
+  when: distribution == 'Amazon'
+  shell:
+    cmd: amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel from yum
+  when: distribution in ['CentOS', 'RedHat']
+  yum:
+    state: present
+    name:
+      - epel-release
+
+- name: Enable PowerTools repo
+  when: rhel8clone
+  shell:
+    cmd: yum-config-manager --enable PowerTools || yum-config-manager --enable powertools
+
+- name: Enable rhel-7-server-rhui-optional-rpms
+  when: rhel7
+  shell:
+    cmd: |
+      set -ex
+      yum-config-manager --enable rhel-7-server-rhui-optional-rpms
+      yum-config-manager --enable rhui-REGION-rhel-server-optional
+
+- name: Enable codeready-builder-for-rhel-8-rhui-rpms repo
+  when: rhel8
+  shell:
+    cmd: |
+      yum-config-manager --enable codeready-builder-for-rhel-8-rhui-rpms
+
+- name: Install slurm packages
+  yum:
+    state: present
+    name:
+      - autoconf # To build libjwt
+      - automake # To build libjwt
+      - bzip2
+      - crudini
+      - emacs
+      - freeipmi-devel
+      - fwknop
+      - gcc
+      - git # To build libjwt
+      - gtk2-devel
+      - http-parser-devel
+      - hwloc-devel
+      - jansson-devel # To build libjwt
+      - json-c-devel
+      - libcurl-devel
+      - libtool # To build libjwt
+      - libyaml-devel
+      - lua-devel
+      - lz4-devel
+      - mailx
+      - make
+      - man2html
+      - munge
+      - munge-devel
+      - munge-libs
+      - mysql-devel
+      - numactl-devel
+      - openmpi
+      - openssl-devel # To build libjwt
+      - pam-devel
+      - perl-devel
+      - pmix-devel
+      - python3
+      - readline-devel
+      - rng-tools
+      - rrdtool-devel
+      - wget
+
+- name: Install hdf5-devel
+  when: not(distribution == 'Amazon' and Architecture == 'arm64') and not(rhel8 or rhel8clone)
+  yum:
+    state: present
+    name:
+      - hdf5-devel
+
+- name: Install libjwt-devel on non-Amazon arm64
+  when: not(distribution == 'Amazon' and Architecture == 'arm64')
+  yum:
+    state: present
+    name:
+      - libjwt-devel
+
+- name: Install libjwt-devel on Amazon arm64
+  when: distribution == 'Amazon' and Architecture == 'arm64'
+  shell: |
+    set -xe
+
+    cd /tmp
+    rm -rf libjwt
+    git clone --depth 1 --single-branch -b v1.12.0 https://github.com/benmcollins/libjwt.git libjwt
+    cd libjwt
+    autoreconf --force --install
+    ./configure --prefix=/usr/local
+    make -j
+    make install
+
+- name: Download slurm source
+  shell: |
+    set -xe
+
+    mkdir -p {{SlurmSrcDir}}
+    cd {{SlurmSrcDir}}
+    wget https://download.schedmd.com/slurm/slurm-{{SlurmVersion}}.tar.bz2
+    bzip2 -d -f slurm-{{SlurmVersion}}.tar.bz2
+    tar -xf slurm-{{SlurmVersion}}.tar
+    rm slurm-{{SlurmVersion}}.tar
+
+  args:
+    creates: "{{SlurmSrcDir}}/slurm-{{SlurmVersion}}/INSTALL"
+
+- name: Create {{SlurmOSDir}}
+  file:
+    path: "{{SlurmOSDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Build and install slurm on {{distribution}} {{distribution_major_version}} on {{Architecture}}
+  args:
+    creates: "{{SlurmBinDir}}/srun"
+  shell: |
+    set -xe
+
+    cd {{SlurmSrcDir}}/slurm-{{SlurmVersion}}
+    ./configure --prefix {{SlurmOSDir}}/ --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{SlurmrestdPort}} &> configure.log
+    CORES=$(grep processor /proc/cpuinfo | wc -l)
+    make -j $CORES &> slurm-make.log
+    make -j $CORES contrib &> slurm-make-contrib.log
+
+    make install &> slurm-make-install.log
+    make install-contrib &> slurm-make-install-contrib.log
+
+- name: Create {{SlurmEtcDir}}
+  file:
+    path: "{{SlurmEtcDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+
+- name: Create {{SlurmOSDir}}/etc
+  file:
+    state: link
+    src:  "{{SlurmEtcDir}}"
+    path: "{{SlurmOSDir}}/etc"
+    owner: root
+    group: root
+
+- name: Create {{SlurmOSDir}}/etc
+  file:
+    state: link
+    src:  "{{SlurmOSDir}}/lib/libnss_slurm.so.2"
+    path: "/usr/lib64/libnss_slurm.so.2"
+    owner: root
+    group: root
+
+# - name: Enable nss_slurm
+#   lineinfile:
+#     path: /etc/nsswitch.conf
+#     state: present
+#     regexp: '^(passwd:\s+)'
+#     line: '\1nss_slurm sss files systemd'
+#     backrefs: yes
+#     backup: yes
+
+- name: Fix permissions on config dir so users can access it to get the modulefiles
+  file:
+    path: "{{SlurmConfigDir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create {{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}
+  file:
+    path: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  register: create_modulefile_dir_result
+
+- name: Fix modulefile permissions
+  when: create_modulefile_dir_result
+  shell:
+    cmd: |
+      set -ex
+
+      chmod -R 0755 {{SlurmConfigDir}}
+
+- name: Create slurm modulefile .template
+  template:
+    dest: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/.template"
+    src:  opt/slurm/config/modules/modulefiles/slurm/.template
+    owner: root
+    group: root
+    mode: '0664'
+    force: yes
+
+- name: Create slurm modulefile
+  file:
+    path: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/{{ParallelClusterVersion}}"
+    src:  ".template"
+    state: link
+    owner: root
+    group: root
+    mode: '0664'
+
+- name: Create slurm modulefile .version
+  template:
+    dest: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/.version"
+    src:   opt/slurm/config/modules/modulefiles/slurm/.version
+    owner: root
+    group: root
+    mode: '0664'
+    force: yes
