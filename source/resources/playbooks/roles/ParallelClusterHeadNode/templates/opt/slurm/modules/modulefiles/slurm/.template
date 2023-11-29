@@ -20,12 +20,12 @@ proc ModulesHelp { } {
 
 module-whatis "loads the env for $toolname version $version"
 
-prepend-path LD_LIBRARY_PATH {{SubmitterSlurmBaseDir}}/lib/slurm
+prepend-path LD_LIBRARY_PATH {{SlurmOSDir}}/lib/slurm
 
 # This overrides the "search" line in /etc/resolv.conf so that the pcluster route53 zone is used to resolve compute node host names.
 setenv LOCALDOMAIN "ec2.internal {{ClusterName}}.pcluster"
 
-prepend-path PATH {{SubmitterSlurmBaseDir}}/bin
+prepend-path PATH {{SlurmOSDir}}/bin
 
 setenv SLURM_CONF {{SubmitterSlurmBaseDir}}/etc/slurm.conf
 

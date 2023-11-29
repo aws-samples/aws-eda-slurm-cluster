@@ -37,6 +37,21 @@ logger.addHandler(logger_streamHandler)
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
+def get_cluster_status(cluster_name, cluster_region):
+    logger.info("Listing clusters to get cluster status")
+    clusters_dict = pc.list_clusters(region=cluster_region)
+    logger.info(f"clusters_dict:\n{json.dumps(clusters_dict, indent=4)}")
+    cluster_status = None
+    for cluster_dict in clusters_dict['clusters']:
+        if cluster_dict['clusterName'] != cluster_name:
+            continue
+        logger.info(f"cluster_dict:\n{json.dumps(cluster_dict, indent=4)}")
+        cluster_status = cluster_dict['clusterStatus']
+        cluster_cloudformation_status = cluster_dict['cloudformationStackStatus']
+        logger.info(f"{cluster_name} exists. Status={cluster_status} and cloudformation status={cluster_cloudformation_status}")
+        break
+    return cluster_status
+
 def lambda_handler(event, context):
     try:
         logger.info(f"event:\n{json.dumps(event, indent=4)}")
@@ -44,6 +59,7 @@ def lambda_handler(event, context):
         requestType = event['RequestType']
         properties = event['ResourceProperties']
         required_properties = [
+            'ParallelClusterConfigHash',
             'ParallelClusterConfigJson',
             'ParallelClusterConfigS3Bucket',
             'ParallelClusterConfigJsonS3Key',
@@ -105,20 +121,13 @@ def lambda_handler(event, context):
         cluster_region = properties['Region']
         logger.info(f"{requestType} request for {cluster_name} in {cluster_region}")
 
-        logger.info("Listing clusters to get cluster status")
-        clusters_dict = pc.list_clusters(region=cluster_region)
-        logger.info(f"clusters_dict:\n{json.dumps(clusters_dict, indent=4)}")
-        cluster_status = None
-        for cluster_dict in clusters_dict['clusters']:
-            if cluster_dict['clusterName'] != cluster_name:
-                continue
-            cluster_status = cluster_dict['clusterStatus']
-            cluster_cloudformation_status = cluster_dict['cloudformationStackStatus']
-            break
+        cluster_status = get_cluster_status(cluster_name, cluster_region)
         if cluster_status:
-            logger.info(f"{cluster_name} exists. Status={cluster_status} and cloudformation status={cluster_cloudformation_status}")
             valid_statuses = ['CREATE_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
             invalid_statuses = ['UPDATE_IN_PROGRESS', 'DELETE_IN_PROGRESS']
+            if cluster_status in invalid_statuses:
+                cfnresponse.send(event, context, cfnresponse.FAILED, {f"{cluster_name} in {cluster_status} state."}, physicalResourceId=cluster_name)
+                return
             if requestType == 'Create':
                 logger.info(f"{cluster_name} exists so changing request type from Create to Update.")
                 requestType = 'Update'
@@ -130,17 +139,28 @@ def lambda_handler(event, context):
             elif requestType == 'Update':
                 logger.info(f"{cluster_name} doesn't exist so changing request type from Update to Create.")
                 requestType = 'Create'
+            else:
+                logger.info(f"{cluster_name} doesn't exist.")
 
         if requestType == "Create":
             logger.info(f"Creating {properties['ClusterName']}")
             try:
-                pc.create_cluster(
+                response = pc.create_cluster(
                     cluster_name = properties['ClusterName'],
                     cluster_configuration = parallel_cluster_config,
                     region = properties['Region'],
                     rollback_on_failure = False,
+                    # suppress_validators doesn't work
+                    # suppress_validators = 'ALL'
+                    # # suppress_validators = 'type:SharedStorageMountDirValidator'
+                    # # suppress_validators = [
+                    # #     # 'ALL',
+                    # #     'type:SharedStorageMountDirValidator',
+                    # #     'type:InstancesEFAValidator'
+                    # # ]
                 )
                 logger.info("Create call succeeded.")
+                logger.info(f"response={response}")
             except:
                 logger.exception("ParallelCluster create failed. Ignoring exception")
         elif requestType == "Update":
@@ -153,12 +173,21 @@ def lambda_handler(event, context):
             logger.info(f"Updating {properties['ClusterName']}")
             stop_and_retry = False
             try:
-                pc.update_cluster(
+                response = pc.update_cluster(
                     cluster_name = properties['ClusterName'],
                     cluster_configuration = parallel_cluster_config,
-                    region = properties['Region']
+                    region = properties['Region'],
+                    # suppress_validators doesn't work
+                    # suppress_validators = 'ALL'
+                    # # suppress_validators = 'type:SharedStorageMountDirValidator'
+                    # # suppress_validators = [
+                    # #     # 'ALL',
+                    # #     'type:SharedStorageMountDirValidator',
+                    # #     'type:InstancesEFAValidator'
+                    # # ]
                 )
                 logger.info("Update call succeeded")
+                logger.info(f"response={response}")
             except BadRequestException as e:
                 message = e.content.message
                 if 'No changes found in your cluster configuration' in message:
@@ -204,9 +233,12 @@ def lambda_handler(event, context):
                     pc.update_cluster(
                         cluster_name = properties['ClusterName'],
                         cluster_configuration = parallel_cluster_config,
-                        region = properties['Region']
+                        region = properties['Region'],
+                        # suppress_validators doesn't work
+                        # suppress_validators = 'ALL'
                     )
                     logger.info("Update call succeeded")
+                    logger.info(f"response={response}")
                 except (BadRequestException, UpdateClusterBadRequestException) as e:
                     message = e.content.message
                     logger.error(message)
@@ -224,6 +256,19 @@ def lambda_handler(event, context):
                 logger.info("Delete call succeeded")
             except:
                 logger.exception("ParallelCluster Delete failed. Ignoring exception")
+            # Wait for the delete to succeed or fail so that cluster resources can be deleted.
+            # For example, cannot delete the head node security group until the head node has been deleted.
+            while cluster_status:
+                logger.info(f"Waiting for {cluster_name} to be deleted. Status={cluster_status}")
+                sleep(60)
+                cluster_status = get_cluster_status(cluster_name, cluster_region)
+                if not cluster_status:
+                    logger.info(f"{cluster_name} doesn't exist so delete complete.")
+                    break
+                if cluster_status == 'DELETE_FAILED':
+                    logger.info(f"{cluster_name} delete failed")
+                    cfnresponse.send(event, context, cfnresponse.FAILED, {f"{cluster_name} in {cluster_status} state."}, physicalResourceId=cluster_name)
+                    return
         else:
             raise ValueError(f"Unsupported requestType: {requestType}")
 

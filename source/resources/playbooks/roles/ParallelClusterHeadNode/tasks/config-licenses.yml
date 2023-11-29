@@ -14,13 +14,24 @@
       server='{% if 'Server' in Licenses[lic] %}{{Licenses[lic].Server}}{% if 'Port' in Licenses[lic] %}@{{Licenses[lic].Port}}{% endif %}{% else %}slurmdb{% endif %}'
       count='{{Licenses[lic].Count}}'
       licenses["$license@$server"]="$count"
-      if ! {{SlurmBinDir}}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}} cluster={{ClusterName}} percentallowed=100; then
-          # Exit 1: Nothing new added.
-          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server set count={{Licenses[lic].Count}}
+      # Check to see if license has already been created
+      slurm_license=$({{SlurmBinDir}}/sacctmgr -i show resource $license --parsable2 --noheader)
+      if [ -z $slurm_license ]; then
+          echo "$license license not in slurmdbd so add it"
+          {{SlurmBinDir}}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in Licenses[lic] %} servertype={{Licenses[lic].ServerType}}{% endif %} count={{Licenses[lic].Count}} cluster={{ClusterName}} percentallowed=100
+      else
+          echo "$license already in slurmdbd so check count and percent allowed."
+          slurmdb_count=$({{SlurmBinDir}}/sacctmgr -i show resource $license --parsable2 --noheader | cut -d '|' -f 4)
+          echo "slurmdb count=$slurmdb_count"
+          if [[ $count != $slurmdb_count ]]; then
+              echo "Update $license count from $slurmdb_count to $count"
+              {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server set count=$count
+          fi
 
-          # This is required or else license count will stay at 0
-          {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server cluster={{ClusterName}} set percentallowed=100
-
+          slurmdb_percent_allowed=$({{SlurmBinDir}}/sacctmgr -i show resource $license --parsable2 --noheader | cut -d '|' -f 6)
+          if [[ "100" != $slurmdb_percent_allowed ]]; then
+              {{SlurmBinDir}}/sacctmgr -i modify resource name=$license server=$server cluster={{ClusterName}} set percentallowed=100
+          fi
       fi
       {% endfor -%}
 
@@ -36,3 +47,4 @@
       done
 
   register: remote_slurm_licenses_conf_result
+#   ignore_errors: true

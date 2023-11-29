@@ -1,0 +1,7 @@
+---
+- name: Compile slurm for ParallelCluster Submitter
+  hosts: ParallelClusterSubmitter
+  become_user: root
+  become: yes
+  roles:
+    - install_slurm

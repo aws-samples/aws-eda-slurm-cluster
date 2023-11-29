@@ -16,6 +16,9 @@ local-docs: .mkdocs_venv/bin/activate
 github-docs: .mkdocs_venv/bin/activate
 	source .mkdocs_venv/bin/activate; mkdocs gh-deploy --strict
 
+security_scan:
+	security_scan/security_scan.sh
+
 test:
 	pytest -x -v tests
 

@@ -35,8 +35,11 @@ logger.propagate = False
 logger.setLevel(logging.INFO)
 
 # MIN_PARALLEL_CLUSTER_VERSION
+# 3.2.0:
+#     * Add support for memory-based job scheduling in Slurm
 # 3.3.0:
 #     * Add support for multiple instance types in a compute resource
+#     * Add new configuration section Scheduling/SlurmSettings/Database to enable accounting functionality in Slurm.
 # 3.4.0:
 #     * Add support for launching nodes across multiple availability zones to increase capacity availability
 #     * Add support for specifying multiple subnets for each queue to increase capacity availability
@@ -53,6 +56,7 @@ logger.setLevel(logging.INFO)
 # 3.7.0:
 #     * Login Nodes
 #     * Add support for configurable node weights within queue
+#     * Allow memory-based scheduling when multiple instance types are specified for a Slurm Compute Resource.
 # 3.7.1:
 #     * Fix pmix CVE
 #     * Use Slurm 23.02.5
@@ -84,11 +88,19 @@ PARALLEL_CLUSTER_PYTHON_VERSIONS = {
 }
 PARALLEL_CLUSTER_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
-    '3.6.0': '23-02-2-1', # confirmed
-    '3.6.1': '23-02-2-1', # confirmed
-    '3.7.0': '23-02-4-1', # confirmed
-    '3.7.1': '23-02-5-1', # confirmed
-    '3.7.2': '23-02-6-1', # confirmed
+    '3.6.0':   '23.02.2', # confirmed
+    '3.6.1':   '23.02.2', # confirmed
+    '3.7.0':   '23.02.4', # confirmed
+    '3.7.1':   '23.02.5', # confirmed
+    '3.7.2':   '23.02.6', # confirmed
+}
+PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
+    # This can be found on the head node at /etc/chef/local-mode-cache/cache/
+    '3.6.0':   '23-02-2-1', # confirmed
+    '3.6.1':   '23-02-2-1', # confirmed
+    '3.7.0':   '23-02-4-1', # confirmed
+    '3.7.1':   '23-02-5-1', # confirmed
+    '3.7.2':   '23-02-6-1', # confirmed
 }
 SLURM_REST_API_VERSIONS = {
     '23-02-2-1': '0.0.39',
@@ -110,23 +122,45 @@ def get_parallel_cluster_version(config):
 
 def get_PARALLEL_CLUSTER_MUNGE_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
-    munge_version = PARALLEL_CLUSTER_MUNGE_VERSIONS[parallel_cluster_version]
-    return munge_version
+    return PARALLEL_CLUSTER_MUNGE_VERSIONS[parallel_cluster_version]
 
 def get_PARALLEL_CLUSTER_PYTHON_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
-    python_version = PARALLEL_CLUSTER_PYTHON_VERSIONS[parallel_cluster_version]
-    return python_version
+    return PARALLEL_CLUSTER_PYTHON_VERSIONS[parallel_cluster_version]
 
 def get_SLURM_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
-    slurm_version = PARALLEL_CLUSTER_SLURM_VERSIONS[parallel_cluster_version]
-    return slurm_version
+    return PARALLEL_CLUSTER_SLURM_VERSIONS[parallel_cluster_version]
+
+def get_PC_SLURM_VERSION(config):
+    parallel_cluster_version = get_parallel_cluster_version(config)
+    return PARALLEL_CLUSTER_PC_SLURM_VERSIONS[parallel_cluster_version]
 
 def get_slurm_rest_api_version(config):
-    slurm_version = get_SLURM_VERSION(config)
-    slurm_rest_api_version = SLURM_REST_API_VERSIONS.get(slurm_version, )
-    return slurm_rest_api_version
+    slurm_version = get_PC_SLURM_VERSION(config)
+    return SLURM_REST_API_VERSIONS.get(slurm_version, )
+
+# Feature support
+
+# Version 3.7.0:
+PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES_VERSION = parse_version('3.7.0')
+def PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE_VERSION = parse_version('3.7.0')
+def PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE_VERSION = parse_version('3.7.0')
+def PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE_VERSION
+
+# Unsupported
+def PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY(parallel_cluster_version):
+    return False
+
+def PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(parallel_cluster_version):
+    return False
 
 # Determine all AWS regions available on the account.
 default_region = environ.get("AWS_DEFAULT_REGION", "us-east-1")
@@ -147,48 +181,88 @@ filesystem_lifecycle_policies = [
     'AFTER_90_DAYS'
     ]
 
+# By default I've chosen to exclude *7i instance types because they have 50% of the cores as *7z instances with the same memory.
 default_eda_instance_families = [
-    #'c5',                # Mixed depending on size
-    #'c5a',               # AMD EPYC 7R32 3.3 GHz
-    #'c5ad',              # AMD EPYC 7R32 3.3 GHz
+    'c7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+
+    'c7g',               # AWS Graviton3 Processor 2.6 GHz
+    # 'c7gd',              # AWS Graviton3 Processor 2.6 GHz
+    # 'c7gn',              # AWS Graviton3 Processor 2.6 GHz
+
+    # 'c7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    #'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
+
+    'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
+
+    'm7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+
+    # 'm7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    'm7g',               # AWS Graviton3 Processor 2.6 GHz
+    # 'm7gd',               # AWS Graviton3 Processor 2.6 GHz
+
+    'r7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+
+    'r7g',               # AWS Graviton3 Processor 2.6 GHz
+    # 'r7gd',               # AWS Graviton3 Processor 2.6 GHz
+
+    # 'r7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    'r7iz',              # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
+
+    'x2idn',             # Intel Xeon Scalable (Icelake) 3.5 GHz 2 TB
+
+    'x2iedn',            # Intel Xeon Scalable (Icelake) 3.5 GHz 4 TB
+
+    'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
+
+    #'u-6tb1',            # Intel Xeon Scalable (Skylake) 6 TB
+    #'u-9tb1',            # Intel Xeon Scalable (Skylake) 9 TB
+    #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
+]
+
+old_eda_instance_families = [
+    'c5',                # Mixed depending on size
+    'c5a',               # AMD EPYC 7R32 3.3 GHz
+    'c5ad',              # AMD EPYC 7R32 3.3 GHz
     'c6a',
     'c6ad',
     'c6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
     'c6id',
     'c6g',               # AWS Graviton2 Processor 2.5 GHz
-    #'c6gd',              # AWS Graviton2 Processor 2.5 GHz
-    #'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
-    #'m5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    #'m5d',               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    #'m5a',               # AMD EPYC 7571 2.5 GHz
-    #'m5ad',              # AMD EPYC 7571 2.5 GHz
+    'c6gd',              # AWS Graviton2 Processor 2.5 GHz
+    'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
+    'm5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
+    'm5d',               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
+    'm5a',               # AMD EPYC 7571 2.5 GHz
+    'm5ad',              # AMD EPYC 7571 2.5 GHz
     'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
     'm6a',               # AMD EPYC 7R13 Processor 3.6 GHz
     'm6ad',
     'm6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
     'm6id',
     'm6g',               # AWS Graviton2 Processor 2.5 GHz
-    #'m6gd',              # AWS Graviton2 Processor 2.5 GHz
+    'm6gd',              # AWS Graviton2 Processor 2.5 GHz
     'r5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
     'r5d',               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    #'r5b',               # Intel Xeon Platinum 8259 (Cascade Lake) 3.1 GHz
+    'r5b',               # Intel Xeon Platinum 8259 (Cascade Lake) 3.1 GHz
     'r5a',               # AMD EPYC 7571 2.5 GHz
     'r5ad',              # AMD EPYC 7571 2.5 GHz
     'r6a',
     'r6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz 1TB
     'r6id',
     'r6g',               # AWS Graviton2 Processor 2.5 GHz
-    #'r6gd',              # AWS Graviton2 Processor 2.5 GHz
-    #'x1',                # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 2TB
-    #'x1e',               # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 4TB
+    'r6gd',              # AWS Graviton2 Processor 2.5 GHz
+    'x1',                # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 2TB
+    'x1e',               # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 4TB
     'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
     'x2idn',             # Intel Xeon Scalable (Icelake) 3.5 GHz 2 TB
     'x2iedn',            # Intel Xeon Scalable (Icelake) 3.5 GHz 4 TB
     'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
     'z1d',               # Intel Xeon Platinum 8151 4.0 GHz
-    #'u-6tb1',            # Intel Xeon Scalable (Skylake) 6 TB
-    #'u-9tb1',            # Intel Xeon Scalable (Skylake) 9 TB
-    #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
 ]
 
 default_eda_instance_types = [
@@ -219,7 +293,7 @@ default_excluded_instance_families = [
 
 default_excluded_instance_types = [
     '.+\.(micro|nano)', # Not enough memory
-    '.*\.metal'
+    '.*\.metal.*'
 ]
 
 architectures = [
@@ -259,6 +333,7 @@ def get_config_schema(config):
         # Optional, but highly recommended
         Optional('ErrorSnsTopicArn'): str,
         Optional('TimeZone', default='US/Central'): str,
+        Optional('RESEnvironmentName'): str,
         'slurm': {
             Optional('ParallelClusterConfig'): {
                 Optional('Enable', default=True): And(bool, lambda s: s == True),
@@ -328,11 +403,13 @@ def get_config_schema(config):
             #     Default to StackName-cl
             Optional('ClusterName'): And(str, lambda s: s != config['StackName']),
             #
-            # MungeKeySsmParameter:
-            #     SSM String Parameter with a base64 encoded munge key to use for the cluster.
+            # MungeKeySecret:
+            #     AWS secret with a base64 encoded munge key to use for the cluster.
+            #     For an existing secret can be the secret name or the ARN.
+            #     If the secret doesn't exist one will be created, but won't be part of the cloudformation stack
+            #     so that it won't be deleted when the stack is deleted.
             #     Required if your submitters need to use more than 1 cluster.
-            #     Will be created if it doesn't exist to save the value in Parameter Store.
-            Optional('MungeKeySsmParameter', default='/slurm/munge_key'): str,
+            Optional('MungeKeySecret'): str,
             #
             # SlurmCtl:
             #     Required, but can be an empty dict to accept all of the defaults
