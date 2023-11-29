@@ -51,6 +51,7 @@ from aws_cdk import (
 import base64
 import boto3
 from botocore.exceptions import ClientError
+from config_schema import get_PARALLEL_CLUSTER_MUNGE_VERSION, get_PARALLEL_CLUSTER_PYTHON_VERSION, get_SLURM_VERSION
 from constructs import Construct
 from copy import copy, deepcopy
 from jinja2 import Template as Template
@@ -1262,7 +1263,7 @@ class CdkSlurmStack(Stack):
             instance_template_vars['ParallelClusterVersion'] = self.config['slurm']['ParallelClusterConfig']['Version']
             instance_template_vars['SlurmBaseDir'] = '/opt/slurm'
             instance_template_vars['SlurmOSDir'] = '/opt/slurm'
-            instance_template_vars['SlurmVersion'] =  self.config['slurm']['SlurmVersion']
+            instance_template_vars['SlurmVersion'] =  get_SLURM_VERSION(self.config)
 
         if instance_role == 'ParallelClusterHeadNode':
             if 'Database' in self.config['slurm']['ParallelClusterConfig']:
@@ -1270,8 +1271,8 @@ class CdkSlurmStack(Stack):
             else:
                 instance_template_vars['AccountingStorageHost'] = ''
             instance_template_vars['Licenses'] = self.config['Licenses']
-            instance_template_vars['ParallelClusterMungeVersion'] = self.config['slurm']['ParallelClusterConfig']['MungeVersion']
-            instance_template_vars['ParallelClusterPythonVersion'] = self.config['slurm']['ParallelClusterConfig']['PythonVersion']
+            instance_template_vars['ParallelClusterMungeVersion'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
+            instance_template_vars['ParallelClusterPythonVersion'] = get_PARALLEL_CLUSTER_PYTHON_VERSION(self.config)
             instance_template_vars['PrimaryController'] = True
             instance_template_vars['SlurmctldPort'] = self.slurmctld_port
             instance_template_vars['SlurmctldPortMin'] = self.slurmctld_port_min
@@ -1284,7 +1285,7 @@ class CdkSlurmStack(Stack):
             instance_template_vars['SlurmrestdUid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
         elif instance_role == 'ParallelClusterSubmitter':
             instance_template_vars['FileSystemMountPath'] = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['ParallelClusterMungeVersion'] = self.config['slurm']['ParallelClusterConfig']['MungeVersion']
+            instance_template_vars['ParallelClusterMungeVersion'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
             instance_template_vars['SlurmBaseDir'] = f'/opt/slurm/{cluster_name}'
             instance_template_vars['SlurmOSDir'] = f'/opt/slurm/{cluster_name}'
 

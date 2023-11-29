@@ -33,11 +33,7 @@
       ansible_ssh_user:        {{ansible_ssh_user}}
       ansible_ssh_common_args: {{ansible_ssh_common_args}}
 
-      SlurmVersion:       {{SlurmVersion}}
       SlurmBaseDir:       {{SlurmBaseDir}}
-      SlurmSrcDir:        {{SlurmSrcDir}}
-      SlurmVersionDir:    {{SlurmVersionDir}}
-      SlurmOSDir:         {{SlurmOSDir}}
       SlurmSbinDir:       {{SlurmSbinDir}}
       SlurmBinDir:        {{SlurmBinDir}}
       SlurmScriptsDir:    {{SlurmScriptsDir}}
@@ -46,7 +42,6 @@
       SupportedDistributions: {{SupportedDistributions}}
 
       Cluster Specific Vars
-      SlurmAccountingDir: {{SlurmAccountingDir}}
       SlurmConfigDir:     {{SlurmConfigDir}}
       SlurmEtcDir:        {{SlurmEtcDir}}
       SlurmLogsDir:       {{SlurmLogsDir}}

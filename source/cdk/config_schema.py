@@ -57,37 +57,46 @@ logger.setLevel(logging.INFO)
 #     * Fix pmix CVE
 #     * Use Slurm 23.02.5
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
-DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.7.1')
-DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION = '0.5.15'
-DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSIONS = {
-    '3.6.0':   '0.5.15',
-    '3.6.1':   '0.5.15',
-    '3.7.0':   '0.5.15',
-    '3.7.1':   '0.5.15',
+DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.7.2')
+PARALLEL_CLUSTER_VERSIONS = [
+    '3.6.0',
+    '3.6.1',
+    '3.7.0',
+    '3.7.1',
+    '3.7.2',
+]
+PARALLEL_CLUSTER_MUNGE_VERSIONS = {
+    # This can be found on the head node at /opt/parallelcluster/sources
+    # This can be found on the head node at /etc/chef/local-mode-cache/cache/
+    '3.6.0':   '0.5.15', # confirmed
+    '3.6.1':   '0.5.15', # confirmed
+    '3.7.0':   '0.5.15', # confirmed
+    '3.7.1':   '0.5.15', # confirmed
+    '3.7.2':   '0.5.15', # confirmed
 }
-DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION = '3.9.16'
-DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS = {
-    '3.6.0':   '3.9.16',
-    '3.6.1':   '3.9.16',
-    '3.7.0':   '3.9.16',
-    '3.7.1':   '3.9.16',
+PARALLEL_CLUSTER_PYTHON_VERSIONS = {
+    # This can be found on the head node at /opt/parallelcluster/pyenv/versions
+    '3.6.0':   '3.9.16', # confirmed
+    '3.6.1':   '3.9.16', # confirmed
+    '3.7.0':   '3.9.16', # confirmed
+    '3.7.1':   '3.9.16', # confirmed
+    '3.7.2':   '3.9.16', # confirmed
 }
-DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION = '23-02-3-1'
-DEFAULT_PARALLEL_CLUSTER_SLURM_VERSIONS = {
-    '3.7.0': DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION,
-    '3.7.1': DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION,
+PARALLEL_CLUSTER_SLURM_VERSIONS = {
+    # This can be found on the head node at /etc/chef/local-mode-cache/cache/
+    '3.6.0': '23-02-2-1', # confirmed
+    '3.6.1': '23-02-2-1', # confirmed
+    '3.7.0': '23-02-4-1', # confirmed
+    '3.7.1': '23-02-5-1', # confirmed
+    '3.7.2': '23-02-6-1', # confirmed
 }
-
-def get_DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION(config):
-    parallel_cluster_version = config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Version', DEFAULT_PARALLEL_CLUSTER_VERSION)
-    munge_version = DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSIONS.get(parallel_cluster_version, str(DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION))
-    return munge_version
-
-def get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config):
-    parallel_cluster_version = config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Version', DEFAULT_PARALLEL_CLUSTER_VERSION)
-    python_version = DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSIONS.get(parallel_cluster_version, str(DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION))
-    return python_version
-
+SLURM_REST_API_VERSIONS = {
+    '23-02-2-1': '0.0.39',
+    '23-02-3-1': '0.0.39',
+    '23-02-4-1': '0.0.39',
+    '23-02-5-1': '0.0.39',
+    '23-02-6-1': '0.0.39',
+}
 PARALLEL_CLUSTER_ALLOWED_OSES = [
     'alinux2',
     'centos7',
@@ -96,24 +105,28 @@ PARALLEL_CLUSTER_ALLOWED_OSES = [
     'ubuntu2204'
     ]
 
-DEFAULT_SLURM_VERSION = '23.02.1'
-def get_DEFAULT_SLURM_VERSION(config):
-    if config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Enable', False):
-        parallel_cluster_version = config.get('slurm', {}).get('ParallelClusterConfig', {}).get('Version', DEFAULT_PARALLEL_CLUSTER_VERSION)
-        slurm_version = DEFAULT_PARALLEL_CLUSTER_SLURM_VERSIONS.get(parallel_cluster_version, DEFAULT_PARALLEL_CLUSTER_SLURM_VERSION)
-    else:
-        slurm_version = DEFAULT_SLURM_VERSION
+def get_parallel_cluster_version(config):
+    return config['slurm']['ParallelClusterConfig']['Version']
+
+def get_PARALLEL_CLUSTER_MUNGE_VERSION(config):
+    parallel_cluster_version = get_parallel_cluster_version(config)
+    munge_version = PARALLEL_CLUSTER_MUNGE_VERSIONS[parallel_cluster_version]
+    return munge_version
+
+def get_PARALLEL_CLUSTER_PYTHON_VERSION(config):
+    parallel_cluster_version = get_parallel_cluster_version(config)
+    python_version = PARALLEL_CLUSTER_PYTHON_VERSIONS[parallel_cluster_version]
+    return python_version
+
+def get_SLURM_VERSION(config):
+    parallel_cluster_version = get_parallel_cluster_version(config)
+    slurm_version = PARALLEL_CLUSTER_SLURM_VERSIONS[parallel_cluster_version]
     return slurm_version
 
-DEFAULT_SLURM_REST_API_VERSION = '0.0.39'
-DEFAULT_SLURM_REST_API_VERSIONs = {
-    '23.02.1': '0.0.39',
-    '23-02-3-1': '0.0.39',
-}
-def get_default_slurm_rest_api_version(config):
-    slurm_version = config.get('slurm', {}).get('SlurmVersion', get_DEFAULT_SLURM_VERSION(config))
-    default_slurm_rest_api_version = DEFAULT_SLURM_REST_API_VERSIONs.get(slurm_version, DEFAULT_SLURM_REST_API_VERSION)
-    return default_slurm_rest_api_version
+def get_slurm_rest_api_version(config):
+    slurm_version = get_SLURM_VERSION(config)
+    slurm_rest_api_version = SLURM_REST_API_VERSIONS.get(slurm_version, )
+    return slurm_rest_api_version
 
 # Determine all AWS regions available on the account.
 default_region = environ.get("AWS_DEFAULT_REGION", "us-east-1")
@@ -249,9 +262,7 @@ def get_config_schema(config):
         'slurm': {
             Optional('ParallelClusterConfig'): {
                 Optional('Enable', default=True): And(bool, lambda s: s == True),
-                Optional('Version', default=str(DEFAULT_PARALLEL_CLUSTER_VERSION)): And(str, lambda s: parse_version(s) >= MIN_PARALLEL_CLUSTER_VERSION),
-                Optional('MungeVersion', default=get_DEFAULT_PARALLEL_CLUSTER_MUNGE_VERSION(config)): str,
-                Optional('PythonVersion', default=get_DEFAULT_PARALLEL_CLUSTER_PYTHON_VERSION(config)): str,
+                Optional('Version', default=str(DEFAULT_PARALLEL_CLUSTER_VERSION)): And(str, lambda version: version in PARALLEL_CLUSTER_VERSIONS, lambda version: parse_version(version) >= MIN_PARALLEL_CLUSTER_VERSION),
                 Optional('Image', default={'Os': 'centos7'}): {
                     'Os': And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES, ),
                     Optional('CustomAmi'): And(str, lambda s: s.startswith('ami-')),
@@ -311,10 +322,6 @@ def get_config_schema(config):
                     ]
                 }
             },
-            # SlurmVersion:
-            #     Latest tested version
-            #     Critical security fix released in 21.08.8. Must be later than that.
-            Optional('SlurmVersion', default=get_DEFAULT_SLURM_VERSION(config)): str,
             #
             # ClusterName:
             #     Name of the ParallelCluster cluster.
@@ -342,7 +349,7 @@ def get_config_schema(config):
                 #     File that will be included at end of slurm.conf to override configuration parameters.
                 Optional('SlurmConfOverrides'): str,
                 Optional('SlurmrestdUid', default=901): int,
-                Optional('SlurmRestApiVersion', default=get_default_slurm_rest_api_version(config)): str,
+                Optional('SlurmRestApiVersion', default=get_slurm_rest_api_version(config)): str,
             },
             #
             # SubmitterSecurityGroupIds:

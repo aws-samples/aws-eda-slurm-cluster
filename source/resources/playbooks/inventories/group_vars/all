@@ -33,19 +33,13 @@ centos7_7_to_9: "{{distribution in ['CentOS', 'RedHat'] and distribution_version
 
 # Create separate build and release dirs because binaries built on AmazonLinux2 don't run on CentOS 7
 SlurmBaseDir:    "{{FileSystemMountPath}}"
-SlurmAnsibleDir: "{{SlurmBaseDir}}/ansible"
-SlurmSrcDir:     "{{SlurmBaseDir}}/src/{{SlurmVersion}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
-SlurmVersionDir: "{{SlurmBaseDir}}/slurm-{{SlurmVersion}}"
-SlurmOSDir:      "{{SlurmVersionDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
-SlurmSbinDir:    "{{SlurmOSDir}}/sbin"
-SlurmBinDir:     "{{SlurmOSDir}}/bin"
+SlurmSbinDir:    "{{SlurmBaseDir}}/sbin"
+SlurmBinDir:     "{{SlurmBaseDir}}/bin"
 SlurmScriptsDir: "{{SlurmBaseDir}}/bin"
-SlurmRoot:       "{{SlurmOSDir}}"
+SlurmRoot:       "{{SlurmBaseDir}}"
 
 # Cluster specific directories
-SlurmAccountingDir:  "{{SlurmBaseDir}}/accounting"
 SlurmConfigDir:      "{{SlurmBaseDir}}/config"
-SlurmLocalConfigDir: "/opt/slurm/config"
 SlurmEtcDir:         "{{SlurmBaseDir}}/etc"
 SlurmLogsDir:        "{{SlurmBaseDir}}/logs"
 SlurmrestdSocketDir: "{{SlurmBaseDir}}/com"
