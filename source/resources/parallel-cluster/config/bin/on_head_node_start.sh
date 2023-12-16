@@ -1,29 +1,56 @@
 #!/bin/bash -x
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 
 set -x
+set -e
 
-exec 1> >(logger -s -t on_head_node_start.sh) 2>&1
+script_name=on_head_node_start.sh
 
-full_script=$(realpath $0)
-script_dir=$(dirname $full_script)
-base_script=$(basename $full_script)
+exec 1> >(logger -s -t ${script_name}) 2>&1
 
-date
-echo "Started on_head_node_start.sh: $full_script"
+echo "$(date): Started ${script_name}"
+
+# Jinja2 template variables
+assets_bucket={{assets_bucket}}
+assets_base_key={{assets_base_key}}
+export AWS_DEFAULT_REGION={{Region}}
+ErrorSnsTopicArn={{ErrorSnsTopicArn}}
+playbooks_s3_url={{playbooks_s3_url}}
+
+# Notify user of errors
+function on_exit {
+    rc=$?
+    set +e
+    if [[ $rc -ne 0 ]] && [[ ":$ErrorSnsTopicArn" != ":" ]]; then
+        message_file=$(mktemp)
+        echo "See log files for more info:
+    grep ${script_name} /var/log/messages | less" > $message_file
+        aws sns publish --topic-arn $ErrorSnsTopicArn --subject "${ClusterName} ${script_name} failed" --message file://$message_file
+        rm $message_file
+    fi
+}
+trap on_exit EXIT
 
 config_dir=/opt/slurm/config
 config_bin_dir=$config_dir/bin
 
-dest_script="$config_bin_dir/on_head_node_start.sh"
-if [ $full_script != $dest_script ]; then
-    echo "cp $full_script $dest_script"
-    cp $full_script $dest_script
-    chmod 0700 $dest_script
+# Make sure we're running the latest version
+dest_script="$config_bin_dir/${script_name}"
+mkdir -p $config_bin_dir
+aws s3 cp s3://$assets_bucket/$assets_base_key/config/bin/${script_name} $dest_script.new
+chmod 0700 $dest_script.new
+if ! [ -e $dest_script ] || ! diff -q $dest_script $dest_script.new; then
+    mv -f $dest_script.new $dest_script
+    exec $dest_script
+else
+    rm $dest_script.new
 fi
 
-assets_bucket={{assets_bucket}}
-assets_base_key={{assets_base_key}}
-playbooks_s3_url={{playbooks_s3_url}}
+# Notify SNS topic that triggers creation of DNS A record for head node.
+CreateHeadNodeARecordSnsTopicArnParameter={{CreateHeadNodeARecordSnsTopicArnParameter}}
+CreateHeadNodeARecordSnsTopicArn=$(aws ssm get-parameter --name $CreateHeadNodeARecordSnsTopicArnParameter --query 'Parameter.Value' --output text)
+aws sns publish --topic-arn $CreateHeadNodeARecordSnsTopicArn --message '{{ClusterName}} started'
 
 ansible_head_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_head_node_vars.yml"
 ansible_compute_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_compute_node_vars.yml"
@@ -33,10 +60,10 @@ create_user_groups_json_py_s3_url="s3://$assets_bucket/$assets_base_key/config/b
 create_user_groups_py_s3_url="s3://$assets_bucket/$assets_base_key/config/bin/create_users_groups.py"
 users_groups_json_s3_url="s3://$assets_bucket/$assets_base_key/config/users_groups.json"
 
-mkdir -p $config_bin_dir
 
 # Download all of the config scripts
 config_scripts=(\
+    configure-eda.sh \
     create_or_update_users_groups_json.sh \
     create_users_groups_json.py \
     create_users_groups_json_configure.sh \
@@ -56,6 +83,9 @@ for config_script in ${config_scripts[*]}; do
     chmod 0700 $dest.new
     mv -f $dest.new $dest
 done
+
+mkdir -p $config_dir/build-files
+aws s3 cp --recursive s3://$assets_bucket/$assets_base_key/config/build-files $config_dir/build-files
 
 if ! [ -e $config_dir/users_groups.json ]; then
     aws s3 cp $users_groups_json_s3_url $config_dir/users_groups.json
@@ -108,9 +138,6 @@ if ! [ -e $jwt_key ]; then
     chmod 0600 $jwt_key
 fi
 
-/usr/bin/cp -f /etc/munge/munge.key $config_dir/munge.key
-
-date
-echo "Finished on_head_node_start.sh: $full_script"
+echo "$(date): Finished ${script_name}"
 
 exit 0

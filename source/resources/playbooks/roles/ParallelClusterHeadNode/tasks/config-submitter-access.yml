@@ -1,5 +1,9 @@
 ---
 
+- name: Set variables used by the role
+  set_fact:
+    SlurmOSDir: /opt/slurm/{{ClusterName}}
+
 - name: Show vars used in this playbook
   debug:
     msg: |
@@ -11,6 +15,7 @@
       ParallelClusterVersion:     {{ParallelClusterVersion}}
       PCModulefilesBaseDir:       {{PCModulefilesBaseDir}}
       SlurmConfigDir:             {{SlurmConfigDir}}
+      SlurmOSDir:                 {{SlurmOSDir}}
 
 - name: Create /opt/slurm/{{ClusterName}} symbolic link
   # All head nodes are originally configured to use /opt/slurm
