@@ -126,7 +126,7 @@ def lambda_handler(event, context):
             valid_statuses = ['CREATE_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
             invalid_statuses = ['UPDATE_IN_PROGRESS', 'DELETE_IN_PROGRESS']
             if cluster_status in invalid_statuses:
-                cfnresponse.send(event, context, cfnresponse.FAILED, {f"{cluster_name} in {cluster_status} state."}, physicalResourceId=cluster_name)
+                cfnresponse.send(event, context, cfnresponse.FAILED, {'error': f"{cluster_name} in {cluster_status} state."}, physicalResourceId=cluster_name)
                 return
             if requestType == 'Create':
                 logger.info(f"{cluster_name} exists so changing request type from Create to Update.")
@@ -267,7 +267,7 @@ def lambda_handler(event, context):
                     break
                 if cluster_status == 'DELETE_FAILED':
                     logger.info(f"{cluster_name} delete failed")
-                    cfnresponse.send(event, context, cfnresponse.FAILED, {f"{cluster_name} in {cluster_status} state."}, physicalResourceId=cluster_name)
+                    cfnresponse.send(event, context, cfnresponse.FAILED, {'error': f"{cluster_name} in {cluster_status} state."}, physicalResourceId=cluster_name)
                     return
         else:
             raise ValueError(f"Unsupported requestType: {requestType}")

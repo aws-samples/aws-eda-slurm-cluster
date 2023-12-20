@@ -61,13 +61,14 @@ logger.setLevel(logging.INFO)
 #     * Fix pmix CVE
 #     * Use Slurm 23.02.5
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
-DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.7.2')
+DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.8.0')
 PARALLEL_CLUSTER_VERSIONS = [
     '3.6.0',
     '3.6.1',
     '3.7.0',
     '3.7.1',
     '3.7.2',
+    '3.8.0',
 ]
 PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/sources
@@ -77,6 +78,7 @@ PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.7.0':   '0.5.15', # confirmed
     '3.7.1':   '0.5.15', # confirmed
     '3.7.2':   '0.5.15', # confirmed
+    '3.8.0':   '0.5.15', # confirmed
 }
 PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/pyenv/versions
@@ -85,6 +87,7 @@ PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     '3.7.0':   '3.9.16', # confirmed
     '3.7.1':   '3.9.16', # confirmed
     '3.7.2':   '3.9.16', # confirmed
+    '3.8.0':   '3.9.17', # confirmed
 }
 PARALLEL_CLUSTER_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -93,6 +96,7 @@ PARALLEL_CLUSTER_SLURM_VERSIONS = {
     '3.7.0':   '23.02.4', # confirmed
     '3.7.1':   '23.02.5', # confirmed
     '3.7.2':   '23.02.6', # confirmed
+    '3.8.0':   '23.02.6', # confirmed
 }
 PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -101,6 +105,7 @@ PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     '3.7.0':   '23-02-4-1', # confirmed
     '3.7.1':   '23-02-5-1', # confirmed
     '3.7.2':   '23-02-6-1', # confirmed
+    '3.8.0':   '23-02-6-1', # confirmed
 }
 SLURM_REST_API_VERSIONS = {
     '23-02-2-1': '0.0.39',
@@ -113,6 +118,7 @@ PARALLEL_CLUSTER_ALLOWED_OSES = [
     'alinux2',
     'centos7',
     'rhel8',
+    'rocky8',
     'ubuntu2004',
     'ubuntu2204'
     ]
@@ -155,12 +161,19 @@ PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE_VERSION =
 def PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE(parallel_cluster_version):
     return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE_VERSION
 
-# Unsupported
-def PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY(parallel_cluster_version):
-    return False
+# Version 3.8.0
 
+PARALLEL_CLUSTER_SUPPORTS_CUSTOM_ROCKY_8_VERSION = parse_version('3.8.0')
+def PARALLEL_CLUSTER_SUPPORTS_CUSTOM_ROCKY_8(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_CUSTOM_ROCKY_8_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY_VERSION = parse_version('3.8.0')
+def PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT_VERSION = parse_version('3.8.0')
 def PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(parallel_cluster_version):
-    return False
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT_VERSION
 
 # Determine all AWS regions available on the account.
 default_region = environ.get("AWS_DEFAULT_REGION", "us-east-1")
