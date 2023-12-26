@@ -96,7 +96,18 @@
       - gcc-c++
       - platform-python-devel
 
-- name: Install cython, numpy
+- name: Install cython
+  when: (rhel8 or rhel8clone) and Architecture == 'arm64'
+  pip:
+    executable: /usr/bin/pip3
+    state: present
+    name:
+      - cython
+
+# Fails:
+#   * RHEL 8, arm64
+#   * Rocky 8, arm64
+- name: Install numpy
   when: (rhel8 or rhel8clone) and Architecture == 'arm64'
   tags:
     - python
@@ -105,32 +116,31 @@
     executable: /usr/bin/pip3
     state: present
     name:
-      - cython
       - numpy
+  ignore_errors: true
+  register: numpy_results
+
+- debug:
+    msg: |
+      numpy_results: {{numpy_results}}
+
+- name: Install pandas
+  when: (numpy_results.skipped|default(False)) or not numpy_results.failed
+  pip:
+    executable: /usr/bin/pip3
+    state: present
+    name:
+      - pandas
 
 - name: Install EDA pip3 packages
-  tags:
-    - python
-    - packages
   pip:
     executable: /usr/bin/pip3
     state: present
     name:
       - boto3
       - git-review
-      - python-hostlist
       - requests
       - virtualenv
-
-- name: Install pandas
-  tags:
-    - python
-    - packages
-  pip:
-    executable: /usr/bin/pip3
-    state: present
-    name:
-      - pandas
 
 # The amazon repo only has the 64 bit of compat-libstdc++-33 and
 # tools need both the 32 and 64 bit versions.

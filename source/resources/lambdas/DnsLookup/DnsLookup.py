@@ -56,6 +56,13 @@ def lambda_handler(event, context):
     except Exception as e:
         logging.exception(str(e))
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, str(e))
+        sns_client = boto3.client('sns')
+        sns_client.publish(
+            TopicArn = environ['ErrorSnsTopicArn'],
+            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Message = str(e)
+        )
+        logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
         raise
 
     cfnresponse.send(event, context, cfnresponse.SUCCESS, {'IpAddress': ip_address}, f"{ip_address}")

@@ -13,12 +13,14 @@ Build:
   ParentImage: {{ParentImage}}
   UpdateOsPackages:
     Enabled: false
+{%- if ComponentS3Url %}
   Components:
     - Type: script
       Value: {{ComponentS3Url}}
+{%- endif %}
   Iam:
     AdditionalIamPolicies:
-      - Policy: {{AssetReadPolicy}}
+      - Policy: {{AssetReadPolicyArn}}
 
 DevSettings:
   TerminateInstanceOnFailure: false

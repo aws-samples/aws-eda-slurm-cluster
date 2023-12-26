@@ -40,6 +40,7 @@ def lambda_handler(event, context):
 
         cluster_name = environ['ClusterName']
         cluster_region = environ['Region']
+
         logger.info(f"Create head node A record for {cluster_name} in {cluster_region}")
 
         route53_client = boto3.client('route53', region_name=cluster_region)
@@ -75,14 +76,19 @@ def lambda_handler(event, context):
         logger.info(f"Creating {head_node_a_record_name} A record.")
 
         ec2_client = boto3.client('ec2', region_name=cluster_region)
-        head_node_info = ec2_client.describe_instances(
+        instances_info = ec2_client.describe_instances(
             Filters = [
                 {'Name': 'tag:parallelcluster:cluster-name', 'Values': [cluster_name]},
                 {'Name': 'tag:parallelcluster:node-type', 'Values': ['HeadNode']}
             ]
-        )['Reservations'][0]['Instances'][0]
-        head_node_ip_address = head_node_info['PrivateIpAddress']
-        head_node_instance_id = head_node_info['InstanceId']
+        )
+        head_node_ip_address = None
+        for reservation_dict in instances_info['Reservations']:
+            for instance_dict in reservation_dict['Instances']:
+                head_node_ip_address = instance_dict.get('PrivateIpAddress', None)
+                head_node_instance_id = instance_dict['InstanceId']
+        if not head_node_ip_address:
+            raise ValueError(f"No head node private IP address found for {cluster_name}")
         logger.info(f"head node instance id: {head_node_instance_id}")
         logger.info(f"head node ip address: {head_node_ip_address}")
 
@@ -108,4 +114,11 @@ def lambda_handler(event, context):
 
     except Exception as e:
         logger.exception(str(e))
+        sns_client = boto3.client('sns')
+        sns_client.publish(
+            TopicArn = environ['ErrorSnsTopicArn'],
+            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Message = str(e)
+        )
+        logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
         raise

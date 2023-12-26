@@ -539,7 +539,7 @@ class CdkSlurmStack(Stack):
             string_value = 'None'
         )
 
-        s3_client = boto3.client('s3', region_name=self.cluster_region)
+        self.s3_client = boto3.client('s3', region_name=self.cluster_region)
 
         # The asset isn't uploaded right away so create our own zipfile and upload it
         playbooks_zipfile_base_filename = f"/tmp/{self.config['slurm']['ClusterName']}_playbooks"
@@ -551,7 +551,7 @@ class CdkSlurmStack(Stack):
         with open(playbooks_zipfile_filename, 'rb') as playbooks_zipfile_fh:
             self.assets_hash.update(playbooks_zipfile_fh.read())
         with open(playbooks_zipfile_filename, 'rb') as playbooks_zipfile_fh:
-            s3_client.put_object(
+            self.s3_client.put_object(
                 Bucket = self.assets_bucket,
                 Key    = self.playbooks_key,
                 Body   = playbooks_zipfile_fh
@@ -628,14 +628,14 @@ class CdkSlurmStack(Stack):
             self.custom_action_s3_urls[file_to_upload] = f"s3://{self.assets_bucket}/{s3_key}"
             local_template = Template(open(local_template_file, 'r').read())
             local_file_content = local_template.render(**template_vars)
-            s3_client.put_object(
+            self.s3_client.put_object(
                 Bucket = self.assets_bucket,
                 Key    = s3_key,
                 Body   = local_file_content
             )
             self.assets_hash.update(bytes(local_file_content, 'utf-8'))
 
-        ami_builds = {
+        self.ami_builds = {
             'amzn': {
                 '2': {
                     'arm64': {},
@@ -655,13 +655,12 @@ class CdkSlurmStack(Stack):
             }
         }
         if config_schema.PARALLEL_CLUSTER_SUPPORTS_CUSTOM_ROCKY_8(self.PARALLEL_CLUSTER_VERSION):
-            ami_builds['Rocky'] = {
+            self.ami_builds['Rocky'] = {
                 '8': {
                     'arm64': {},
                     'x86_64': {}
                 }
             }
-        template_vars['ComponentS3Url'] = self.custom_action_s3_urls['config/bin/configure-eda.sh']
         cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
         cfn_list_resources_paginator = cfn_client.get_paginator('list_stack_resources')
         try:
@@ -681,20 +680,26 @@ class CdkSlurmStack(Stack):
                 if imagebuilder_sg_id and asset_read_policy_arn:
                     break
             template_vars['ImageBuilderSecurityGroupId'] = imagebuilder_sg_id
-            template_vars['AssetReadPolicy'] = asset_read_policy_arn
+            template_vars['AssetReadPolicyArn'] = asset_read_policy_arn
         except:
             template_vars['ImageBuilderSecurityGroupId'] = self.imagebuilder_sg.security_group_id
-            template_vars['AssetReadPolicy'] = self.parallel_cluster_asset_read_policy.managed_policy_arn
+            template_vars['AssetReadPolicyArn'] = self.parallel_cluster_asset_read_policy.managed_policy_arn
         parallelcluster_version = self.config['slurm']['ParallelClusterConfig']['Version']
         parallelcluster_version_name = parallelcluster_version.replace('.', '-')
-        build_file_path = f"resources/parallel-cluster/config/build-files"
-        build_file_template_path = f"{build_file_path}/build-file.yml"
-        build_files_path = f"{build_file_path}/{parallelcluster_version}/{self.config['slurm']['ClusterName']}"
-        makedirs(build_files_path, exist_ok=True)
-        for distribution in ami_builds:
-            for version in ami_builds[distribution]:
-                for architecture in ami_builds[distribution][version]:
-                    template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-eda-{distribution}-{version}-{architecture}".replace('_', '-')
+        self.build_files_path = f"resources/parallel-cluster/config/build-files"
+        self.build_file_template_path = f"{self.build_files_path}/build-file-template.yml"
+        build_file_template_content = open(self.build_file_template_path, 'r').read()
+        self.s3_client.put_object(
+            Bucket = self.assets_bucket,
+            Key    = f"{self.assets_base_key}/config/build-files/build-file-template.yml",
+            Body   = build_file_template_content
+        )
+        build_file_template = Template(build_file_template_content)
+        cluster_build_files_path = f"{self.build_files_path}/{parallelcluster_version}/{self.config['slurm']['ClusterName']}"
+        makedirs(cluster_build_files_path, exist_ok=True)
+        for distribution in self.ami_builds:
+            for version in self.ami_builds[distribution]:
+                for architecture in self.ami_builds[distribution][version]:
                     if architecture == 'arm64':
                         template_vars['InstanceType'] = 'c6g.2xlarge'
                     else:
@@ -702,15 +707,20 @@ class CdkSlurmStack(Stack):
                     template_vars['ParentImage'] = self.get_image_builder_parent_image(distribution, version, architecture)
                     template_vars['RootVolumeSize'] = int(self.get_ami_root_volume_size(template_vars['ParentImage'])) + 10
                     logger.info(f"{distribution}-{version}-{architecture} image id: {template_vars['ParentImage']} root volume size={template_vars['RootVolumeSize']}")
-                    build_file_template = Template(open(build_file_template_path, 'r').read())
+
+                    # Base image without EDA packages
+                    template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-{distribution}-{version}-{architecture}".replace('_', '-')
+                    template_vars['ComponentS3Url'] = None
                     build_file_content = build_file_template.render(**template_vars)
-                    s3_client.put_object(
-                        Bucket = self.assets_bucket,
-                        Key    = f"{self.assets_base_key}/config/build-files/{template_vars['ImageName']}.yml",
-                        Body   = build_file_content
-                    )
                     self.assets_hash.update(bytes(build_file_content, 'utf-8'))
-                    fh = open(f"{build_files_path}/{template_vars['ImageName']}.yml", 'w')
+                    fh = open(f"{cluster_build_files_path}/{template_vars['ImageName']}.yml", 'w')
+                    fh.write(build_file_content)
+
+                    template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-eda-{distribution}-{version}-{architecture}".replace('_', '-')
+                    template_vars['ComponentS3Url'] = self.custom_action_s3_urls['config/bin/configure-eda.sh']
+                    build_file_content = build_file_template.render(**template_vars)
+                    self.assets_hash.update(bytes(build_file_content, 'utf-8'))
+                    fh = open(f"{cluster_build_files_path}/{template_vars['ImageName']}.yml", 'w')
                     fh.write(build_file_content)
 
                     template_vars['ParentImage'] = self.get_fpga_developer_image(distribution, version, architecture)
@@ -721,13 +731,8 @@ class CdkSlurmStack(Stack):
                     template_vars['RootVolumeSize'] = int(self.get_ami_root_volume_size(template_vars['ParentImage'])) + 10
                     logger.info(f"{distribution}-{version}-{architecture} fpga developer image id: {template_vars['ParentImage']} root volume size={template_vars['RootVolumeSize']}")
                     build_file_content = build_file_template.render(**template_vars)
-                    s3_client.put_object(
-                        Bucket = self.assets_bucket,
-                        Key    = f"{self.assets_base_key}/config/build-files/{template_vars['ImageName']}.yml",
-                        Body   = build_file_content
-                    )
                     self.assets_hash.update(bytes(build_file_content, 'utf-8'))
-                    fh = open(f"{build_files_path}/{template_vars['ImageName']}.yml", 'w')
+                    fh = open(f"{cluster_build_files_path}/{template_vars['ImageName']}.yml", 'w')
                     fh.write(build_file_content)
 
         ansible_head_node_template_vars = self.get_instance_template_vars('ParallelClusterHeadNode')
@@ -738,7 +743,7 @@ class CdkSlurmStack(Stack):
         fh.close()
         local_file = fh.name
         s3_key = f"{self.assets_base_key}/config/ansible/ansible_head_node_vars.yml"
-        s3_client.upload_file(
+        self.s3_client.upload_file(
             local_file,
             self.assets_bucket,
             s3_key)
@@ -753,7 +758,7 @@ class CdkSlurmStack(Stack):
         fh.close()
         local_file = fh.name
         s3_key = f"{self.assets_base_key}/config/ansible/ansible_compute_node_vars.yml"
-        s3_client.upload_file(
+        self.s3_client.upload_file(
             local_file,
             self.assets_bucket,
             s3_key)
@@ -768,7 +773,7 @@ class CdkSlurmStack(Stack):
         fh.close()
         local_file = fh.name
         s3_key = f"{self.assets_base_key}/config/ansible/ansible_submitter_vars.yml"
-        s3_client.upload_file(
+        self.s3_client.upload_file(
             local_file,
             self.assets_bucket,
             s3_key)
@@ -785,7 +790,7 @@ class CdkSlurmStack(Stack):
             filters.extend(
                 [
                     {'Name': 'owner-alias', 'Values': ['aws-marketplace']},
-                    {'Name': 'name', 'Values': [f"Rocky-{version}-EC2-Base-{version}.*"]},
+                    {'Name': 'name', 'Values': [f"Rocky-{version}-EC2-Base-{version}.8*"]},
                 ],
             )
         else:
@@ -801,6 +806,9 @@ class CdkSlurmStack(Stack):
         )
         logger.debug(f"Images:\n{json.dumps(response['Images'], indent=4)}")
         images = sorted(response['Images'], key=lambda image: image['CreationDate'], reverse=True)
+        if not images:
+            logger.error(f"No AMI found for {distribution} {version} {architecture}")
+            exit(1)
         image_id = images[0]['ImageId']
         return image_id
 
@@ -1003,6 +1011,67 @@ class CdkSlurmStack(Stack):
             ],
         )
 
+        createBuildFilesLambdaAsset = s3_assets.Asset(self, "CreateBuildFilesAsset", path="resources/lambdas/CreateBuildFiles")
+        self.create_build_files_lambda = aws_lambda.Function(
+            self, "CreateBuildFilesLambda",
+            function_name=f"{self.stack_name}-CreateBuildFiles",
+            description="Create ParallelCluster build configuration files",
+            memory_size=2048,
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(2),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CreateBuildFiles.lambda_handler",
+            code=aws_lambda.Code.from_bucket(createBuildFilesLambdaAsset.bucket, createBuildFilesLambdaAsset.s3_object_key),
+            layers=[self.parallel_cluster_lambda_layer],
+            environment = {
+                'AmiBuildsJson': json.dumps(self.ami_builds),
+                'AssetReadPolicyArn': self.parallel_cluster_asset_read_policy.managed_policy_arn,
+                'AssetsBaseKey': self.assets_base_key,
+                'AssetsBucket': self.assets_bucket,
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'ConfigureEdaScriptS3Url': self.custom_action_s3_urls['config/bin/configure-eda.sh'],
+                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'ImageBuilderSecurityGroupId': self.imagebuilder_sg.security_group_id,
+                'ParallelClusterVersion': self.config['slurm']['ParallelClusterConfig']['Version'],
+                'Region': self.cluster_region,
+                'SubnetId': self.config['SubnetId'],
+            }
+        )
+        self.create_build_files_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    's3:DeleteObject',
+                    's3:GetObject',
+                    's3:PutObject'
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/*"
+                    ]
+                )
+            )
+        self.create_build_files_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'ec2:DescribeImages'
+                ],
+                resources=[
+                    f"*"
+                    ]
+                )
+            )
+        self.create_build_files_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'sns:Publish'
+                ],
+                resources=[self.config['ErrorSnsTopicArn']]
+                )
+            )
+
         createParallelClusterLambdaAsset = s3_assets.Asset(self, "CreateParallelClusterAsset", path="resources/lambdas/CreateParallelCluster")
         self.create_parallel_cluster_lambda = aws_lambda.Function(
             self, "CreateParallelClusterLambda",
@@ -1016,6 +1085,9 @@ class CdkSlurmStack(Stack):
             handler="CreateParallelCluster.lambda_handler",
             code=aws_lambda.Code.from_bucket(createParallelClusterLambdaAsset.bucket, createParallelClusterLambdaAsset.s3_object_key),
             layers=[self.parallel_cluster_lambda_layer],
+            environment = {
+                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn']
+            }
         )
         self.create_parallel_cluster_lambda.add_to_role_policy(
             statement=iam.PolicyStatement(
@@ -1029,6 +1101,15 @@ class CdkSlurmStack(Stack):
                     f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/*",
                     f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/{self.parallel_cluster_config_json_s3_key}"
                     ]
+                )
+            )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'sns:Publish'
+                ],
+                resources=[self.config['ErrorSnsTopicArn']]
                 )
             )
         # From https://docs.aws.amazon.com/parallelcluster/latest/ug/iam-roles-in-parallelcluster-v3.html#iam-roles-in-parallelcluster-v3-base-user-policy
@@ -1254,6 +1335,16 @@ class CdkSlurmStack(Stack):
                     ]
                 )
             )
+        if self.munge_key_secret_arn:
+            self.create_parallel_cluster_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        "secretsmanager:GetSecretValue"
+                    ],
+                    resources=[self.munge_key_secret_arn]
+                    )
+                )
 
         createHeadNodeARecordAsset = s3_assets.Asset(self, "CreateHeadNodeARecordAsset", path="resources/lambdas/CreateHeadNodeARecord")
         self.create_head_node_a_record_lambda = aws_lambda.Function(
@@ -1269,7 +1360,8 @@ class CdkSlurmStack(Stack):
             code=aws_lambda.Code.from_bucket(createHeadNodeARecordAsset.bucket, createHeadNodeARecordAsset.s3_object_key),
             environment = {
                 'ClusterName': self.config['slurm']['ClusterName'],
-                'Region': self.cluster_region
+                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'Region': self.cluster_region,
             }
         )
         self.create_head_node_a_record_lambda.add_to_role_policy(
@@ -1282,6 +1374,15 @@ class CdkSlurmStack(Stack):
                     'route53:ListResourceRecordSets',
                 ],
                 resources=['*']
+                )
+            )
+        self.create_head_node_a_record_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'sns:Publish'
+                ],
+                resources=[self.config['ErrorSnsTopicArn']]
                 )
             )
         self.create_head_node_a_record_lambda.add_event_source(
@@ -1303,6 +1404,7 @@ class CdkSlurmStack(Stack):
             code=aws_lambda.Code.from_bucket(updateHeadNodeLambdaAsset.bucket, updateHeadNodeLambdaAsset.s3_object_key),
             environment = {
                 'ClusterName': self.config['slurm']['ClusterName'],
+                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
                 'Region': self.cluster_region
             }
         )
@@ -1315,6 +1417,15 @@ class CdkSlurmStack(Stack):
                     'ssm:SendCommand',
                 ],
                 resources=['*']
+                )
+            )
+        self.update_head_node_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'sns:Publish'
+                ],
+                resources=[self.config['ErrorSnsTopicArn']]
                 )
             )
 
@@ -1333,6 +1444,7 @@ class CdkSlurmStack(Stack):
                 code=aws_lambda.Code.from_bucket(configureClusterManagerLambdaAsset.bucket, configureClusterManagerLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
+                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
@@ -1346,6 +1458,15 @@ class CdkSlurmStack(Stack):
                         'ssm:SendCommand',
                     ],
                     resources=['*']
+                    )
+                )
+            self.configure_cluster_manager_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
                     )
                 )
             self.configure_cluster_manager_lambda.add_event_source(
@@ -1368,6 +1489,7 @@ class CdkSlurmStack(Stack):
                 environment = {
                     'Region': self.cluster_region,
                     'ClusterName': self.config['slurm']['ClusterName'],
+                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
             )
@@ -1380,6 +1502,15 @@ class CdkSlurmStack(Stack):
                         'ssm:SendCommand',
                     ],
                     resources=['*']
+                    )
+                )
+            self.configure_submitters_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
                     )
                 )
             self.configure_submitters_lambda.add_event_source(
@@ -1401,6 +1532,7 @@ class CdkSlurmStack(Stack):
                 code=aws_lambda.Code.from_bucket(self.deconfigureClusterManagerLambdaAsset.bucket, self.deconfigureClusterManagerLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
+                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
@@ -1414,6 +1546,15 @@ class CdkSlurmStack(Stack):
                         'ssm:SendCommand',
                     ],
                     resources=['*']
+                    )
+                )
+            self.deconfigure_cluster_manager_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
                     )
                 )
 
@@ -1431,6 +1572,7 @@ class CdkSlurmStack(Stack):
                 code=aws_lambda.Code.from_bucket(deconfigureSubmittersLambdaAsset.bucket, deconfigureSubmittersLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
+                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
@@ -1444,6 +1586,15 @@ class CdkSlurmStack(Stack):
                         'ssm:SendCommand',
                     ],
                     resources=['*']
+                    )
+                )
+            self.deconfigure_submitters_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
                     )
                 )
 
@@ -1465,10 +1616,20 @@ class CdkSlurmStack(Stack):
             security_groups = [self.slurm_rest_api_lambda_sg],
             environment = {
                 'CLUSTER_NAME': f"{self.config['slurm']['ClusterName']}",
+                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
                 'SLURM_REST_API_VERSION': self.config['slurm']['SlurmCtl']['SlurmRestApiVersion'],
                 'SLURMRESTD_URL': f"http://slurmctl1.{self.config['slurm']['ClusterName']}.pcluster:{self.slurmrestd_port}"
                 }
         )
+        self.call_slurm_rest_api_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'sns:Publish'
+                ],
+                resources=[self.config['ErrorSnsTopicArn']]
+                )
+            )
 
         self.jwt_token_for_root_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
 
@@ -2048,6 +2209,28 @@ class CdkSlurmStack(Stack):
         for child in resource.node.children:
             self.suppress_cfn_nag(child, msg_id, reason)
 
+    def ami_supports_instance_type(self, image_id, instance_type):
+        # Check to see if the instance type is supported by the AMI
+        supports = False
+        error_message = None
+        try:
+            self.ec2_client.run_instances(
+                ImageId = image_id,
+                InstanceType = instance_type,
+                SubnetId = self.config['SubnetId'],
+                MinCount = 1,
+                MaxCount = 1,
+                DryRun = True
+            )
+            assert False # Should always throw at least a DryRunOperation exception
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'DryRunOperation':
+                supports = True
+            else:
+                supports = False
+                error_message = f"{e.response['Error']['Code']}: {e.response['Error']['Message']}"
+        return supports, error_message
+
     def create_parallel_cluster_config(self):
         MAX_NUMBER_OF_QUEUES = 50
         MAX_NUMBER_OF_COMPUTE_RESOURCES = 50
@@ -2209,12 +2392,36 @@ class CdkSlurmStack(Stack):
                     extra_mount_sg.security_group_id
                 )
 
+        if 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
+            # Check that the AMI support the head node instance type
+            head_node_ami = self.config['slurm']['ParallelClusterConfig']['Image']['CustomAmi']
+            instance_type = self.config['slurm']['SlurmCtl']['instance_type']
+            supports, error_message = self.ami_supports_instance_type(head_node_ami, instance_type)
+            if not supports:
+                logger.error(f"Head node instance type of {instance_type} not supported for {head_node_ami}. {error_message}")
+                exit(1)
+        else:
+            head_node_ami = None
+
+        if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
+            compute_node_ami = self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
+        elif 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
+            compute_node_ami = self.config['slurm']['ParallelClusterConfig']['Image']['CustomAmi']
+        else:
+            compute_node_ami = None
+
         # Create list of instance types by number of cores and amount of memory
         instance_types_by_core_memory = {}
         # Create list of instance types by amount of memory and number of cores
         instance_types_by_memory_core = {}
         logger.info(f"Bucketing {len(self.instance_types)} instance types based on core and memory")
         for instance_type in self.instance_types:
+            if compute_node_ami:
+                supports, error_message = self.ami_supports_instance_type(compute_node_ami, instance_type)
+                if not supports:
+                    logger.warning(f"{instance_type:12s} not supported for {compute_node_ami}. {error_message}")
+                    continue
+
             cores = self.plugin.get_CoreCount(self.cluster_region, instance_type)
             mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
             if cores not in instance_types_by_core_memory:
@@ -2632,6 +2839,11 @@ class CdkSlurmStack(Stack):
                 }
             self.parallel_cluster_config['SharedStorage'].append(parallel_cluster_storage_dict)
 
+        self.build_config_files = CustomResource(
+            self, "BuildConfigFiles",
+            service_token = self.create_build_files_lambda.function_arn
+        )
+
         self.parallel_cluster = CustomResource(
             self, "ParallelCluster",
             service_token = self.create_parallel_cluster_lambda.function_arn,
@@ -2653,6 +2865,8 @@ class CdkSlurmStack(Stack):
         # The lambdas to configure instances must exist befor the cluster so they can be called.
         self.parallel_cluster.node.add_dependency(self.configure_cluster_manager_lambda)
         self.parallel_cluster.node.add_dependency(self.configure_submitters_lambda)
+        # Build config files need to be created before cluster so that they can be downloaded as part of on_head_node_configures
+        self.parallel_cluster.node.add_dependency(self.build_config_files)
 
         self.call_slurm_rest_api_lambda.node.add_dependency(self.parallel_cluster)
 
