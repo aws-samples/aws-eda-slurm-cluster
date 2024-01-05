@@ -81,4 +81,11 @@ sudo $script
 
     except Exception as e:
         logger.exception(str(e))
+        sns_client = boto3.client('sns')
+        sns_client.publish(
+            TopicArn = environ['ErrorSnsTopicArn'],
+            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Message = str(e)
+        )
+        logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
         raise
