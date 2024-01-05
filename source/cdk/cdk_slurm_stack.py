@@ -470,7 +470,7 @@ class CdkSlurmStack(Stack):
         self.assets_bucket = self.playbooks_asset.s3_bucket_name
         self.assets_base_key = self.config['slurm']['ClusterName']
 
-        self.parallel_cluster_config_json_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.json"
+        self.parallel_cluster_config_template_yaml_s3_key = f"{self.assets_base_key}/ParallelClusterConfigTemplate.yml"
         self.parallel_cluster_config_yaml_s3_key = f"{self.assets_base_key}/ParallelClusterConfig.yml"
 
         self.parallel_cluster_munge_key_write_policy = iam.ManagedPolicy(
@@ -1086,7 +1086,12 @@ class CdkSlurmStack(Stack):
             code=aws_lambda.Code.from_bucket(createParallelClusterLambdaAsset.bucket, createParallelClusterLambdaAsset.s3_object_key),
             layers=[self.parallel_cluster_lambda_layer],
             environment = {
-                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn']
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'ParallelClusterConfigS3Bucket': self.assets_bucket,
+                'ParallelClusterConfigYamlTemplateS3Key': self.parallel_cluster_config_template_yaml_s3_key,
+                'ParallelClusterConfigYamlS3Key': self.parallel_cluster_config_yaml_s3_key,
+                'Region': self.cluster_region
             }
         )
         self.create_parallel_cluster_lambda.add_to_role_policy(
@@ -1099,7 +1104,8 @@ class CdkSlurmStack(Stack):
                 ],
                 resources=[
                     f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/*",
-                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/{self.parallel_cluster_config_json_s3_key}"
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/{self.parallel_cluster_config_template_yaml_s3_key}",
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/{self.parallel_cluster_config_yaml_s3_key}"
                     ]
                 )
             )
@@ -2013,7 +2019,6 @@ class CdkSlurmStack(Stack):
             instance_template_vars['SlurmBaseDir']          = f'/opt/slurm/{cluster_name}'
             instance_template_vars['SubmitterSlurmBaseDir'] = f'/opt/slurm/{cluster_name}'
             instance_template_vars['SlurmConfigDir']        = f'/opt/slurm/{cluster_name}/config'
-            instance_template_vars['SlurmSrcDir']           = f'/opt/slurm/{cluster_name}/config/src'
             instance_template_vars['SlurmEtcDir']           = f'/opt/slurm/{cluster_name}/etc'
             instance_template_vars['ModulefilesBaseDir']    = f'/opt/slurm/{cluster_name}/config/modules/modulefiles'
 
@@ -2258,10 +2263,10 @@ class CdkSlurmStack(Stack):
                 'Iam': {
                     'AdditionalIamPolicies': [
                         {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
-                        {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
-                        {'Policy': self.parallel_cluster_sns_publish_policy.managed_policy_arn},
-                        {'Policy': self.parallel_cluster_jwt_write_policy.managed_policy_arn},
-                        {'Policy': self.parallel_cluster_munge_key_write_policy.managed_policy_arn},
+                        {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
+                        {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'},
+                        {'Policy': '{{ParallelClusterJwtWritePolicyArn}}'},
+                        {'Policy': '{{ParallelClusterMungeKeyWritePolicyArn}}'},
                     ],
                 },
                 'Imds': {
@@ -2274,7 +2279,7 @@ class CdkSlurmStack(Stack):
                 'Networking': {
                     'SubnetId': self.config['SubnetId'],
                     'AdditionalSecurityGroups': [
-                        self.slurmctl_sg.security_group_id
+                        '{{SlurmCtlSecurityGroupId}}'
                     ]
                 },
                 'CustomActions': {
@@ -2347,7 +2352,6 @@ class CdkSlurmStack(Stack):
                             'sched_min_internal=2000000',
                         ])},
                         {'ScronParameters': 'enable'},
-                        {'PluginDir': '/opt/slurm/lib/slurm'},
                     ],
                 },
             },
@@ -2387,10 +2391,17 @@ class CdkSlurmStack(Stack):
 
         # Give the head node access to extra mounts
         for fs_type in self.extra_mount_security_groups.keys():
+            index = 0
             for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(
-                    extra_mount_sg.security_group_id
+                template_var = f"ExtraMountSecurityGroupId{index}"
+                self.create_parallel_cluster_lambda.add_environment(
+                    key = 'template_var',
+                    value = extra_mount_sg.security_group_id
                 )
+                self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(
+                    f"{{template_var}}"
+                )
+                index += 1
 
         if 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
             # Check that the AMI support the head node instance type
@@ -2511,13 +2522,13 @@ class CdkSlurmStack(Stack):
                         'Iam': {
                             'AdditionalIamPolicies': [
                                 {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
-                                {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
-                                {'Policy': self.parallel_cluster_sns_publish_policy.managed_policy_arn}
+                                {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
+                                {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'}
                             ]
                         },
                         'Networking': {
                             'SubnetIds': [self.config['SubnetId']],
-                            'AdditionalSecurityGroups': [self.slurmnode_sg.security_group_id],
+                            'AdditionalSecurityGroups': ['{{SlurmNodeSecurityGroupId}}'],
                             'PlacementGroup': {}
                         },
                     }
@@ -2640,13 +2651,13 @@ class CdkSlurmStack(Stack):
                         'Iam': {
                             'AdditionalIamPolicies': [
                                 {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
-                                {'Policy': self.parallel_cluster_asset_read_policy.managed_policy_arn},
-                                {'Policy': self.parallel_cluster_sns_publish_policy.managed_policy_arn}
+                                {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
+                                {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'}
                             ]
                         },
                         'Networking': {
                             'SubnetIds': [self.config['SubnetId']],
-                            'AdditionalSecurityGroups': [self.slurmnode_sg.security_group_id],
+                            'AdditionalSecurityGroups': ['{{SlurmNodeSecurityGroupId}}'],
                         },
                     }
                     if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
@@ -2839,25 +2850,50 @@ class CdkSlurmStack(Stack):
                 }
             self.parallel_cluster_config['SharedStorage'].append(parallel_cluster_storage_dict)
 
+        # Save the config template to s3.
+        self.s3_client.put_object(
+            Bucket = self.assets_bucket,
+            Key    = self.parallel_cluster_config_template_yaml_s3_key,
+            Body   = yaml.dump(self.parallel_cluster_config)
+        )
+
         self.build_config_files = CustomResource(
             self, "BuildConfigFiles",
             service_token = self.create_build_files_lambda.function_arn
         )
 
+        self.create_parallel_cluster_lambda.add_environment(
+            key = 'ParallelClusterAssetReadPolicyArn',
+            value = self.parallel_cluster_asset_read_policy.managed_policy_arn
+        )
+        self.create_parallel_cluster_lambda.add_environment(
+            key = 'ParallelClusterJwtWritePolicyArn',
+            value = self.parallel_cluster_jwt_write_policy.managed_policy_arn
+        )
+        self.create_parallel_cluster_lambda.add_environment(
+            key = 'ParallelClusterMungeKeyWritePolicyArn',
+            value = self.parallel_cluster_munge_key_write_policy.managed_policy_arn
+        )
+        self.create_parallel_cluster_lambda.add_environment(
+            key = 'ParallelClusterSnsPublishPolicyArn',
+            value = self.parallel_cluster_sns_publish_policy.managed_policy_arn
+        )
+        self.create_parallel_cluster_lambda.add_environment(
+            key = 'SlurmCtlSecurityGroupId',
+            value = self.slurmctl_sg.security_group_id
+        )
+        self.create_parallel_cluster_lambda.add_environment(
+            key = 'SlurmNodeSecurityGroupId',
+            value = self.slurmnode_sg.security_group_id
+        )
         self.parallel_cluster = CustomResource(
             self, "ParallelCluster",
             service_token = self.create_parallel_cluster_lambda.function_arn,
             properties = {
-                'ParallelClusterConfigHash': self.assets_hash.hexdigest(),
-                'ParallelClusterConfigJson': json.dumps(self.parallel_cluster_config, sort_keys=False),
-                'ParallelClusterConfigS3Bucket': self.assets_bucket,
-                'ParallelClusterConfigJsonS3Key': self.parallel_cluster_config_json_s3_key,
-                'ParallelClusterConfigYamlS3Key': self.parallel_cluster_config_yaml_s3_key,
-                'Region': self.config['Region'],
-                'ClusterName': self.config['slurm']['ClusterName'],
+                'ParallelClusterConfigHash': self.assets_hash.hexdigest()
             }
         )
-        self.parallel_cluster_config_json_s3_url = self.parallel_cluster.get_att_string('ConfigJsonS3Url')
+        self.parallel_cluster_config_template_yaml_s3_url = self.parallel_cluster.get_att_string('ConfigTemplateYamlS3Url')
         self.parallel_cluster_config_yaml_s3_url = self.parallel_cluster.get_att_string('ConfigYamlS3Url')
         # The lambda to create an A record for the head node must be built before the parallel cluster.
         self.parallel_cluster.node.add_dependency(self.create_head_node_a_record_lambda)
@@ -2899,8 +2935,8 @@ class CdkSlurmStack(Stack):
             )
             self.deconfigure_submitters.node.add_dependency(self.parallel_cluster)
 
-        CfnOutput(self, "ParallelClusterConfigJsonS3Url",
-            value = self.parallel_cluster_config_json_s3_url
+        CfnOutput(self, "ParallelClusterConfigTemplateYamlS3Url",
+            value = self.parallel_cluster_config_template_yaml_s3_url
         )
         CfnOutput(self, "ParallelClusterConfigYamlS3Url",
             value = self.parallel_cluster_config_yaml_s3_url

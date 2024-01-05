@@ -75,7 +75,8 @@ def lambda_handler(event, context):
         reservations_info = ec2_client.describe_instances(
             Filters = [
                 {'Name': 'tag:parallelcluster:cluster-name', 'Values': [cluster_name]},
-                {'Name': 'tag:parallelcluster:node-type', 'Values': ['HeadNode']}
+                {'Name': 'tag:parallelcluster:node-type', 'Values': ['HeadNode']},
+                {'Name': 'instance-state-name', 'Values': ['running']}
             ]
         )['Reservations']
         # If the cluster hasn't deployed yet or didn't successfully deploy initially, then the head node might not exist.
@@ -90,6 +91,10 @@ def lambda_handler(event, context):
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
             return
         head_node_info = instances_info[0]
+        if 'PrivateIpAddress' not in head_node_info:
+            logger.info(f"No head node private IP address found.")
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
+            return
         head_node_ip_address = head_node_info['PrivateIpAddress']
         head_node_instance_id = head_node_info['InstanceId']
         logger.info(f"head node instance id: {head_node_instance_id}")
