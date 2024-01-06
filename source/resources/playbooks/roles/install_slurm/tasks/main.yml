@@ -26,11 +26,15 @@
       centos7_5_to_9: {{centos7_5_to_9}}
       centos7_7_to_9: {{centos7_7_to_9}}
 
-- name: Set variables used by this playbook
+- name: Set SlurmSrcDir
+  set_fact:
+    SlurmSrcDir: "/opt/slurm/{{ClusterName}}/config/src/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
+
+- name: Set SlurmOSDir
   set_fact:
     SlurmOSDir:  "/opt/slurm/{{ClusterName}}/config/os/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
 
-- name: Set variables used by this playbook
+- name: Set SlurmBinDir
   set_fact:
     SlurmBinDir: "{{SlurmOSDir}}/bin"
 
@@ -45,7 +49,6 @@
       SlurmrestdPort:     {{SlurmrestdPort}}
       SlurmEtcDir:        {{SlurmEtcDir}}
       ModulefilesBaseDir: {{ModulefilesBaseDir}}
-      SubmitterSlurmBaseDir: {{SubmitterSlurmBaseDir}}
 
 - name: Install epel from amazon-linux-extras
   when: distribution == 'Amazon'
@@ -178,7 +181,7 @@
     set -xe
 
     cd {{SlurmSrcDir}}/slurm-{{SlurmVersion}}
-    ./configure --prefix {{SlurmOSDir}}/ --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{SlurmrestdPort}} &> configure.log
+    ./configure --prefix {{SlurmOSDir}} --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{SlurmrestdPort}} &> configure.log
     CORES=$(grep processor /proc/cpuinfo | wc -l)
     make -j $CORES &> slurm-make.log
     make -j $CORES contrib &> slurm-make-contrib.log
