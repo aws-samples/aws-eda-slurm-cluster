@@ -84,13 +84,17 @@ ansible-playbook $PLAYBOOKS_PATH/ParallelClusterHeadNode.yml \
 popd
 
 # Notify SNS topic that trigger configuration of cluster manager and submitters
-ConfigureClusterManagerSnsTopicArnParameter={{ConfigureClusterManagerSnsTopicArnParameter}}
-ConfigureClusterManagerSnsTopicArn=$(aws ssm get-parameter --name $ConfigureClusterManagerSnsTopicArnParameter --query 'Parameter.Value' --output text)
-aws sns publish --topic-arn $ConfigureClusterManagerSnsTopicArn --message '{{ClusterName}} configured'
+ConfigureRESClusterManagerSnsTopicArnParameter={{ConfigureRESClusterManagerSnsTopicArnParameter}}
+if ! [[ -z "$ConfigureRESClusterManagerSnsTopicArnParameter" ]]; then
+    ConfigureRESClusterManagerSnsTopicArn=$(aws ssm get-parameter --name $ConfigureRESClusterManagerSnsTopicArnParameter --query 'Parameter.Value' --output text)
+    aws sns publish --topic-arn $ConfigureRESClusterManagerSnsTopicArn --message 'Configure {{ClusterName}} RES ClusterManager'
+fi
 
-ConfigureSubmittersSnsTopicArnParameter={{ConfigureSubmittersSnsTopicArnParameter}}
-ConfigureSubmittersSnsTopicArn=$(aws ssm get-parameter --name $ConfigureSubmittersSnsTopicArnParameter --query 'Parameter.Value' --output text)
-aws sns publish --topic-arn $ConfigureSubmittersSnsTopicArn --message '{{ClusterName}} configured'
+ConfigureRESSubmittersSnsTopicArnParameter={{ConfigureRESSubmittersSnsTopicArnParameter}}
+if ! [[ -z "$ConfigureRESSubmittersSnsTopicArnParameter" ]]; then
+    ConfigureRESSubmittersSnsTopicArn=$(aws ssm get-parameter --name $ConfigureRESSubmittersSnsTopicArnParameter --query 'Parameter.Value' --output text)
+    aws sns publish --topic-arn $ConfigureRESSubmittersSnsTopicArn --message 'Configure {{ClusterName}} RES submitters'
+fi
 
 echo "$(date): Finished ${script_name}"
 

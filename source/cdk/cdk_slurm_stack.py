@@ -350,7 +350,19 @@ class CdkSlurmStack(Stack):
                         break
                 assert vpc_checked, f"Didn't find vpc for database in\n{json.dumps(parameter_dicts, indent=4)}"
 
-                stack_outputs = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks'][0]['Outputs']
+                stacks_list = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks']
+                if not stacks_list:
+                    logger.error(f"No stack named {self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']} found.")
+                    exit(1)
+                if len(stacks_list) > 1:
+                    logger.error(f"More than 1 database stack with name=={self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}. Please report a bug.")
+                    for index, stack_dict in enumerate(stacks_list):
+                        logger.error(f"    stack[{index}]: StackName={stack_dict['StackName']} StackId={stack_dict['StackId']}")
+                    exit(1)
+                if 'Outputs' not in stacks_list[0]:
+                    logger.error(f"No outputs found in {self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}. StackStatus={stacks_list[0]['StackStatus']}")
+                    exit(1)
+                stack_outputs = stacks_list[0]['Outputs']
                 output_to_key_map = {
                     'DatabaseHost': 'FQDN',
                     'DatabasePort': 'Port',
@@ -511,19 +523,19 @@ class CdkSlurmStack(Stack):
         self.suppress_cfn_nag(self.create_head_node_a_record_sns_topic, 'W47', 'Use default KMS key.')
         if 'RESEnvironmentName' in self.config:
             # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
-            self.configure_cluster_manager_sns_topic = sns.Topic(
-                self, "ConfigureClusterManagerSnsTopic",
-                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureClusterManager"
+            self.configure_res_cluster_manager_sns_topic = sns.Topic(
+                self, "ConfigureRESClusterManagerSnsTopic",
+                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureRESClusterManager"
                 )
             # W47:SNS Topic should specify KmsMasterKeyId property
-            self.suppress_cfn_nag(self.configure_cluster_manager_sns_topic, 'W47', 'Use default KMS key.')
+            self.suppress_cfn_nag(self.configure_res_cluster_manager_sns_topic, 'W47', 'Use default KMS key.')
             # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
-            self.configure_submitters_sns_topic = sns.Topic(
-                self, "ConfigureSubmittersSnsTopic",
-                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureSubmitters"
+            self.configure_res_submitters_sns_topic = sns.Topic(
+                self, "ConfigureRESSubmittersSnsTopic",
+                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureRESSubmitters"
                 )
             # W47:SNS Topic should specify KmsMasterKeyId property
-            self.suppress_cfn_nag(self.configure_submitters_sns_topic, 'W47', 'Use default KMS key.')
+            self.suppress_cfn_nag(self.configure_res_submitters_sns_topic, 'W47', 'Use default KMS key.')
 
         # Create an SSM parameter to store the JWT tokens for root and slurmrestd
         self.jwt_token_for_root_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/root"
@@ -558,21 +570,22 @@ class CdkSlurmStack(Stack):
             )
         os.remove(playbooks_zipfile_filename)
 
-        self.configure_cluster_manager_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureClusterManagerSnsTopicArn"
-        self.configure_cluster_manager_sns_topic_arn_parameter = ssm.StringParameter(
-            self, f"ConfigureClusterManagerSnsTopicArnParameter",
-            parameter_name = self.configure_cluster_manager_sns_topic_arn_parameter_name,
-            string_value = self.configure_cluster_manager_sns_topic.topic_arn
-        )
-        self.configure_cluster_manager_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
+        if 'RESEnvironmentName' in self.config:
+            self.configure_res_cluster_manager_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESClusterManagerSnsTopicArn"
+            self.configure_res_cluster_manager_sns_topic_arn_parameter = ssm.StringParameter(
+                self, f"ConfigureRESClusterManagerSnsTopicArnParameter",
+                parameter_name = self.configure_res_cluster_manager_sns_topic_arn_parameter_name,
+                string_value = self.configure_res_cluster_manager_sns_topic.topic_arn
+            )
+            self.configure_res_cluster_manager_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
 
-        self.configure_submitters_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureSubmittersSnsTopicArn"
-        self.configure_submitters_sns_topic_arn_parameter = ssm.StringParameter(
-            self, f"ConfigureSubmittersSnsTopicArnParameter",
-            parameter_name = self.configure_submitters_sns_topic_arn_parameter_name,
-            string_value = self.configure_submitters_sns_topic.topic_arn
-        )
-        self.configure_submitters_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
+            self.configure_res_submitters_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESSubmittersSnsTopicArn"
+            self.configure_res_submitters_sns_topic_arn_parameter = ssm.StringParameter(
+                self, f"ConfigureRESSubmittersSnsTopicArnParameter",
+                parameter_name = self.configure_res_submitters_sns_topic_arn_parameter_name,
+                string_value = self.configure_res_submitters_sns_topic.topic_arn
+            )
+            self.configure_res_submitters_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
 
         self.create_head_node_a_record_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/CreateHeadNodeARecordSnsTopicArn"
         self.create_head_node_a_record_sns_topic_arn_parameter = ssm.StringParameter(
@@ -586,8 +599,8 @@ class CdkSlurmStack(Stack):
             'assets_bucket': self.assets_bucket,
             'assets_base_key': self.assets_base_key,
             'ClusterName': self.config['slurm']['ClusterName'],
-            'ConfigureClusterManagerSnsTopicArnParameter': self.configure_cluster_manager_sns_topic_arn_parameter_name,
-            'ConfigureSubmittersSnsTopicArnParameter': self.configure_submitters_sns_topic_arn_parameter_name,
+            'ConfigureRESClusterManagerSnsTopicArnParameter': '',
+            'ConfigureRESSubmittersSnsTopicArnParameter': '',
             'CreateHeadNodeARecordSnsTopicArnParameter': self.create_head_node_a_record_sns_topic_arn_parameter_name,
             'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
             'playbooks_s3_url': self.playbooks_s3_url,
@@ -603,6 +616,9 @@ class CdkSlurmStack(Stack):
             template_vars['HomeMountSrc'] = self.mount_home_src
         else:
             template_vars['HomeMountSrc'] = ''
+        if 'RESEnvironmentName' in self.config:
+            template_vars['ConfigureRESClusterManagerSnsTopicArnParameter'] = self.configure_res_cluster_manager_sns_topic_arn_parameter_name
+            template_vars['ConfigureRESSubmittersSnsTopicArnParameter'] = self.configure_res_submitters_sns_topic_arn_parameter_name
 
         # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
         files_to_upload = [
@@ -1436,26 +1452,26 @@ class CdkSlurmStack(Stack):
             )
 
         if 'RESEnvironmentName' in self.config:
-            configureClusterManagerLambdaAsset = s3_assets.Asset(self, "ConfigureClusterManagerAsset", path="resources/lambdas/ConfigureClusterManager")
-            self.configure_cluster_manager_lambda = aws_lambda.Function(
-                self, "ConfigureClusterManagerLambda",
-                function_name=f"{self.stack_name}-ConfigureClusterManager",
+            configureRESClusterManagerLambdaAsset = s3_assets.Asset(self, "ConfigureRESClusterManagerAsset", path="resources/lambdas/ConfigureRESClusterManager")
+            self.configure_res_cluster_manager_lambda = aws_lambda.Function(
+                self, "ConfigRESClusterManagerLambda",
+                function_name=f"{self.stack_name}-ConfigRESClusterManager",
                 description="Configure RES cluster manager",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="ConfigureClusterManager.lambda_handler",
-                code=aws_lambda.Code.from_bucket(configureClusterManagerLambdaAsset.bucket, configureClusterManagerLambdaAsset.s3_object_key),
+                handler="ConfigureRESClusterManager.lambda_handler",
+                code=aws_lambda.Code.from_bucket(configureRESClusterManagerLambdaAsset.bucket, configureRESClusterManagerLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
-                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
             )
-            self.configure_cluster_manager_lambda.add_to_role_policy(
+            self.configure_res_cluster_manager_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1466,7 +1482,7 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.configure_cluster_manager_lambda.add_to_role_policy(
+            self.configure_res_cluster_manager_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1475,23 +1491,23 @@ class CdkSlurmStack(Stack):
                     resources=[self.config['ErrorSnsTopicArn']]
                     )
                 )
-            self.configure_cluster_manager_lambda.add_event_source(
-                lambda_event_sources.SnsEventSource(self.configure_cluster_manager_sns_topic)
+            self.configure_res_cluster_manager_lambda.add_event_source(
+                lambda_event_sources.SnsEventSource(self.configure_res_cluster_manager_sns_topic)
             )
-            self.configure_cluster_manager_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+            self.configure_res_cluster_manager_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
 
-            configureSubmittersLambdaAsset = s3_assets.Asset(self, "ConfigureSubmittersAsset", path="resources/lambdas/ConfigureSubmitters")
-            self.configure_submitters_lambda = aws_lambda.Function(
-                self, "ConfigureSubmittersLambda",
-                function_name=f"{self.stack_name}-ConfigureSubmitters",
-                description="Configure submitters",
+            configureRESSubmittersLambdaAsset = s3_assets.Asset(self, "ConfigureRESSubmittersAsset", path="resources/lambdas/ConfigureRESSubmitters")
+            self.configure_res_submitters_lambda = aws_lambda.Function(
+                self, "ConfigRESSubmittersLambda",
+                function_name=f"{self.stack_name}-ConfigRESSubmitters",
+                description="Configure RES submitters",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="ConfigureSubmitters.lambda_handler",
-                code=aws_lambda.Code.from_bucket(configureSubmittersLambdaAsset.bucket, configureSubmittersLambdaAsset.s3_object_key),
+                handler="ConfigureRESSubmitters.lambda_handler",
+                code=aws_lambda.Code.from_bucket(configureRESSubmittersLambdaAsset.bucket, configureRESSubmittersLambdaAsset.s3_object_key),
                 environment = {
                     'Region': self.cluster_region,
                     'ClusterName': self.config['slurm']['ClusterName'],
@@ -1499,7 +1515,7 @@ class CdkSlurmStack(Stack):
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
             )
-            self.configure_submitters_lambda.add_to_role_policy(
+            self.configure_res_submitters_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1510,7 +1526,7 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.configure_submitters_lambda.add_to_role_policy(
+            self.configure_res_submitters_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1519,23 +1535,23 @@ class CdkSlurmStack(Stack):
                     resources=[self.config['ErrorSnsTopicArn']]
                     )
                 )
-            self.configure_submitters_lambda.add_event_source(
-                lambda_event_sources.SnsEventSource(self.configure_submitters_sns_topic)
+            self.configure_res_submitters_lambda.add_event_source(
+                lambda_event_sources.SnsEventSource(self.configure_res_submitters_sns_topic)
             )
-            self.configure_submitters_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+            self.configure_res_submitters_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
 
-            self.deconfigureClusterManagerLambdaAsset = s3_assets.Asset(self, "DeconfigureClusterManagerAsset", path="resources/lambdas/DeconfigureClusterManager")
-            self.deconfigure_cluster_manager_lambda = aws_lambda.Function(
-                self, "DeconfigureClusterManagerLambda",
-                function_name=f"{self.stack_name}-DeconfigureClusterManager",
+            self.deconfigureRESClusterManagerLambdaAsset = s3_assets.Asset(self, "DeconfigureRESClusterManagerAsset", path="resources/lambdas/DeconfigureRESClusterManager")
+            self.deconfigure_res_cluster_manager_lambda = aws_lambda.Function(
+                self, "DeconfigRESClusterManagerLambda",
+                function_name=f"{self.stack_name}-DeconfigRESClusterManager",
                 description="Deconfigure RES cluster manager",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="DeconfigureClusterManager.lambda_handler",
-                code=aws_lambda.Code.from_bucket(self.deconfigureClusterManagerLambdaAsset.bucket, self.deconfigureClusterManagerLambdaAsset.s3_object_key),
+                handler="DeconfigureRESClusterManager.lambda_handler",
+                code=aws_lambda.Code.from_bucket(self.deconfigureRESClusterManagerLambdaAsset.bucket, self.deconfigureRESClusterManagerLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
@@ -1543,7 +1559,7 @@ class CdkSlurmStack(Stack):
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
             )
-            self.deconfigure_cluster_manager_lambda.add_to_role_policy(
+            self.deconfigure_res_cluster_manager_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1554,7 +1570,7 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.deconfigure_cluster_manager_lambda.add_to_role_policy(
+            self.deconfigure_res_cluster_manager_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1564,18 +1580,18 @@ class CdkSlurmStack(Stack):
                     )
                 )
 
-            deconfigureSubmittersLambdaAsset = s3_assets.Asset(self, "DeconfigureSubmittersAsset", path="resources/lambdas/DeconfigureSubmitters")
-            self.deconfigure_submitters_lambda = aws_lambda.Function(
-                self, "DeconfigureSubmittersLambda",
-                function_name=f"{self.stack_name}-DeconfigureSubmitters",
-                description="Deconfigure submitters",
+            deconfigureRESSubmittersLambdaAsset = s3_assets.Asset(self, "DeconfigureRESSubmittersAsset", path="resources/lambdas/DeconfigureRESSubmitters")
+            self.deconfigure_res_submitters_lambda = aws_lambda.Function(
+                self, "DeconfigRESSubmittersLambda",
+                function_name=f"{self.stack_name}-DeconfigRESSubmitters",
+                description="Deconfigure RES submitters",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="DeconfigureSubmitters.lambda_handler",
-                code=aws_lambda.Code.from_bucket(deconfigureSubmittersLambdaAsset.bucket, deconfigureSubmittersLambdaAsset.s3_object_key),
+                handler="DeconfigureRESSubmitters.lambda_handler",
+                code=aws_lambda.Code.from_bucket(deconfigureRESSubmittersLambdaAsset.bucket, deconfigureRESSubmittersLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
@@ -1583,7 +1599,7 @@ class CdkSlurmStack(Stack):
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
             )
-            self.deconfigure_submitters_lambda.add_to_role_policy(
+            self.deconfigure_res_submitters_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1594,7 +1610,7 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.deconfigure_submitters_lambda.add_to_role_policy(
+            self.deconfigure_res_submitters_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -2395,11 +2411,11 @@ class CdkSlurmStack(Stack):
             for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
                 template_var = f"ExtraMountSecurityGroupId{index}"
                 self.create_parallel_cluster_lambda.add_environment(
-                    key = 'template_var',
+                    key = template_var,
                     value = extra_mount_sg.security_group_id
                 )
                 self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(
-                    f"{{template_var}}"
+                    "{{" + template_var + "}}"
                 )
                 index += 1
 
@@ -2899,8 +2915,9 @@ class CdkSlurmStack(Stack):
         self.parallel_cluster.node.add_dependency(self.create_head_node_a_record_lambda)
         self.parallel_cluster.node.add_dependency(self.update_head_node_lambda)
         # The lambdas to configure instances must exist befor the cluster so they can be called.
-        self.parallel_cluster.node.add_dependency(self.configure_cluster_manager_lambda)
-        self.parallel_cluster.node.add_dependency(self.configure_submitters_lambda)
+        if 'RESEnvironmentName' in self.config:
+            self.parallel_cluster.node.add_dependency(self.configure_res_cluster_manager_lambda)
+            self.parallel_cluster.node.add_dependency(self.configure_res_submitters_lambda)
         # Build config files need to be created before cluster so that they can be downloaded as part of on_head_node_configures
         self.parallel_cluster.node.add_dependency(self.build_config_files)
 
@@ -2918,22 +2935,22 @@ class CdkSlurmStack(Stack):
 
         if 'RESEnvironmentName' in self.config:
             # Custom resource to deconfigure cluster manager before deleting cluster
-            self.deconfigure_cluster_manager = CustomResource(
-                self, "DeconfigureClusterManager",
-                service_token = self.deconfigure_cluster_manager_lambda.function_arn,
+            self.deconfigure_res_cluster_manager = CustomResource(
+                self, "DeconfigureRESClusterManager",
+                service_token = self.deconfigure_res_cluster_manager_lambda.function_arn,
                 properties = {
                 }
             )
-            self.deconfigure_cluster_manager.node.add_dependency(self.parallel_cluster)
+            self.deconfigure_res_cluster_manager.node.add_dependency(self.parallel_cluster)
 
             # Custom resource to deconfigure submitters before deleting cluster
-            self.deconfigure_submitters = CustomResource(
-                self, "DeconfigureSubmitters",
-                service_token = self.deconfigure_submitters_lambda.function_arn,
+            self.deconfigure_res_submitters = CustomResource(
+                self, "DeconfigureRESSubmitters",
+                service_token = self.deconfigure_res_submitters_lambda.function_arn,
                 properties = {
                 }
             )
-            self.deconfigure_submitters.node.add_dependency(self.parallel_cluster)
+            self.deconfigure_res_submitters.node.add_dependency(self.parallel_cluster)
 
         CfnOutput(self, "ParallelClusterConfigTemplateYamlS3Url",
             value = self.parallel_cluster_config_template_yaml_s3_url
