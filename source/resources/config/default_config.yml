@@ -8,7 +8,7 @@
 # Command line values override values in the config file.
 #====================================================================
 
-StackName: slurmminimal
+StackName: slurmminimal-config
 
 slurm:
   ParallelClusterConfig:
@@ -21,9 +21,6 @@ slurm:
   # A partition will be created for each combination of Base OS, Architecture, and Spot
   InstanceConfig:
     UseSpot: true
-    BaseOsArchitecture:
-      RedHat:
-        8: [x86_64]
     Include:
       InstanceFamilies:
         - t3

@@ -2,9 +2,9 @@
 
 A ParallelCluster configuration will be generated and used to create a ParallelCluster slurm cluster.
 The first supported ParallelCluster version is 3.6.0.
-Version 3.7.0 is the recommended minimum version because it support compute node weighting that is proportional to instance type
+Version 3.7.0 is the recommended minimum version because it supports compute node weighting that is proportional to instance type
 cost so that the least expensive instance types that meet job requirements are used.
-The current latest version is 3.7.2.
+The current latest version is 3.8.0.
 
 ## Prerequisites
 

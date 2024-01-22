@@ -2,6 +2,15 @@
 
 This page shows common prerequisites that need to be done before deployment.
 
+## Deployment Server/Instance Requirements
+
+The deployment process was developed and tested using Amazon Linux 2.
+It has also been tested on RHEL 8 and RHEL 9.
+An easy way to create a deployment instance is to use an AWS Cloud 9 desktop.
+This will give you a code editor IDE and shell environment that you can use to deploy the cluster.
+
+If the required packages aren't installed then you will need sudo or root access on the instance.
+
 ## Configure AWS CLI Credentials
 
 You will needs AWS credentials that provide admin access to deploy the cluster.

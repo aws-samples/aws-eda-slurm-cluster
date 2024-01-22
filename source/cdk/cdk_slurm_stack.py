@@ -188,74 +188,31 @@ class CdkSlurmStack(Stack):
         '''
         Override the config using context variables
         '''
-        region = self.node.try_get_context('region')
-        config_key = 'Region'
-        if region:
-            if config_key not in self.config:
-                logger.info(f"{config_key:20} set from command line: {region}")
-            elif region != self.config[config_key]:
-                logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {region}")
-            self.config[config_key] = region
-        if config_key not in self.config:
-            logger.error(f"Must set --region from the command line or {config_key} in the config files")
-            exit(1)
-
-        config_key = 'SshKeyPair'
-        ssh_keypair = self.node.try_get_context(config_key)
-        if ssh_keypair:
-            if config_key not in self.config:
-                logger.info(f"{config_key:20} set from command line: {ssh_keypair}")
-            elif ssh_keypair != self.config[config_key]:
-                logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {ssh_keypair}")
-            self.config[config_key] = ssh_keypair
-        if config_key not in self.config:
-            logger.error("You must provide --ssh-keypair on the command line or {config_key} in the config file.")
-            exit(1)
-
-        config_key = 'VpcId'
-        vpc_id = self.node.try_get_context(config_key)
-        if vpc_id:
-            if config_key not in self.config:
-                logger.info(f"{config_key:20} set from command line: {vpc_id}")
-            elif vpc_id != self.config[config_key]:
-                logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {vpc_id}")
-            self.config[config_key] = vpc_id
-        if config_key not in self.config:
-            logger.error("You must provide --vpc-id on the command line or {config_key} in the config file.")
-            exit(1)
-
-        config_key = 'CIDR'
-        cidr = self.node.try_get_context(config_key)
-        if cidr:
-            if config_key not in self.config:
-                logger.info(f"{config_key:20} set from command line: {cidr}")
-            elif cidr != self.config[config_key]:
-                logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {cidr}")
-            self.config[config_key] = cidr
-        if config_key not in self.config:
-            logger.error("You must provide --cidr on the command line or {config_key} in the config file.")
-            exit(1)
-
-        config_key = 'SubnetId'
-        subnet_id = self.node.try_get_context(config_key)
-        if subnet_id:
-            if config_key not in self.config:
-                logger.info(f"{config_key:20} set from command line: {subnet_id}")
-            elif subnet_id != self.config[config_key]:
-                logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {subnet_id}")
-            self.config[config_key] = subnet_id
-
-        config_key = 'ErrorSnsTopicArn'
-        errorSnsTopicArn = self.node.try_get_context(config_key)
-        if subnet_id:
-            if config_key not in self.config:
-                logger.info(f"{config_key:20} set from command line: {errorSnsTopicArn}")
-            elif errorSnsTopicArn != self.config[config_key]:
-                logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {errorSnsTopicArn}")
-            self.config[config_key] = errorSnsTopicArn
+        config_keys = {
+            'Region': ['region', 'region'],
+            'SshKeyPair': ['SshKeyPair', 'ssh-keypair'],
+            'VpcId': ['VpcId', 'vpc-id'],
+            'CIDR': ['CIDR', 'cidr'],
+            'SubnetId': ['SubnetId', None],
+            'ErrorSnsTopicArn': ['ErrorSnsTopicArn', None],
+        }
+        for config_key in config_keys:
+            context_key = config_keys[config_key][0]
+            command_line_switch = config_keys[config_key][1]
+            context_value = self.node.try_get_context(context_key)
+            if context_value:
+                if config_key not in self.config:
+                    logger.info(f"{config_key:20} set from command line: {context_value}")
+                elif context_value != self.config[config_key]:
+                    logger.info(f"{config_key:20} in config file overridden on command line from {self.config[config_key]} to {context_value}")
+                self.config[config_key] = context_value
+            if command_line_switch and config_key not in self.config:
+                logger.error(f"Must set --{command_line_switch} from the command line or {config_key} in the config files")
+                exit(1)
 
         config_key = 'SubmitterSecurityGroupIds'
-        submitterSecurityGroupIds_b64_string = self.node.try_get_context(config_key)
+        context_key = config_key
+        submitterSecurityGroupIds_b64_string = self.node.try_get_context(context_key)
         if submitterSecurityGroupIds_b64_string:
             submitterSecurityGroupIds = json.loads(base64.b64decode(submitterSecurityGroupIds_b64_string).decode('utf-8'))
             if config_key not in self.config['slurm']:
@@ -280,17 +237,15 @@ class CdkSlurmStack(Stack):
             logger.error(f"You must provide --stack-name on the command line or StackName in the config file.")
             config_errors += 1
 
-        error_sns_topic_arn = self.node.try_get_context('ErrorSnsTopicArn')
-        if error_sns_topic_arn:
-            self.config['ErrorSnsTopicArn'] = error_sns_topic_arn
-        else:
-            if 'ErrorSnsTopicArn' not in self.config:
-                logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
-                self.config['ErrorSnsTopicArn'] = ''
+        if 'ErrorSnsTopicArn' not in self.config:
+            logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
 
         if 'ClusterName' not in self.config['slurm']:
-            self.config['slurm']['ClusterName'] = f"{self.stack_name}-cl"
-            logger.info(f"slurm/ClusterName defaulted to {self.config['StackName']}")
+            if self.stack_name.endswith('-config'):
+                self.config['slurm']['ClusterName'] = self.stack_name[0:-7]
+            else:
+                self.config['slurm']['ClusterName'] = f"{self.stack_name}-cl"
+            logger.info(f"slurm/ClusterName defaulted to {self.config['slurm']['ClusterName']}")
 
         self.PARALLEL_CLUSTER_VERSION = parse_version(self.config['slurm']['ParallelClusterConfig']['Version'])
 
@@ -1047,7 +1002,7 @@ class CdkSlurmStack(Stack):
                 'AssetsBucket': self.assets_bucket,
                 'ClusterName': self.config['slurm']['ClusterName'],
                 'ConfigureEdaScriptS3Url': self.custom_action_s3_urls['config/bin/configure-eda.sh'],
-                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'ImageBuilderSecurityGroupId': self.imagebuilder_sg.security_group_id,
                 'ParallelClusterVersion': self.config['slurm']['ParallelClusterConfig']['Version'],
                 'Region': self.cluster_region,
@@ -1078,15 +1033,16 @@ class CdkSlurmStack(Stack):
                     ]
                 )
             )
-        self.create_build_files_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    'sns:Publish'
-                ],
-                resources=[self.config['ErrorSnsTopicArn']]
+        if 'ErrorSnsTopicArn' in self.config:
+            self.create_build_files_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
                 )
-            )
 
         createParallelClusterLambdaAsset = s3_assets.Asset(self, "CreateParallelClusterAsset", path="resources/lambdas/CreateParallelCluster")
         self.create_parallel_cluster_lambda = aws_lambda.Function(
@@ -1103,7 +1059,7 @@ class CdkSlurmStack(Stack):
             layers=[self.parallel_cluster_lambda_layer],
             environment = {
                 'ClusterName': self.config['slurm']['ClusterName'],
-                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'ParallelClusterConfigS3Bucket': self.assets_bucket,
                 'ParallelClusterConfigYamlTemplateS3Key': self.parallel_cluster_config_template_yaml_s3_key,
                 'ParallelClusterConfigYamlS3Key': self.parallel_cluster_config_yaml_s3_key,
@@ -1125,15 +1081,16 @@ class CdkSlurmStack(Stack):
                     ]
                 )
             )
-        self.create_parallel_cluster_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    'sns:Publish'
-                ],
-                resources=[self.config['ErrorSnsTopicArn']]
+        if 'ErrorSnsTopicArn' in self.config:
+            self.create_parallel_cluster_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
                 )
-            )
         # From https://docs.aws.amazon.com/parallelcluster/latest/ug/iam-roles-in-parallelcluster-v3.html#iam-roles-in-parallelcluster-v3-base-user-policy
         self.create_parallel_cluster_lambda.add_to_role_policy(
             statement=iam.PolicyStatement(
@@ -1382,7 +1339,7 @@ class CdkSlurmStack(Stack):
             code=aws_lambda.Code.from_bucket(createHeadNodeARecordAsset.bucket, createHeadNodeARecordAsset.s3_object_key),
             environment = {
                 'ClusterName': self.config['slurm']['ClusterName'],
-                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'Region': self.cluster_region,
             }
         )
@@ -1398,15 +1355,16 @@ class CdkSlurmStack(Stack):
                 resources=['*']
                 )
             )
-        self.create_head_node_a_record_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    'sns:Publish'
-                ],
-                resources=[self.config['ErrorSnsTopicArn']]
+        if 'ErrorSnsTopicArn' in self.config:
+            self.create_head_node_a_record_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
                 )
-            )
         self.create_head_node_a_record_lambda.add_event_source(
             lambda_event_sources.SnsEventSource(self.create_head_node_a_record_sns_topic)
         )
@@ -1426,7 +1384,7 @@ class CdkSlurmStack(Stack):
             code=aws_lambda.Code.from_bucket(updateHeadNodeLambdaAsset.bucket, updateHeadNodeLambdaAsset.s3_object_key),
             environment = {
                 'ClusterName': self.config['slurm']['ClusterName'],
-                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'Region': self.cluster_region
             }
         )
@@ -1441,15 +1399,16 @@ class CdkSlurmStack(Stack):
                 resources=['*']
                 )
             )
-        self.update_head_node_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    'sns:Publish'
-                ],
-                resources=[self.config['ErrorSnsTopicArn']]
+        if 'ErrorSnsTopicArn' in self.config:
+            self.update_head_node_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
                 )
-            )
 
         if 'RESEnvironmentName' in self.config:
             configureRESClusterManagerLambdaAsset = s3_assets.Asset(self, "ConfigureRESClusterManagerAsset", path="resources/lambdas/ConfigureRESClusterManager")
@@ -1466,7 +1425,7 @@ class CdkSlurmStack(Stack):
                 code=aws_lambda.Code.from_bucket(configureRESClusterManagerLambdaAsset.bucket, configureRESClusterManagerLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
-                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                    'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
@@ -1482,15 +1441,16 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.configure_res_cluster_manager_lambda.add_to_role_policy(
-                statement=iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=[
-                        'sns:Publish'
-                    ],
-                    resources=[self.config['ErrorSnsTopicArn']]
+            if 'ErrorSnsTopicArn' in self.config:
+                self.configure_res_cluster_manager_lambda.add_to_role_policy(
+                    statement=iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            'sns:Publish'
+                        ],
+                        resources=[self.config['ErrorSnsTopicArn']]
+                        )
                     )
-                )
             self.configure_res_cluster_manager_lambda.add_event_source(
                 lambda_event_sources.SnsEventSource(self.configure_res_cluster_manager_sns_topic)
             )
@@ -1511,7 +1471,7 @@ class CdkSlurmStack(Stack):
                 environment = {
                     'Region': self.cluster_region,
                     'ClusterName': self.config['slurm']['ClusterName'],
-                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                    'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
             )
@@ -1526,15 +1486,16 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.configure_res_submitters_lambda.add_to_role_policy(
-                statement=iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=[
-                        'sns:Publish'
-                    ],
-                    resources=[self.config['ErrorSnsTopicArn']]
+            if 'ErrorSnsTopicArn' in self.config:
+                self.configure_res_submitters_lambda.add_to_role_policy(
+                    statement=iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            'sns:Publish'
+                        ],
+                        resources=[self.config['ErrorSnsTopicArn']]
+                        )
                     )
-                )
             self.configure_res_submitters_lambda.add_event_source(
                 lambda_event_sources.SnsEventSource(self.configure_res_submitters_sns_topic)
             )
@@ -1554,7 +1515,7 @@ class CdkSlurmStack(Stack):
                 code=aws_lambda.Code.from_bucket(self.deconfigureRESClusterManagerLambdaAsset.bucket, self.deconfigureRESClusterManagerLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
-                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                    'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
@@ -1570,15 +1531,16 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.deconfigure_res_cluster_manager_lambda.add_to_role_policy(
-                statement=iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=[
-                        'sns:Publish'
-                    ],
-                    resources=[self.config['ErrorSnsTopicArn']]
+            if 'ErrorSnsTopicArn' in self.config:
+                self.deconfigure_res_cluster_manager_lambda.add_to_role_policy(
+                    statement=iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            'sns:Publish'
+                        ],
+                        resources=[self.config['ErrorSnsTopicArn']]
+                        )
                     )
-                )
 
             deconfigureRESSubmittersLambdaAsset = s3_assets.Asset(self, "DeconfigureRESSubmittersAsset", path="resources/lambdas/DeconfigureRESSubmitters")
             self.deconfigure_res_submitters_lambda = aws_lambda.Function(
@@ -1594,7 +1556,7 @@ class CdkSlurmStack(Stack):
                 code=aws_lambda.Code.from_bucket(deconfigureRESSubmittersLambdaAsset.bucket, deconfigureRESSubmittersLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
-                    'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                    'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName']
                 }
@@ -1610,15 +1572,16 @@ class CdkSlurmStack(Stack):
                     resources=['*']
                     )
                 )
-            self.deconfigure_res_submitters_lambda.add_to_role_policy(
-                statement=iam.PolicyStatement(
-                    effect=iam.Effect.ALLOW,
-                    actions=[
-                        'sns:Publish'
-                    ],
-                    resources=[self.config['ErrorSnsTopicArn']]
+            if 'ErrorSnsTopicArn' in self.config:
+                self.deconfigure_res_submitters_lambda.add_to_role_policy(
+                    statement=iam.PolicyStatement(
+                        effect=iam.Effect.ALLOW,
+                        actions=[
+                            'sns:Publish'
+                        ],
+                        resources=[self.config['ErrorSnsTopicArn']]
+                        )
                     )
-                )
 
     def create_callSlurmRestApiLambda(self):
         callSlurmRestApiLambdaAsset = s3_assets.Asset(self, "CallSlurmRestApiLambdaAsset", path="resources/lambdas/CallSlurmRestApi")
@@ -1638,20 +1601,21 @@ class CdkSlurmStack(Stack):
             security_groups = [self.slurm_rest_api_lambda_sg],
             environment = {
                 'CLUSTER_NAME': f"{self.config['slurm']['ClusterName']}",
-                'ErrorSnsTopicArn': self.config['ErrorSnsTopicArn'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'SLURM_REST_API_VERSION': self.config['slurm']['SlurmCtl']['SlurmRestApiVersion'],
                 'SLURMRESTD_URL': f"http://slurmctl1.{self.config['slurm']['ClusterName']}.pcluster:{self.slurmrestd_port}"
                 }
         )
-        self.call_slurm_rest_api_lambda.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                actions=[
-                    'sns:Publish'
-                ],
-                resources=[self.config['ErrorSnsTopicArn']]
+        if 'ErrorSnsTopicArn' in self.config:
+            self.call_slurm_rest_api_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
                 )
-            )
 
         self.jwt_token_for_root_ssm_parameter.grant_read(self.call_slurm_rest_api_lambda)
 
@@ -2811,7 +2775,8 @@ class CdkSlurmStack(Stack):
                         # Using '@' for the port separator instead of ':' because sbatch doesn't work if ':' is in the server name.
                         full_license_name += f"@{self.config['Licenses'][license_name]['Port']}"
                 license_strings.append(f"{full_license_name}:{self.config['Licenses'][license_name]['Count']}")
-            self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].append({'Licenses': ','.join(license_strings)})
+            if license_strings:
+                self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].append({'Licenses': ','.join(license_strings)})
 
         if 'SlurmConfOverrides' in self.config['slurm']['SlurmCtl']:
             if not path.exists(self.config['slurm']['SlurmCtl']['SlurmConfOverrides']['ConfigFile']):

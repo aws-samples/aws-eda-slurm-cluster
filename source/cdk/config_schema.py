@@ -124,7 +124,7 @@ PARALLEL_CLUSTER_ALLOWED_OSES = [
     ]
 
 def get_parallel_cluster_version(config):
-    return config['slurm']['ParallelClusterConfig']['Version']
+    return config['slurm']['ParallelClusterConfig'].get('Version', str(DEFAULT_PARALLEL_CLUSTER_VERSION))
 
 def get_PARALLEL_CLUSTER_MUNGE_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
@@ -413,7 +413,9 @@ def get_config_schema(config):
             #
             # ClusterName:
             #     Name of the ParallelCluster cluster.
-            #     Default to StackName-cl
+            #     Default:
+            #         If StackName ends with "-config" then ClusterName is StackName with "-config" stripped off.
+            #         Otherwise add "-cl" to end of StackName.
             Optional('ClusterName'): And(str, lambda s: s != config['StackName']),
             #
             # MungeKeySecret:
