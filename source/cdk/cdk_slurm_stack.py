@@ -832,11 +832,12 @@ class CdkSlurmStack(Stack):
         logger.info(f"VpcId: {self.config['VpcId']}")
         self.vpc = ec2.Vpc.from_lookup(self, "Vpc", vpc_id = self.config['VpcId'])
         self.private_and_isolated_subnets = self.vpc.private_subnets + self.vpc.isolated_subnets
+        self.all_subnets = self.private_and_isolated_subnets + self.vpc.public_subnets
         self.private_and_isolated_subnet_ids_map = {}
         for subnet in self.private_and_isolated_subnets:
             self.private_and_isolated_subnet_ids_map[subnet.subnet_id] = subnet
         if len(self.private_and_isolated_subnets) == 0:
-            logger.error(f"{self.config['VpcId']} must have at least one private or isolated subnet.")
+            logger.warning(f"{self.config['VpcId']} should have at least one private or isolated subnet.")
             logger.info(f"    {len(self.vpc.public_subnets)} public subnets")
             for subnet in self.vpc.public_subnets:
                 logger.info(f"        {subnet.subnet_id}")
@@ -846,13 +847,12 @@ class CdkSlurmStack(Stack):
             logger.info(f"    {len(self.vpc.isolated_subnets)} isolated subnets")
             for subnet in self.vpc.isolated_subnets:
                 logger.info(f"        {subnet.subnet_id}")
-            exit(1)
 
         valid_subnet_ids = []
         if 'SubnetId' in self.config:
             self.subnet = None
             logger.info(f"Checking for {self.config['SubnetId']} in {len(self.private_and_isolated_subnets)} private and isolated subnets")
-            for subnet in self.private_and_isolated_subnets:
+            for subnet in self.all_subnets:
                 logger.info(f"    {subnet.subnet_id}")
                 valid_subnet_ids.append(subnet.subnet_id)
                 # If this is a new VPC then the cdk.context.json will not have the VPC and will be refreshed after the bootstrap phase. Until then the subnet ids will be placeholders so just pick the first subnet. After the bootstrap finishes the vpc lookup will be done and then the info will be correct.
@@ -867,8 +867,13 @@ class CdkSlurmStack(Stack):
                 logger.error(f"SubnetId {self.config['SubnetId']} not found in VPC {self.config['VpcId']}\nValid subnet ids:\n{pp.pformat(valid_subnet_ids)}")
                 exit(1)
         else:
-            # Subnet not specified so pick the first private or isolated subnet
-            self.subnet = self.private_and_isolated_subnets[0]
+            # Subnet not specified so pick the first private or isolated subnet, otherwise first public subnet
+            if self.vpc.private_subnets:
+                self.subnet = self.private_subnets[0]
+            elif self.isolated_subnets:
+                self.subnet = self.isolated_subnets[0]
+            else:
+                self.subnet = self.public_subnets[0]
             self.config['SubnetId'] = self.subnet.subnet_id
         logger.info(f"Subnet set to {self.config['SubnetId']}")
         logger.info(f"availability zone: {self.subnet.availability_zone}")
@@ -1598,6 +1603,7 @@ class CdkSlurmStack(Stack):
             code=aws_lambda.Code.from_bucket(callSlurmRestApiLambdaAsset.bucket, callSlurmRestApiLambdaAsset.s3_object_key),
             vpc=self.vpc,
             vpc_subnets = ec2.SubnetSelection(subnets=[self.subnet]),
+            allow_public_subnet = True,
             security_groups = [self.slurm_rest_api_lambda_sg],
             environment = {
                 'CLUSTER_NAME': f"{self.config['slurm']['ClusterName']}",
