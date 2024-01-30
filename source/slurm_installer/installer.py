@@ -335,6 +335,16 @@ class SlurmInstaller():
                 logger.error(f"{fg('red')}Error checking if {self.install_parameters['stack_name']} already exists in CloudFormation due to {e}.{attr('reset')}")
                 sys.exit(1)
 
+        # First, Bootstrap the environment. This will create a staging S3 bucket if needed
+        cmd_bootstrap = f"cd .. && cdk bootstrap 'aws://{self.install_parameters['account_id']}/{region}'"
+        logger.info("\n====== Running CDK Bootstrap ======\n")
+        logger.info(f"cmd: {cmd_bootstrap}")
+        bootstrap_rc = os.system(cmd_bootstrap) # nosec
+        if int(bootstrap_rc) != 0:
+            logger.error(f"{fg('red')}Unable to bootstrap environment. Please run {cmd_bootstrap} and fix any errors{attr('reset')}")
+            logger.error(f"{fg('red')}{bootstrap_rc} {attr('reset')}")
+            sys.exit(1)
+
         # Prepare CDK commands
         if args.cdk_cmd in ['create', 'update']:
             cdk_cmd = 'deploy'
@@ -344,7 +354,6 @@ class SlurmInstaller():
         cmd += f" --strict"
         #cmd += f" --debug"
         cmd += f" -c {' -c '.join('{}={}'.format(key,val) for (key,val) in self.install_parameters.items() if val is not None)} --require-approval never"
-        cmd_bootstrap = f"cdk bootstrap aws://{self.install_parameters['account_id']}/{region} -c {' -c '.join('{}={}'.format(key,val) for (key,val) in self.install_parameters.items() if val is not None)}"
 
         if args.debug:
             cmd += " --debug -v -v -v"
@@ -359,20 +368,7 @@ class SlurmInstaller():
         with open("installer_history.txt", "a+") as f:
             f.write(f"\n[{datetime.datetime.utcnow()}] {cmd}")
 
-        # First, Bootstrap the environment. This will create a staging S3 bucket if needed
-        logger.info("\n====== Running CDK Bootstrap ======\n")
-
-        bootstrap_environment = os.system(cmd_bootstrap) # nosec
-        if int(bootstrap_environment) != 0:
-            logger.error(f"{fg('red')}Unable to bootstrap environment. Please run {cmd_bootstrap} and fix any errors{attr('reset')}")
-            logger.error(f"{fg('red')}{bootstrap_environment} {attr('reset')}")
-            sys.exit(1)
-
-        # Upload required assets to customer S3 account
-        # if cdk_cmd == "deploy":
-        #     upload_objects(install_directory, self.install_parameters['bucket'], self.install_parameters['stack_name'])
-
-        # Then launch the actual SOCA installer
+        # Then launch the actual CDK installer
         logger.info("\n====== Deploying SLURM ======\n")
         launch_installer = os.system(cmd) # nosec
         if cdk_cmd == "deploy":
