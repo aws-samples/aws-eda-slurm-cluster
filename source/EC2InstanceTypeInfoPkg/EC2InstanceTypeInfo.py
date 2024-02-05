@@ -169,30 +169,36 @@ class EC2InstanceTypeInfo:
         instance_types = sorted(instance_type_info.keys())
 
         logger.debug(f"Getting pricing info for {len(instance_types)} instance types:\n{json.dumps(instance_types, indent=4, sort_keys=True)}")
-        logger.debug("{} instance types in {}".format(len(instance_types), region))
+        logger.debug(f"{len(instance_types)} instance types in {region}")
 
         if self.get_savings_plans:
             savingsPlanInfo = SavingsPlanInfo(region)
 
         count = 1
         for instanceType in sorted(instance_types):
-            logger.debug("instanceType: {}".format(instanceType))
+            logger.debug(f"instanceType: {instanceType}")
             os = 'Linux'
             pricing_filter = [
-                {'Field': 'ServiceCode', 'Value': 'AmazonEC2', 'Type': 'TERM_MATCH'},
-                {'Field': 'instanceType', 'Value': instanceType, 'Type': 'TERM_MATCH'},
-                {'Field': 'tenancy', 'Value': 'shared', 'Type': 'TERM_MATCH'},
-                {'Field': 'preInstalledSw', 'Value': 'NA', 'Type': 'TERM_MATCH'},
-                {'Field': 'location', 'Value': region_name, 'Type': 'TERM_MATCH'},
-                {'Field': 'operatingSystem', 'Value': os, 'Type': 'TERM_MATCH'},
-                {'Field': 'capacitystatus', 'Value': 'Used', 'Type': 'TERM_MATCH'},
+                {'Field': 'location',             'Value': region_name,    'Type': 'TERM_MATCH'},
+                {'Field': 'instanceType',         'Value': instanceType,   'Type': 'TERM_MATCH'},
+                {'Field': 'operatingSystem',      'Value': os,             'Type': 'TERM_MATCH'},
+                {'Field': 'ServiceCode',          'Value': 'AmazonEC2',    'Type': 'TERM_MATCH'},
+                {'Field': 'tenancy',              'Value': 'shared',       'Type': 'TERM_MATCH'},
+                {'Field': 'preInstalledSw',       'Value': 'NA',           'Type': 'TERM_MATCH'},
+                {'Field': 'capacitystatus',       'Value': 'Used',         'Type': 'TERM_MATCH'},
+                {'Field': 'vpcnetworkingsupport', 'Value': 'true',         'Type': 'TERM_MATCH'},
+                {'Field': 'operation',            'Value': 'RunInstances', 'Type': 'TERM_MATCH'},
             ]
             priceLists = self.get_products(pricing_filter)
             if len(priceLists) == 0:
                 logger.warning(f"No pricelist for {instanceType} {region} ({region_name}). Instance type may not be available in this region.")
                 continue
             if len(priceLists) > 1:
-                raise RuntimeError("Number of PriceLists > 1 for {}".format(instanceType))
+                logger.error(f"Number of PriceLists > 1 for {instanceType}")
+                for index, priceListJson in enumerate(priceLists):
+                    priceList = json.loads(priceListJson)
+                    logger.info(f"priceList[{index}]:\n{json.dumps(priceList, indent=4)}")
+                raise RuntimeError(f"Number of PriceLists > 1 for {instanceType}")
 
             instance_type_info[instanceType]['pricing'] = {}
             instance_type_info[instanceType]['pricing']['Reserved'] = {}
@@ -209,7 +215,7 @@ class EC2InstanceTypeInfo:
             # instance_type_info[instanceType]['priceLists'] = []
             for priceListJson in priceLists:
                 priceList = json.loads(priceListJson)
-                #logger.debug("pricelist:\n{}".format(pp.pformat(priceList)))
+                #logger.debug(f"pricelist:\n{pp.pformat(priceList)}")
                 #instance_type_info[instanceType]['priceLists'].append(priceList)
                 if 'physicalProcessor' in priceList['product']['attributes']:
                     physicalProcessor = priceList['product']['attributes']['physicalProcessor']
@@ -219,10 +225,10 @@ class EC2InstanceTypeInfo:
                             for dimensionKey, priceDimension in rateCode['priceDimensions'].items():
                                 unit = priceDimension['unit']
                                 if unit != 'Hrs':
-                                    raise RuntimeError("Unknown pricing unit: {}".format(unit))
+                                    raise RuntimeError(f"Unknown pricing unit: {unit}")
                                 currency = list(priceDimension['pricePerUnit'])[0]
                                 if currency != 'USD':
-                                    raise RuntimeError("Unknown currency: {}".format(currency))
+                                    raise RuntimeError(f"Unknown currency: {currency}")
                                 on_demand_price = float(priceDimension['pricePerUnit']['USD'])
                     elif term == 'Reserved':
                         for ri_info_key, ri_info in termInfo.items():
@@ -230,7 +236,7 @@ class EC2InstanceTypeInfo:
                             ri_length = attributes['LeaseContractLength']
                             ri_class = attributes['OfferingClass']
                             ri_PurchaseOption = attributes['PurchaseOption']
-                            ri_terms = "RI {} {} {}".format(ri_length, ri_class, ri_PurchaseOption)
+                            ri_terms = f"RI {ri_length} {ri_class} {ri_PurchaseOption}"
                             ri_length_hours = float(ri_length.split('yr')[0]) * 365 * 24
                             ri_price = float(0)
                             for priceDimensionKey, priceDimension in ri_info['priceDimensions'].items():
@@ -241,7 +247,7 @@ class EC2InstanceTypeInfo:
                                 elif unit == 'Hrs':
                                     ri_price += pricePerUnit
                                 else:
-                                    raise RuntimeError("Invalid reserved instance unit {}".format(unit))
+                                    raise RuntimeError(f"Invalid reserved instance unit {unit}")
                             instance_type_info[instanceType]['pricing']['Reserved'][ri_terms] = ri_price
                             if ri_price > ri_max_price:
                                 ri_max_price = max(ri_max_price, ri_price)
@@ -250,7 +256,7 @@ class EC2InstanceTypeInfo:
                                 ri_min_price = ri_price
                                 ri_min_price_terms = ri_terms
                     else:
-                        raise RuntimeError("Invalid term {}".format(term))
+                        raise RuntimeError(f"Invalid term {term}")
             instance_type_info[instanceType]['pricing']['Reserved_min'] = ri_min_price
             instance_type_info[instanceType]['pricing']['Reserved_min_terms'] = ri_min_price_terms
             instance_type_info[instanceType]['pricing']['Reserved_max'] = ri_max_price
