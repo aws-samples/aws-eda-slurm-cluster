@@ -76,42 +76,8 @@ def lambda_handler(event, context):
             else:
                 raise KeyError(error_message)
 
-        s3_resource = boto3.resource('s3')
-
-        yaml_template_key = environ['ParallelClusterConfigYamlTemplateS3Key']
-        yaml_template_s3_url = f"s3://{environ['ParallelClusterConfigS3Bucket']}/{yaml_template_key}"
-        yaml_template_config_object = s3_resource.Object(
-            bucket_name = environ['ParallelClusterConfigS3Bucket'],
-            key = yaml_template_key
-        )
-        parallel_cluster_config_yaml_template = Template(yaml_template_config_object.get()['Body'].read().decode('utf-8'))
-
-        template_vars = {}
-        for template_var in environ:
-            template_vars[template_var] = environ[template_var]
-        parallel_cluster_config_yaml = parallel_cluster_config_yaml_template.render(**template_vars)
-        parallel_cluster_config = yaml.load(parallel_cluster_config_yaml, Loader=yaml.FullLoader)
-        logger.info(f"HeadNode config:\n{json.dumps(parallel_cluster_config['HeadNode'], indent=4)}")
-
-        yaml_key = f"{environ['ParallelClusterConfigYamlS3Key']}"
-        yaml_s3_url = f"s3://{environ['ParallelClusterConfigS3Bucket']}/{yaml_key}"
-        yaml_config_object = s3_resource.Object(
-            bucket_name = environ['ParallelClusterConfigS3Bucket'],
-            key = yaml_key
-        )
-        if requestType == 'Delete':
-            logging.info(f"Deleting Parallel Cluster yaml config in {yaml_s3_url}")
-            try:
-                yaml_config_object.delete()
-            except:
-                pass
-        else:
-            logging.info(f"Saving Parallel Cluster yaml config in {yaml_s3_url}")
-            yaml_config_object.put(Body=yaml.dump(parallel_cluster_config, sort_keys=False))
-
         cluster_name = environ['ClusterName']
         cluster_region = environ['Region']
-
         logger.info(f"{requestType} request for {cluster_name} in {cluster_region}")
 
         cluster_status = get_cluster_status(cluster_name, cluster_region)
@@ -119,6 +85,7 @@ def lambda_handler(event, context):
             valid_statuses = ['CREATE_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
             invalid_statuses = ['CREATE_IN_PROGRESS', 'UPDATE_IN_PROGRESS', 'DELETE_IN_PROGRESS']
             if cluster_status in invalid_statuses:
+                logger.error(f"{cluster_name} has invalid status: {cluster_status}")
                 cfnresponse.send(event, context, cfnresponse.FAILED, {'error': f"{cluster_name} in {cluster_status} state."}, physicalResourceId=cluster_name)
                 return
             if requestType == 'Create':
@@ -134,6 +101,19 @@ def lambda_handler(event, context):
                 requestType = 'Create'
             else:
                 logger.info(f"{cluster_name} doesn't exist.")
+
+        yaml_key = f"{environ['ParallelClusterConfigYamlS3Key']}"
+        yaml_s3_url = f"s3://{environ['ParallelClusterConfigS3Bucket']}/{yaml_key}"
+
+        logger.info(f"Getting Parallel Cluster yaml config from {yaml_s3_url}")
+        s3_client = boto3.client('s3')
+        parallel_cluster_config_yaml = s3_client.get_object(
+            Bucket = environ['ParallelClusterConfigS3Bucket'],
+            Key = yaml_key
+        )['Body'].read().decode('utf-8')
+
+        parallel_cluster_config = yaml.load(parallel_cluster_config_yaml, Loader=yaml.FullLoader)
+        logger.info(f"HeadNode config:\n{json.dumps(parallel_cluster_config['HeadNode'], indent=4)}")
 
         if requestType == "Create":
             logger.info(f"Creating {cluster_name}")
@@ -277,4 +257,4 @@ def lambda_handler(event, context):
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
         raise
 
-    cfnresponse.send(event, context, cfnresponse.SUCCESS, {'ConfigTemplateYamlS3Url': yaml_template_s3_url, 'ConfigYamlS3Url': yaml_s3_url}, physicalResourceId=cluster_name)
+    cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)

@@ -1049,11 +1049,59 @@ class CdkSlurmStack(Stack):
                     )
                 )
 
+        createParallelClusterConfigLambdaAsset = s3_assets.Asset(self, "CreateParallelClusterConfigAsset", path="resources/lambdas/CreateParallelClusterConfig")
+        self.create_parallel_cluster_config_lambda = aws_lambda.Function(
+            self, "CreateParallelClusterConfigLambda",
+            function_name=f"{self.stack_name}-CreateParallelClusterConfig",
+            description="Create ParallelCluster config",
+            memory_size=2048,
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="CreateParallelClusterConfig.lambda_handler",
+            code=aws_lambda.Code.from_bucket(createParallelClusterConfigLambdaAsset.bucket, createParallelClusterConfigLambdaAsset.s3_object_key),
+            layers=[self.parallel_cluster_lambda_layer],
+            environment = {
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
+                'ParallelClusterConfigS3Bucket': self.assets_bucket,
+                'ParallelClusterConfigYamlTemplateS3Key': self.parallel_cluster_config_template_yaml_s3_key,
+                'ParallelClusterConfigYamlS3Key': self.parallel_cluster_config_yaml_s3_key,
+                'Region': self.cluster_region
+            }
+        )
+        self.create_parallel_cluster_config_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    's3:DeleteObject',
+                    's3:GetObject',
+                    's3:PutObject'
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/*",
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/{self.parallel_cluster_config_template_yaml_s3_key}",
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/{self.parallel_cluster_config_yaml_s3_key}"
+                    ]
+                )
+            )
+        if 'ErrorSnsTopicArn' in self.config:
+            self.create_parallel_cluster_config_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
+                )
+
         createParallelClusterLambdaAsset = s3_assets.Asset(self, "CreateParallelClusterAsset", path="resources/lambdas/CreateParallelCluster")
         self.create_parallel_cluster_lambda = aws_lambda.Function(
             self, "CreateParallelClusterLambda",
             function_name=f"{self.stack_name}-CreateParallelCluster",
-            description="Create ParallelCluster from json string",
+            description="Create ParallelCluster",
             memory_size=2048,
             runtime=aws_lambda.Runtime.PYTHON_3_9,
             architecture=aws_lambda.Architecture.X86_64,
@@ -2380,7 +2428,7 @@ class CdkSlurmStack(Stack):
             index = 0
             for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
                 template_var = f"ExtraMountSecurityGroupId{index}"
-                self.create_parallel_cluster_lambda.add_environment(
+                self.create_parallel_cluster_config_lambda.add_environment(
                     key = template_var,
                     value = extra_mount_sg.security_group_id
                 )
@@ -2838,10 +2886,14 @@ class CdkSlurmStack(Stack):
             self.parallel_cluster_config['SharedStorage'].append(parallel_cluster_storage_dict)
 
         # Save the config template to s3.
+        self.parallel_cluster_config_template_yaml = yaml.dump(self.parallel_cluster_config)
+        self.parallel_cluster_config_template_yaml_hash = sha512()
+        self.parallel_cluster_config_template_yaml_hash.update(bytes(self.parallel_cluster_config_template_yaml, 'utf-8'))
+        self.assets_hash.update(bytes(self.parallel_cluster_config_template_yaml, 'utf-8'))
         self.s3_client.put_object(
             Bucket = self.assets_bucket,
             Key    = self.parallel_cluster_config_template_yaml_s3_key,
-            Body   = yaml.dump(self.parallel_cluster_config)
+            Body   = self.parallel_cluster_config_template_yaml
         )
 
         self.build_config_files = CustomResource(
@@ -2849,39 +2901,49 @@ class CdkSlurmStack(Stack):
             service_token = self.create_build_files_lambda.function_arn
         )
 
-        self.create_parallel_cluster_lambda.add_environment(
+        self.create_parallel_cluster_config_lambda.add_environment(
             key = 'ParallelClusterAssetReadPolicyArn',
             value = self.parallel_cluster_asset_read_policy.managed_policy_arn
         )
-        self.create_parallel_cluster_lambda.add_environment(
+        self.create_parallel_cluster_config_lambda.add_environment(
             key = 'ParallelClusterJwtWritePolicyArn',
             value = self.parallel_cluster_jwt_write_policy.managed_policy_arn
         )
-        self.create_parallel_cluster_lambda.add_environment(
+        self.create_parallel_cluster_config_lambda.add_environment(
             key = 'ParallelClusterMungeKeyWritePolicyArn',
             value = self.parallel_cluster_munge_key_write_policy.managed_policy_arn
         )
-        self.create_parallel_cluster_lambda.add_environment(
+        self.create_parallel_cluster_config_lambda.add_environment(
             key = 'ParallelClusterSnsPublishPolicyArn',
             value = self.parallel_cluster_sns_publish_policy.managed_policy_arn
         )
-        self.create_parallel_cluster_lambda.add_environment(
+        self.create_parallel_cluster_config_lambda.add_environment(
             key = 'SlurmCtlSecurityGroupId',
             value = self.slurmctl_sg.security_group_id
         )
-        self.create_parallel_cluster_lambda.add_environment(
+        self.create_parallel_cluster_config_lambda.add_environment(
             key = 'SlurmNodeSecurityGroupId',
             value = self.slurmnode_sg.security_group_id
         )
+        self.parallel_cluster_config = CustomResource(
+            self, "ParallelClusterConfig",
+            service_token = self.create_parallel_cluster_config_lambda.function_arn,
+            properties = {
+                'ParallelClusterConfigTemplateYamlHash': self.parallel_cluster_config_template_yaml_hash.hexdigest()
+            }
+        )
+        self.parallel_cluster_config_template_yaml_s3_url = self.parallel_cluster_config.get_att_string('ConfigTemplateYamlS3Url')
+        self.parallel_cluster_config_yaml_s3_url = self.parallel_cluster_config.get_att_string('ConfigYamlS3Url')
+        self.parallel_cluster_config_yaml_hash = self.parallel_cluster_config.get_att_string('ConfigYamlHash')
+        self.assets_hash.update(bytes(self.parallel_cluster_config_yaml_hash, 'utf-8'))
+
         self.parallel_cluster = CustomResource(
             self, "ParallelCluster",
             service_token = self.create_parallel_cluster_lambda.function_arn,
             properties = {
-                'ParallelClusterConfigHash': self.assets_hash.hexdigest()
+                'ParallelClusterConfigHash': self.parallel_cluster_config_yaml_hash
             }
         )
-        self.parallel_cluster_config_template_yaml_s3_url = self.parallel_cluster.get_att_string('ConfigTemplateYamlS3Url')
-        self.parallel_cluster_config_yaml_s3_url = self.parallel_cluster.get_att_string('ConfigYamlS3Url')
         # The lambda to create an A record for the head node must be built before the parallel cluster.
         self.parallel_cluster.node.add_dependency(self.create_head_node_a_record_lambda)
         self.parallel_cluster.node.add_dependency(self.update_head_node_lambda)
@@ -2891,6 +2953,7 @@ class CdkSlurmStack(Stack):
             self.parallel_cluster.node.add_dependency(self.configure_res_submitters_lambda)
         # Build config files need to be created before cluster so that they can be downloaded as part of on_head_node_configures
         self.parallel_cluster.node.add_dependency(self.build_config_files)
+        self.parallel_cluster.node.add_dependency(self.parallel_cluster_config)
 
         self.call_slurm_rest_api_lambda.node.add_dependency(self.parallel_cluster)
 
@@ -2899,7 +2962,7 @@ class CdkSlurmStack(Stack):
             self, "UpdateHeadNode",
             service_token = self.update_head_node_lambda.function_arn,
             properties = {
-                'ParallelClusterConfigHash': self.assets_hash.hexdigest(),
+                'ParallelClusterConfigHash': self.parallel_cluster_config_yaml_hash,
             }
         )
         self.update_head_node.node.add_dependency(self.parallel_cluster)
@@ -2928,6 +2991,9 @@ class CdkSlurmStack(Stack):
         )
         CfnOutput(self, "ParallelClusterConfigYamlS3Url",
             value = self.parallel_cluster_config_yaml_s3_url
+        )
+        CfnOutput(self, "ParallelClusterConfigHash",
+            value = self.parallel_cluster_config_yaml_hash
         )
         CfnOutput(self, "PlaybookS3Url",
             value = self.playbooks_asset.s3_object_url
