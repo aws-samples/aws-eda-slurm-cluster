@@ -38,12 +38,23 @@ logger.addHandler(logger_streamHandler)
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
+def get_clusters(cluster_region):
+    clusters = []
+    list_clusters_kwargs = {'region': cluster_region}
+    while list_clusters_kwargs:
+        clusters_dict = pc.list_clusters(**list_clusters_kwargs)
+        if 'nextToken' in clusters_dict:
+            list_clusters_kwargs['next_token'] = clusters_dict['nextToken']
+        else:
+            list_clusters_kwargs = None
+        for cluster in clusters_dict['clusters']:
+            clusters.append(cluster)
+    return clusters
+
 def get_cluster_status(cluster_name, cluster_region):
     logger.info("Listing clusters to get cluster status")
-    clusters_dict = pc.list_clusters(region=cluster_region)
-    logger.info(f"clusters_dict:\n{json.dumps(clusters_dict, indent=4)}")
     cluster_status = None
-    for cluster_dict in clusters_dict['clusters']:
+    for cluster_dict in get_clusters(cluster_region):
         if cluster_dict['clusterName'] != cluster_name:
             continue
         logger.info(f"cluster_dict:\n{json.dumps(cluster_dict, indent=4)}")
@@ -251,7 +262,7 @@ def lambda_handler(event, context):
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
-            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Subject = f"{cluster_name} CreateParallelCluster failed",
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")

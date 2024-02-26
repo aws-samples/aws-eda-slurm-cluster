@@ -1,53 +1,12 @@
 # Debug
 
-## Log Files on File System
+For ParallelCluster and Slurm issues, refer to the official [AWS ParallelCluster Troubleshooting documentation](https://docs.aws.amazon.com/parallelcluster/latest/ug/troubleshooting-v3.html).
 
-Most of the key log files are stored on the Slurm file system so that they can be accessed from any instance with the file system mounted.
-
-| Logfile | Description
-|---------|------------
-| `/opt/slurm/{{ClusterName}}/logs/nodes/{{node-name}}/slurmd.log` | Slurm daemon (slurmd) logfile
-| `/opt/slurm/{{ClusterName}}/logs/nodes/{{node-name}}/spot_monitor.log` | Spot monitor logfile
-| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/cloudwatch.log` | Cloudwatch cron (slurm_ec2_publish_cw.py) logfile
-| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/power_save.log` | Power saving API logfile
-| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/slurmctld.log` | Slurm controller daemon (slurmctld) logfile
-| `/opt/slurm/{{ClusterName}}/logs/slurmctl[1-2]/terminate_old_instances.log` | Terminate old instances cron (terminate_old_instances.py) logfile
-| `/opt/slurm/{{ClusterName}}/logs/slurmdbd/slurmdbd.log` | Slurm database daemon (slurmdbd) logfile
-
-## Slurm AMI Nodes
-
-The Slurm AMI nodes build the Slurm binaries for all of the configured operating system (OS) variants.
-The Amazon Linux 2 build is a prerequisite for the Slurm controllers and slurmdbd instances.
-The other builds are prerequisites for compute nodes and submitters.
-
-First check for errors in the user data script. The following command will show the output:
-
-`grep cloud-init /var/log/messages | less`
-
-The most common problem is that the ansible playbook failed.
-Check the ansible log file to see what failed.
-
-`less /var/log/ansible.log`
-
-The following command will rerun the user data.
-It will download the playbooks from the S3 deployment bucket and then run it to configure the instance.
-
-`/var/lib/cloud/instance/scripts/part-001`
-
-If the problem is with the ansible playbook, then you can edit it in /root/playbooks and then run
-your modified playbook by running the following command.
-
-`/root/slurm_node_ami_config.sh`
-
-## Slurm Controller
+## Slurm Head Node
 
 If slurm commands hang, then it's likely a problem with the Slurm controller.
 
-The first thing to check is the controller's logfile which is stored on the Slurm file system.
-
-`/opt/slurm/{{ClusterName}}/logs/nodes/slurmctl[1-2]/slurmctld.log`
-
-If the logfile doesn't exist or is empty then you will need to connect to the slurmctl instance using SSM Manager or ssh and switch to the root user.
+Connect to the head node from the EC2 console using SSM Manager or ssh and switch to the root user.
 
 `sudo su`
 
@@ -59,23 +18,13 @@ If it isn't then first check for errors in the user data script. The following c
 
 `grep cloud-init /var/log/messages | less`
 
-The most common problem is that the ansible playbook failed.
-Check the ansible log file to see what failed.
+Then check the controller's logfile.
 
-`less /var/log/ansible.log`
+`/var/log/slurmctld.log`
 
 The following command will rerun the user data.
-It will download the playbooks from the S3 deployment bucket and then run it to configure the instance.
 
 `/var/lib/cloud/instance/scripts/part-001`
-
-If the problem is with the ansible playbook, then you can edit it in /root/playbooks and then run
-your modified playbook by running the following command.
-
-`/root/slurmctl_config.sh`
-
-The daemon may also be failing because of some other error.
-Check the `slurmctld.log` for errors.
 
 Another way to debug the `slurmctld` daemon is to launch it interactively with debug set high.
 The first thing to do is get the path to the slurmctld binary.
@@ -89,31 +38,6 @@ Then you can run slurmctld:
 ```
 $slurmctld -D -vvvvv
 ```
-
-### Slurm Controller Log Files
-
-| Logfile | Description
-|---------|------------
-| `/var/log/ansible.log` | Ansible logfile
-| `/var/log/slurm/cloudwatch.log` | Logfile for the script that uploads CloudWatch events.
-| `/var/log/slurm/slurmctld.log` | slurmctld logfile
-| `/var/log/slurm/power_save.log` | Slurm plugin logfile with power saving scripts that start, stop, and terminated instances.
-| `/var/log/slurm/terminate_old_instances.log` | Logfile for the script that terminates stopped instances.
-
-## Slurm Accounting Database (slurmdbd)
-
-If you are having problems with the slurm accounting database connect to the slurmdbd instance using SSM Manager.
-
-Check for cloud-init and ansible errors the same way as for the slurmctl instance.
-
-Also check the `slurmdbd.log` for errors.
-
-### Log Files
-
-| Logfile | Description
-|---------|------------
-| `/var/log/ansible.log` | Ansible logfile
-| `/var/log/slurm/slurmdbd.log` | slurmctld logfile
 
 ## Compute Nodes
 
@@ -132,7 +56,7 @@ Check that the slurm daemon is running.
 
 | Logfile | Description
 |---------|------------
-| `/var/log/slurm/slurmd.log` | slurmctld logfile
+| `/var/log/slurmd.log` | slurmctld logfile
 
 ## Job Stuck in Pending State
 

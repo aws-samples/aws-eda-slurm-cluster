@@ -1,24 +1,18 @@
 ---
 #====================================================================
-# Sample configuraton that creates a minimal Slurm cluster
+# Minimal cluster with all X86_64 instance types
 #
 # NOTE: This is just an example.
 #     Please create your own revision controlled config file.
 #
 # No SlurmDbd in this configuration.
-# Configure 5 each of t3 instance types.
-#
-# This config doesn't provide required parameters like VpcId so you must
-# use the --prompt option with it.
-# To use:
-#     source setup.sh
-#     ./install.sh --config-file source/config/default_config.yml --prompt
+# Configure 10 each of all x86_64 instance types.
 #
 # Defaults and valid configuration options are in source/config_schema.py.
 # Command line values override values in the config file.
 #====================================================================
 
-StackName: slurmminimal-config
+StackName: slurm-x86-config
 
 # @TODO: Add Region
 # Region: {{Region}}
@@ -44,8 +38,7 @@ StackName: slurmminimal-config
 slurm:
   ParallelClusterConfig:
     Version: 3.8.0
-    # @TODO: Choose the CPU architecture: x86_64, arm64. Default: x86_64
-    # Architecture: x86_64
+    Architecture: x86_64
     # @TODO: Update DatabaseStackName with stack name you deployed ParallelCluster database into. See: https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3
     # Database:
     #   DatabaseStackName: {{DatabaseStackName}}
@@ -56,20 +49,15 @@ slurm:
 
   InstanceConfig:
     UseSpot: true
-    Include:
-      # @TODO: Update InstanceFamiles and InstanceTypes to use in your cluster
-      InstanceFamilies:
-        - t3
-      InstanceTypes: []
     NodeCounts:
       # @TODO: Update the max number of each instance type to configure
       DefaultMaxCount: 5
       # @TODO: You can update the max instance count for each compute resource
-      # ComputeResourceCounts:
-      #   od-1024gb-16-cores: # x2iedn.8xlarge', x2iezn.8xlarge
-      #     MaxCount: 1
-      #   sp-1024gb-16-cores: # x2iedn.8xlarge', x2iezn.8xlarge
-      #     MaxCount: 2
+      ComputeResourceCounts:
+        od-1024gb-16-cores: # x2iedn.8xlarge', x2iezn.8xlarge
+          MaxCount: 1
+        sp-1024gb-16-cores: # x2iedn.8xlarge', x2iezn.8xlarge
+          MaxCount: 2
 
   # @TODO: Configure storage mounts
   # storage:

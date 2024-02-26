@@ -42,7 +42,7 @@ logger.propagate = False
 def lambda_handler(event, context):
     try:
         logger.info(f"event:\n{json.dumps(event, indent=4)}")
-        cluster_name = None
+        cluster_name = environ.get('ClusterName', None)
         requestType = event['RequestType']
         properties = event['ResourceProperties']
         required_properties = [
@@ -91,6 +91,7 @@ def lambda_handler(event, context):
             except:
                 pass
         else: # Create or Update
+            logger.info(f"Deleting Parallel Cluster yaml config template from {yaml_template_s3_url}")
             parallel_cluster_config_yaml_template = Template(
                 s3_client.get_object(
                     Bucket = environ['ParallelClusterConfigS3Bucket'],
@@ -118,7 +119,7 @@ def lambda_handler(event, context):
 
     except Exception as e:
         logger.exception(str(e))
-        cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, physicalResourceId=cluster_name)
+        cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, physicalResourceId=yaml_s3_url)
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
@@ -128,4 +129,4 @@ def lambda_handler(event, context):
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
         raise
 
-    cfnresponse.send(event, context, cfnresponse.SUCCESS, {'ConfigTemplateYamlS3Url': yaml_template_s3_url, 'ConfigYamlS3Url': yaml_s3_url, 'ConfigYamlHash': parallel_cluster_config_hash.hexdigest()}, physicalResourceId=cluster_name)
+    cfnresponse.send(event, context, cfnresponse.SUCCESS, {'ConfigTemplateYamlS3Url': yaml_template_s3_url, 'ConfigYamlS3Url': yaml_s3_url, 'ConfigYamlHash': parallel_cluster_config_hash.hexdigest()}, physicalResourceId=yaml_s3_url)

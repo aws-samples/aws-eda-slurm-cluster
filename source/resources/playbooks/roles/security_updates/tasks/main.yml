@@ -3,6 +3,5 @@
 
 - name: Install Security updates
   yum:
-    state: latest
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     security: yes

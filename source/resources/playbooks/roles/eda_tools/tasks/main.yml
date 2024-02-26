@@ -46,12 +46,12 @@
       rm -rf /usr/local/aws-cli
       rm -f awscliv2.zip
       rm -rf aws
-      if [[ {{Architecture}} == 'x86_64' ]]; then
+      if [[ {{ Architecture }} == 'x86_64' ]]; then
         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-      elif [[ {{Architecture}} == 'arm64' ]]; then
+      elif [[ {{ Architecture }} == 'arm64' ]]; then
         curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
       else
-        echo "error: Unsupported {{Architecture}} architecture"
+        echo "error: Unsupported {{ Architecture }} architecture"
         exit 1
       fi
       unzip awscliv2.zip
@@ -79,7 +79,7 @@
     - pip
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - python3
       - python3-pip
@@ -91,7 +91,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - gcc-c++
       - platform-python-devel
@@ -120,9 +120,10 @@
   ignore_errors: true
   register: numpy_results
 
-- debug:
+- name: Show numpy_results
+  debug:
     msg: |
-      numpy_results: {{numpy_results}}
+      numpy_results: {{ numpy_results }}
 
 - name: Install pandas
   when: (numpy_results.skipped|default(False)) or not numpy_results.failed
@@ -165,7 +166,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - http://mirror.centos.org/centos/7/os/x86_64/Packages/compat-libstdc++-33-3.2.3-72.el7.x86_64.rpm
       - http://mirror.centos.org/centos/7/os/x86_64/Packages/compat-libstdc++-33-3.2.3-72.el7.i686.rpm
@@ -176,7 +177,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - compat-libstdc++-33.x86_64
       - compat-libstdc++-33.i686
@@ -189,7 +190,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - pulseaudio-libs
 - name: Install pulseaudio on Amazon Linux
@@ -199,7 +200,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - pulseaudio
 
@@ -211,7 +212,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - libcrypt.x86_64
       - libcrypt.i686
@@ -222,7 +223,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - libcrypt
 
@@ -233,7 +234,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - perl-Switch
 
@@ -245,7 +246,7 @@
 #     - packages
 #   yum:
 #     state: present
-#     disablerepo: "{{yum_disablerepo|default(omit)}}"
+#     disablerepo: "{{ yum_disablerepo|default(omit) }}"
 #     enablerepo: "rhel-7-server-rhui-optional-rpms,rhui-rhel-7-server-rhui-optional-rpms"
 #     name:
 #       - perl-Switch
@@ -256,7 +257,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - uuid-devel
       - xorg-x11-server-devel
@@ -267,7 +268,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - xorg-x11-fonts-ISO8859-15-100dpi
 
@@ -279,7 +280,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - ncurses-compat-libs
 
@@ -316,7 +317,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - elfutils-libelf.x86_64
       - elfutils-libelf.i686
@@ -327,7 +328,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - elfutils-libelf
 
@@ -339,7 +340,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - system-lsb
 
@@ -351,7 +352,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - redhat-lsb
 
@@ -364,7 +365,7 @@
     - eda_packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - gperf
 
@@ -387,7 +388,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - bc
       - bzip2-devel
@@ -420,7 +421,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - gpaste
       - gpaste-ui
@@ -474,7 +475,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - libICE.x86_64
       - libICE.i686
@@ -493,7 +494,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - libaio
       - libffi-devel
@@ -518,7 +519,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - ncurses-libs.x86_64
       - ncurses-libs.i686
@@ -530,7 +531,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - gstreamer
       - lzma-sdk-devel
@@ -546,7 +547,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - lsof
       - make
@@ -591,7 +592,7 @@
     - packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - xkeyboard-config
       - xorg-x11-font-utils
@@ -617,7 +618,7 @@
     - eda_packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - apr-util
       - gnuplot
@@ -634,7 +635,7 @@
     - eda_packages
   yum:
     state: present
-    disablerepo: "{{yum_disablerepo|default(omit)}}"
+    disablerepo: "{{ yum_disablerepo|default(omit) }}"
     name:
       - compat-db47
 
@@ -699,27 +700,27 @@
 - name: Set nodejs download URL
   when: Architecture == 'x86_64'
   set_fact:
-    nodejs_url: "https://nodejs.org/dist/v{{nodejs_version}}/node-v{{nodejs_version}}-linux-x64.tar.xz"
-    nodejs_tarball: "node-v{{nodejs_version}}-linux-x64.tar.xz"
-    nodejs_dir: "/opt/node-v{{nodejs_version}}-linux-x64"
+    nodejs_url: "https://nodejs.org/dist/v{{ nodejs_version }}/node-v{{ nodejs_version }}-linux-x64.tar.xz"
+    nodejs_tarball: "node-v{{ nodejs_version }}-linux-x64.tar.xz"
+    nodejs_dir: "/opt/node-v{{ nodejs_version }}-linux-x64"
 
 - name: Set nodejs download URL
   when: Architecture == 'arm64'
   set_fact:
-    nodejs_url: "https://nodejs.org/dist/v{{nodejs_version}}/node-v{{nodejs_version}}-linux-arm64.tar.xz"
-    nodejs_tarball: "node-v{{nodejs_version}}-linux-arm64.tar.xz"
-    nodejs_dir: "/opt/node-v{{nodejs_version}}-linux-arm64"
+    nodejs_url: "https://nodejs.org/dist/v{{ nodejs_version }}/node-v{{ nodejs_version }}-linux-arm64.tar.xz"
+    nodejs_tarball: "node-v{{ nodejs_version }}-linux-arm64.tar.xz"
+    nodejs_dir: "/opt/node-v{{ nodejs_version }}-linux-arm64"
 
 - name: Install nodejs
   shell:
-    creates: "{{nodejs_dir}}"
+    creates: "{{ nodejs_dir }}"
     cmd: |
       set -ex
       cd /tmp
-      wget {{nodejs_url}}
+      wget {{ nodejs_url }}
       cd /opt
-      tar -xf /tmp/{{nodejs_tarball}}
-      rm /tmp/{{nodejs_tarball}}
+      tar -xf /tmp/{{ nodejs_tarball }}
+      rm /tmp/{{ nodejs_tarball }}
 
 - name: Add nodejs to sh path
   template:
@@ -741,7 +742,7 @@
 
 - name: Install ejs
   shell:
-    creates: "{{nodejs_dir}}/lib/node_modules/ejs"
+    creates: "{{ nodejs_dir }}/lib/node_modules/ejs"
     cmd: |
       set -ex
       source /etc/profile.d/nodejs.sh
@@ -749,7 +750,7 @@
 
 - name: Install typescript
   shell:
-    creates: "{{nodejs_dir}}/lib/node_modules/typescript"
+    creates: "{{ nodejs_dir }}/lib/node_modules/typescript"
     cmd: |
       set -ex
       source /etc/profile.d/nodejs.sh
@@ -759,10 +760,10 @@
 #   npm:
 #     name: ejs
 #     global: yes
-#     executable: "{{nodejs_dir}}/bin/npm"
+#     executable: "{{ nodejs_dir }}/bin/npm"
 
 # - name: Install typescript NPM package
 #   npm:
 #     name: typescript
 #     global: yes
-#     executable: "{{nodejs_dir}}/bin/npm"
+#     executable: "{{ nodejs_dir }}/bin/npm"

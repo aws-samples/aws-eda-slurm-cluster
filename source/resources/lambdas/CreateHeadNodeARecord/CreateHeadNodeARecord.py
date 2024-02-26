@@ -61,7 +61,6 @@ def lambda_handler(event, context):
             raise ValueError(f"No private hosted zone named {hosted_zone_name} found.")
 
         # Check to see if the A record already exists
-        # /hostedzone/Z007151912IBQH21Y4P5H
         list_resource_record_sets_paginator = route53_client.get_paginator('list_resource_record_sets')
         list_resource_record_sets_iterator = list_resource_record_sets_paginator.paginate(HostedZoneId=hosted_zone_id)
         head_node_a_record_name = f"head_node.{hosted_zone_name}"
@@ -75,18 +74,23 @@ def lambda_handler(event, context):
 
         logger.info(f"Creating {head_node_a_record_name} A record.")
 
-        ec2_client = boto3.client('ec2', region_name=cluster_region)
-        instances_info = ec2_client.describe_instances(
-            Filters = [
-                {'Name': 'tag:parallelcluster:cluster-name', 'Values': [cluster_name]},
-                {'Name': 'tag:parallelcluster:node-type', 'Values': ['HeadNode']}
-            ]
-        )
         head_node_ip_address = None
-        for reservation_dict in instances_info['Reservations']:
-            for instance_dict in reservation_dict['Instances']:
-                head_node_ip_address = instance_dict.get('PrivateIpAddress', None)
-                head_node_instance_id = instance_dict['InstanceId']
+        head_node_instance_id = None
+        ec2_client = boto3.client('ec2', region_name=cluster_region)
+        describe_instances_paginator = ec2_client.get_paginator('describe_instances')
+        describe_instances_kwargs = {
+            'Filters': [
+                {'Name': 'tag:parallelcluster:cluster-name', 'Values': [cluster_name]},
+                {'Name': 'tag:parallelcluster:node-type', 'Values': ['HeadNode']},
+                {'Name': 'instance-state-name', 'Values': ['running']}
+            ]
+        }
+        for describe_instances_response in describe_instances_paginator.paginate(**describe_instances_kwargs):
+            for reservation_dict in describe_instances_response['Reservations']:
+                for instance_dict in reservation_dict['Instances']:
+                    head_node_ip_address = instance_dict.get('PrivateIpAddress', None)
+                    if head_node_ip_address:
+                        head_node_instance_id = instance_dict['InstanceId']
         if not head_node_ip_address:
             raise ValueError(f"No head node private IP address found for {cluster_name}")
         logger.info(f"head node instance id: {head_node_instance_id}")

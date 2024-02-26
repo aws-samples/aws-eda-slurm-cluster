@@ -75,8 +75,9 @@ class SlurmInstaller():
         parser.add_argument("--prompt", action='store_true', help="Prompt for configuration values if not in config file or if invalid.")
         parser.add_argument("--stack-name", type=str, help="CloudFormation stack name.")
         parser.add_argument("--profile", "-p", type=str, help="AWS CLI profile to use.")
-        parser.add_argument("--region", "-r", type=str, help="AWS region where you want to deploy your SOCA environment.")
+        parser.add_argument("--region", "--Region", "-r", type=str, help="AWS region where you want to deploy your SOCA environment.")
         parser.add_argument("--SshKeyPair", "-ssh", type=str, help="SSH key to use")
+        parser.add_argument("--RESEnvironmentName", type=str, default=None, help="Research and Engineering Studio (RES) environment to build the cluster in. Will automatically set VpcId, SubnetId, and SubmitterSecurityGroupIds.")
         parser.add_argument("--VpcId", type=str, help="Id of VPC to use")
         parser.add_argument("--SubnetId", type=str, help="SubnetId to use")
         parser.add_argument("--ErrorSnsTopicArn", type=str, default='', help="SNS topic for error notifications.")
@@ -192,27 +193,46 @@ class SlurmInstaller():
         self.install_parameters[config_key] = self.config[config_key]
         logger.info(f"{config_key:30}: {self.install_parameters[config_key]}")
 
-        config_key = 'VpcId'
-        if config_key not in self.config and not args.VpcId:
-            if not args.prompt:
-                logger.error(f"{fg('red')}Must specify --prompt or --{config_key} on the command line or {config_key}  in the config file.{attr('reset')}")
+        if args.RESEnvironmentName:
+            config_key = 'RESEnvironmentName'
+            logger.info(f"Checking {config_key}")
+            try:
+                if not resource_finder.check_res_environment_name(config_key, args.RESEnvironmentName, self.config):
+                    exit(1)
+            except ValueError as e:
+                logger.error(e)
                 sys.exit(1)
-        try:
-            checked_value = resource_finder.get_vpc_id(config_key, self.config.get(config_key, ''), args.VpcId, args.prompt)
-        except ValueError as e:
-            logger.error(e)
-            sys.exit(1)
-        if args.prompt:
-            if args.VpcId:
-                if args.VpcId != checked_value:
-                    for arg_index, arg_name in enumerate(cmdline_args):
-                        if arg_name == f'--{config_key}':
-                            cmdline_args[arg_index + 1] = checked_value
-            else:
-                prompt_args += [f'--{config_key}', checked_value]
-        self.config[config_key] = checked_value
-        self.install_parameters[config_key] = self.config[config_key]
-        logger.info(f"{config_key:30}: {self.install_parameters[config_key]}")
+            self.config[config_key] = args.RESEnvironmentName
+            self.install_parameters[config_key] = self.config[config_key]
+            logger.info(f"{config_key:30}: {self.install_parameters[config_key]}")
+            config_key = 'VpcId'
+            self.install_parameters[config_key] = self.config[config_key]
+            logger.info(f"{config_key:30}: {self.install_parameters[config_key]}")
+            if args.VpcId and args.VpcId != self.config['VpcId']:
+                logger.error(f"--VpcId {args.VpcId} is different than VPC for --RESEnvironmentName {args.RESEnvironmentName}")
+                exit(1)
+        else:
+            config_key = 'VpcId'
+            if config_key not in self.config and not args.VpcId:
+                if not args.prompt:
+                    logger.error(f"{fg('red')}Must specify --prompt or --{config_key} or --RESEnvironmentName on the command line or {config_key}  in the config file.{attr('reset')}")
+                    sys.exit(1)
+            try:
+                checked_value = resource_finder.get_vpc_id(config_key, self.config.get(config_key, ''), args.VpcId, args.prompt)
+            except ValueError as e:
+                logger.error(e)
+                sys.exit(1)
+            if args.prompt:
+                if args.VpcId:
+                    if args.VpcId != checked_value:
+                        for arg_index, arg_name in enumerate(cmdline_args):
+                            if arg_name == f'--{config_key}':
+                                cmdline_args[arg_index + 1] = checked_value
+                else:
+                    prompt_args += [f'--{config_key}', checked_value]
+            self.config[config_key] = checked_value
+            self.install_parameters[config_key] = self.config[config_key]
+            logger.info(f"{config_key:30}: {self.install_parameters[config_key]}")
 
         # Get the CIDR block for the VPC. Used in multi-region deployments
         config_key = 'CIDR'

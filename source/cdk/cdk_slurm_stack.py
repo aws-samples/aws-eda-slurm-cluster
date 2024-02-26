@@ -95,6 +95,8 @@ class CdkSlurmStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        self.ec2InstanceTypeInfo = None
+
         self.onprem_cidr = None
 
         self.principals_suffix = {
@@ -137,6 +139,22 @@ class CdkSlurmStack(Stack):
         self.create_parallel_cluster_config()
 
         self.create_fault_injection_templates()
+
+    def get_ec2InstanceTypeInfo(self):
+        if not self.ec2InstanceTypeInfo:
+            self.ec2InstanceTypeInfo = EC2InstanceTypeInfo([self.config['Region']], get_savings_plans=False, json_filename='/tmp/instance_type_info.json', debug=False)
+            self.instance_type_and_family_info = self.ec2InstanceTypeInfo.instance_type_and_family_info[self.config['Region']]
+            self.instance_families_info = self.instance_type_and_family_info['instance_families']
+            self.instance_types_info = self.instance_type_and_family_info['instance_types']
+        return self.ec2InstanceTypeInfo
+
+    def get_instance_family_info(self, instance_family):
+        self.get_ec2InstanceTypeInfo()
+        return self.instance_tfamiles_info[instance_family]
+
+    def get_instance_type_info(self, instance_type):
+        self.get_ec2InstanceTypeInfo()
+        return self.instance_types_info[instance_type]
 
     def get_config(self, context_var, default_path):
         default_config_file_path = realpath(f"{dirname(realpath(__file__))}/../resources/config/")
@@ -188,9 +206,12 @@ class CdkSlurmStack(Stack):
         '''
         Override the config using context variables
         '''
+        # Config keys: [context_key, command_line_switch]
+        #     command_line_switch is None if not required.
         config_keys = {
             'Region': ['region', 'region'],
             'SshKeyPair': ['SshKeyPair', 'ssh-keypair'],
+            'RESEnvironmentName': ['RESEnvironmentName', None],
             'VpcId': ['VpcId', 'vpc-id'],
             'CIDR': ['CIDR', 'cidr'],
             'SubnetId': ['SubnetId', None],
@@ -223,7 +244,9 @@ class CdkSlurmStack(Stack):
 
     def check_config(self):
         '''
-        Check config, set defaults, and sanity check the configuration
+        Check config, set defaults, and sanity check the configuration.
+
+        If RESEnvironmentName is configured then update configuration from RES stacks.
         '''
         config_errors = 0
 
@@ -236,6 +259,9 @@ class CdkSlurmStack(Stack):
         if 'StackName' not in self.config:
             logger.error(f"You must provide --stack-name on the command line or StackName in the config file.")
             config_errors += 1
+
+        if 'RESEnvironmentName' in self.config:
+            self.update_config_for_res()
 
         if 'ErrorSnsTopicArn' not in self.config:
             logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
@@ -399,6 +425,13 @@ class CdkSlurmStack(Stack):
                         logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
                         config_errors += 1
 
+        # Check to make sure controller instance type has at least 4 GB of memmory.
+        slurmctl_instance_type = self.config['slurm']['SlurmCtl']['instance_type']
+        slurmctl_memory_in_gb = int(self.get_instance_type_info(slurmctl_instance_type)['MemoryInMiB'] / 1024)
+        if slurmctl_memory_in_gb < 4:
+            logger.error(f"Configured SlurmCtl instance type ({slurmctl_instance_type}) has {slurmctl_memory_in_gb} GB and needs at least 4.")
+            config_errors += 1
+
         if config_errors:
             exit(1)
 
@@ -411,6 +444,221 @@ class CdkSlurmStack(Stack):
             logger.exception(f"Invalid config")
             exit(1)
         self.config = validated_config
+
+    def update_config_for_res(self):
+        '''
+        Update config with information from RES stacks
+
+        Add Submitter security groups.
+        Configure /home file system.
+        '''
+        res_environment_name = self.config['RESEnvironmentName']
+        logger.info(f"Updating configuration for RES environment: {res_environment_name}")
+        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
+        res_stack_name = None
+        stack_statuses = {}
+        stack_dicts = {}
+        for stack_dict in cloudformation_client.list_stacks(
+                StackStatusFilter=[
+                    'CREATE_COMPLETE',
+                    'ROLLBACK_COMPLETE',
+                    'UPDATE_COMPLETE',
+                    'UPDATE_ROLLBACK_COMPLETE',
+                    'IMPORT_COMPLETE',
+                    'IMPORT_ROLLBACK_COMPLETE'
+                ]
+            )["StackSummaries"]:
+            stack_name = stack_dict['StackName']
+            if stack_name == res_environment_name:
+                res_stack_name = stack_dict['StackName']
+                # Don't break here so get all of the stack names
+            stack_status = stack_dict['StackStatus']
+            stack_statuses[stack_name] = stack_status
+            stack_dicts[stack_name] = stack_dict
+        if not res_stack_name:
+            message = f"CloudFormation RES stack named {res_environment_name} not found. Existing stacks:"
+            for stack_name in sorted(stack_statuses):
+                message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
+            logger.error(message)
+            exit(1)
+
+        # Get VpcId, SubnetId from RES stack
+        stack_parameters = cloudformation_client.describe_stacks(StackName=res_stack_name)['Stacks'][0]['Parameters']
+        vpc_id = None
+        subnet_ids = []
+        for stack_parameter_dict in stack_parameters:
+            if stack_parameter_dict['ParameterKey'] == 'VpcId':
+                vpc_id = stack_parameter_dict['ParameterValue']
+            elif stack_parameter_dict['ParameterKey'] in ['PrivateSubnets', 'InfrastructureHostSubnets', 'VdiSubnets']:
+                subnet_ids = stack_parameter_dict['ParameterValue'].split(',')
+        if not vpc_id:
+            logger.error(f"VpcId parameter not found in {res_environment_name} RES stack.")
+            exit(1)
+        if 'VpcId' in self.config and self.config['VpcId'] != vpc_id:
+            logger.error(f"Config file VpcId={self.config['VpcId']} is not the same as RESEnvironmentName VpcId={vpc_id}.")
+            exit(1)
+        if 'VpcId' not in self.config:
+            self.config['VpcId'] = vpc_id
+            logger.info(f"    VpcId: {vpc_id}")
+        if not subnet_ids:
+            logger.error(f"PrivateSubnets, InfrastructureHostSubnets, or VdiSubnets parameters not found in {res_environment_name} RES stack.")
+            exit(1)
+        if 'SubnetId' in self.config and self.config['SubnetId'] not in subnet_ids:
+            logger.error(f"Config file SubnetId={self.config['SubnetId']} is not a RES private subnet. RES private subnets: {subnet_ids}.")
+            exit(1)
+        if 'SubnetId' not in self.config:
+            self.config['SubnetId'] = subnet_ids[0]
+            logger.info(f"    SubnetId: {self.config['SubnetId']}")
+
+        submitter_security_group_ids = []
+        if 'SubmitterSecurityGroupIds' not in self.config['slurm']:
+            self.config['slurm']['SubmitterSecurityGroupIds'] = {}
+        else:
+            for security_group_name, security_group_ids in self.config['slurm']['SubmitterSecurityGroupIds'].items():
+                submitter_security_group_ids.append(security_group_ids)
+
+        # Get RES VDI Security Group
+        res_vdc_stack_name = f"{res_stack_name}-vdc"
+        if res_vdc_stack_name not in stack_statuses:
+            message = f"CloudFormation RES stack named {res_vdc_stack_name} not found. Existing stacks:"
+            for stack_name in sorted(stack_statuses):
+                message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
+            logger.error(message)
+            exit(1)
+        res_dcv_security_group_id = None
+        list_stack_resources_paginator = cloudformation_client.get_paginator('list_stack_resources')
+        for stack_resource_summaries in list_stack_resources_paginator.paginate(StackName=res_vdc_stack_name):
+            for stack_resource_summary_dict in stack_resource_summaries['StackResourceSummaries']:
+                if stack_resource_summary_dict['LogicalResourceId'].startswith('vdcdcvhostsecuritygroup'):
+                    res_dcv_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
+                    break
+            if res_dcv_security_group_id:
+                break
+        if not res_dcv_security_group_id:
+            logger.error(f"RES VDI security group not found.")
+            exit(1)
+        if res_dcv_security_group_id not in submitter_security_group_ids:
+            res_dcv_security_group_name = f"{res_environment_name}-dcv-sg"
+            logger.info(f"    SubmitterSecurityGroupIds['{res_dcv_security_group_name}'] = '{res_dcv_security_group_id}'")
+            self.config['slurm']['SubmitterSecurityGroupIds'][res_dcv_security_group_name] = res_dcv_security_group_id
+            submitter_security_group_ids.append(res_dcv_security_group_id)
+
+        # Get cluster manager Security Group
+        logger.debug(f"Searching for cluster manager security group id")
+        res_cluster_manager_stack_name = f"{res_stack_name}-cluster-manager"
+        if res_cluster_manager_stack_name not in stack_statuses:
+            message = f"CloudFormation RES stack named {res_cluster_manager_stack_name} not found. Existing stacks:"
+            for stack_name in sorted(stack_statuses):
+                message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
+            logger.error(message)
+            exit(1)
+        res_cluster_manager_security_group_id = None
+        list_stack_resources_paginator = cloudformation_client.get_paginator('list_stack_resources')
+        for stack_resource_summaries in list_stack_resources_paginator.paginate(StackName=res_cluster_manager_stack_name):
+            for stack_resource_summary_dict in stack_resource_summaries['StackResourceSummaries']:
+                if stack_resource_summary_dict['LogicalResourceId'].startswith('clustermanagersecuritygroup'):
+                    res_cluster_manager_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
+                    break
+            if res_cluster_manager_security_group_id:
+                break
+        if not res_cluster_manager_security_group_id:
+            logger.error(f"RES cluster manager security group not found.")
+            exit(1)
+        if res_cluster_manager_security_group_id not in submitter_security_group_ids:
+            res_cluster_manager_security_group_name = f"{res_environment_name}-cluster-manager-sg"
+            logger.info(f"    SubmitterSecurityGroupIds['{res_cluster_manager_security_group_name}'] = '{res_cluster_manager_security_group_id}'")
+            self.config['slurm']['SubmitterSecurityGroupIds'][res_cluster_manager_security_group_name] = res_cluster_manager_security_group_id
+            submitter_security_group_ids.append(res_cluster_manager_security_group_id)
+
+        # Get vdc controller Security Group
+        logger.debug(f"Searching for VDC controller security group id")
+        res_vdc_stack_name = f"{res_stack_name}-vdc"
+        if res_vdc_stack_name not in stack_statuses:
+            message = f"CloudFormation RES stack named {res_vdc_stack_name} not found. Existing stacks:"
+            for stack_name in sorted(stack_statuses):
+                message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
+            logger.error(message)
+            exit(1)
+        res_vdc_controller_security_group_id = None
+        list_stack_resources_paginator = cloudformation_client.get_paginator('list_stack_resources')
+        for stack_resource_summaries in list_stack_resources_paginator.paginate(StackName=res_vdc_stack_name):
+            logger.debug(f"  stack resource summaries for {res_vdc_stack_name}:")
+            for stack_resource_summary_dict in stack_resource_summaries['StackResourceSummaries']:
+                logger.debug(f"    LogicalResourceId: {stack_resource_summary_dict['LogicalResourceId']}")
+                if stack_resource_summary_dict['LogicalResourceId'].startswith('vdccontrollersecuritygroup'):
+                    res_vdc_controller_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
+                    break
+            if res_vdc_controller_security_group_id:
+                break
+        if not res_vdc_controller_security_group_id:
+            logger.error(f"RES VDC controller security group not found.")
+            exit(1)
+        if res_vdc_controller_security_group_id not in submitter_security_group_ids:
+            res_vdc_controller_security_group_name = f"{res_environment_name}-vdc-controller-sg"
+            logger.info(f"    SubmitterSecurityGroupIds['{res_vdc_controller_security_group_name}'] = '{res_vdc_controller_security_group_id}'")
+            self.config['slurm']['SubmitterSecurityGroupIds'][res_vdc_controller_security_group_name] = res_vdc_controller_security_group_id
+            submitter_security_group_ids.append(res_vdc_controller_security_group_id)
+
+        # Configure the /home mount from RES if /home not already configured
+        home_mount_found = False
+        for extra_mount in self.config['slurm'].get('storage', {}).get('ExtraMounts', []):
+            if extra_mount['dest'] == '/home':
+                home_mount_found = True
+                break
+        if home_mount_found:
+            logger.warning(f"Config file already has a mount for /home configured:\n{json.dumps(extra_mount, indent=4)}.")
+        else:
+            # RES takes the shared file system for /home as a parameter; it is not created by RES.
+            # parameter SharedHomeFileSystemId
+            logger.setLevel(logging.DEBUG)
+            logger.debug(f"Searching for RES /home file system")
+            res_shared_storage_stack_name = f"{res_stack_name}"
+            if res_shared_storage_stack_name not in stack_statuses:
+                message = f"CloudFormation RES stack named {res_shared_storage_stack_name} not found. Existing stacks:"
+                for stack_name in sorted(stack_statuses):
+                    message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
+                logger.error(message)
+                exit(1)
+            res_home_efs_id = None
+            for stack_parameter_dict in cloudformation_client.describe_stacks(StackName=res_stack_name)['Stacks'][0]['Parameters']:
+                if stack_parameter_dict['ParameterKey'] == 'SharedHomeFileSystemId':
+                    res_home_efs_id = stack_parameter_dict['ParameterValue']
+                    break
+            if not res_home_efs_id:
+                logger.error(f"RES shared /home EFS storage id not found.")
+                exit(1)
+            logger.info(f"    /home efs id: {res_home_efs_id}")
+            if 'storage' not in self.config['slurm']:
+                self.config['slurm']['storage'] = {}
+            if 'ExtraMounts' not in self.config['slurm']['storage']:
+                self.config['slurm']['storage']['ExtraMounts'] = []
+            self.config['slurm']['storage']['ExtraMounts'].append(
+                {
+                    'dest': '/home',
+                    'StorageType': 'Efs',
+                    'FileSystemId': res_home_efs_id,
+                    'src': f"{res_home_efs_id}.efs.{self.config['Region']}.amazonaws.com:/",
+                    'type': 'nfs4',
+                    'options': 'nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport'
+                }
+            )
+            if 'ExtraMountSecurityGroups' not in self.config['slurm']['storage']:
+                self.config['slurm']['storage']['ExtraMountSecurityGroups'] = {}
+            if 'nfs' not in self.config['slurm']['storage']['ExtraMountSecurityGroups']:
+                self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs'] = {}
+            res_home_mount_sg_id = res_dcv_security_group_id
+            home_sg_found = False
+            for extra_mount_sg in self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs']:
+                extra_mount_sg_id = self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs'][extra_mount_sg]
+                if extra_mount_sg_id == res_home_mount_sg_id:
+                    home_sg_found = True
+                    break
+            if home_sg_found:
+                logger.info(f"    {extra_mount_sg}({res_home_mount_sg_id}) already configured in config['slurm']['storage']['ExtraMountSecurityGroups']['nfs']")
+            else:
+                res_home_mount_sg = f"{res_environment_name}-DCV-Host"
+                self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs'][res_home_mount_sg] = res_home_mount_sg_id
+                logger.info(f"    ExtraMountSecurityGroup: {res_home_mount_sg}({res_home_mount_sg_id})")
 
     def create_parallel_cluster_assets(self):
         # Create a secure hash of all of the assets so that changes can be easily detected to trigger cluster updates.
@@ -478,12 +726,12 @@ class CdkSlurmStack(Stack):
         self.suppress_cfn_nag(self.create_head_node_a_record_sns_topic, 'W47', 'Use default KMS key.')
         if 'RESEnvironmentName' in self.config:
             # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
-            self.configure_res_cluster_manager_sns_topic = sns.Topic(
-                self, "ConfigureRESClusterManagerSnsTopic",
-                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureRESClusterManager"
+            self.configure_res_users_groups_json_sns_topic = sns.Topic(
+                self, "ConfigureRESUsersGroupsJsonSnsTopic",
+                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureRESUsersGroupsJson"
                 )
             # W47:SNS Topic should specify KmsMasterKeyId property
-            self.suppress_cfn_nag(self.configure_res_cluster_manager_sns_topic, 'W47', 'Use default KMS key.')
+            self.suppress_cfn_nag(self.configure_res_users_groups_json_sns_topic, 'W47', 'Use default KMS key.')
             # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
             self.configure_res_submitters_sns_topic = sns.Topic(
                 self, "ConfigureRESSubmittersSnsTopic",
@@ -526,13 +774,13 @@ class CdkSlurmStack(Stack):
         os.remove(playbooks_zipfile_filename)
 
         if 'RESEnvironmentName' in self.config:
-            self.configure_res_cluster_manager_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESClusterManagerSnsTopicArn"
-            self.configure_res_cluster_manager_sns_topic_arn_parameter = ssm.StringParameter(
-                self, f"ConfigureRESClusterManagerSnsTopicArnParameter",
-                parameter_name = self.configure_res_cluster_manager_sns_topic_arn_parameter_name,
-                string_value = self.configure_res_cluster_manager_sns_topic.topic_arn
+            self.configure_res_users_groups_json_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESUsersGroupsJsonSnsTopicArn"
+            self.configure_res_users_groups_json_sns_topic_arn_parameter = ssm.StringParameter(
+                self, f"ConfigureRESUsersGroupsJsonSnsTopicArnParameter",
+                parameter_name = self.configure_res_users_groups_json_sns_topic_arn_parameter_name,
+                string_value = self.configure_res_users_groups_json_sns_topic.topic_arn
             )
-            self.configure_res_cluster_manager_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
+            self.configure_res_users_groups_json_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
 
             self.configure_res_submitters_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESSubmittersSnsTopicArn"
             self.configure_res_submitters_sns_topic_arn_parameter = ssm.StringParameter(
@@ -554,7 +802,7 @@ class CdkSlurmStack(Stack):
             'assets_bucket': self.assets_bucket,
             'assets_base_key': self.assets_base_key,
             'ClusterName': self.config['slurm']['ClusterName'],
-            'ConfigureRESClusterManagerSnsTopicArnParameter': '',
+            'ConfigureRESUsersGroupsJsonSnsTopicArnParameter': '',
             'ConfigureRESSubmittersSnsTopicArnParameter': '',
             'CreateHeadNodeARecordSnsTopicArnParameter': self.create_head_node_a_record_sns_topic_arn_parameter_name,
             'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
@@ -572,7 +820,7 @@ class CdkSlurmStack(Stack):
         else:
             template_vars['HomeMountSrc'] = ''
         if 'RESEnvironmentName' in self.config:
-            template_vars['ConfigureRESClusterManagerSnsTopicArnParameter'] = self.configure_res_cluster_manager_sns_topic_arn_parameter_name
+            template_vars['ConfigureRESUsersGroupsJsonSnsTopicArnParameter'] = self.configure_res_users_groups_json_sns_topic_arn_parameter_name
             template_vars['ConfigureRESSubmittersSnsTopicArnParameter'] = self.configure_res_submitters_sns_topic_arn_parameter_name
 
         # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
@@ -869,11 +1117,14 @@ class CdkSlurmStack(Stack):
         else:
             # Subnet not specified so pick the first private or isolated subnet, otherwise first public subnet
             if self.vpc.private_subnets:
-                self.subnet = self.private_subnets[0]
-            elif self.isolated_subnets:
-                self.subnet = self.isolated_subnets[0]
+                self.subnet = self.vpc.private_subnets[0]
+            elif self.vpc.isolated_subnets:
+                self.subnet = self.vpc.isolated_subnets[0]
+            elif self.vpc.public_subnets:
+                self.subnet = self.vpc.public_subnets[0]
             else:
-                self.subnet = self.public_subnets[0]
+                logger.error(f"No private, isolated, or public subnets found in {self.config['VpcId']}")
+                exit(1)
             self.config['SubnetId'] = self.subnet.subnet_id
         logger.info(f"Subnet set to {self.config['SubnetId']}")
         logger.info(f"availability zone: {self.subnet.availability_zone}")
@@ -882,63 +1133,20 @@ class CdkSlurmStack(Stack):
         '''
         Do this after the VPC object has been created so that we can choose a default SubnetId.
         '''
-        if 'Regions' not in self.config['slurm']['InstanceConfig']:
-            self.config['slurm']['InstanceConfig']['Regions'] = {}
-            self.config['slurm']['InstanceConfig']['Regions'][self.cluster_region] = {
-                'VpcId': self.config['VpcId'],
-                'CIDR': self.config['CIDR'],
-                'SshKeyPair': self.config['SshKeyPair'],
-                'AZs': [
-                    {
-                        'Priority': 1,
-                        'Subnet': self.config['SubnetId']
-                    }
-                ]
-            }
-            logger.info(f"Added {self.cluster_region} to InstanceConfig:\n{json.dumps(self.config['slurm']['InstanceConfig'], indent=4)}")
-
-        if len(self.config['slurm']['InstanceConfig']['Regions'].keys()) > 1:
-            logger.error(f"Can only specify 1 region in slurm/InstanceConfig/Regions and it must be {self.cluster_region}")
-            sys.exit(1)
-
-        self.compute_regions = []
-        self.remote_compute_regions = {}
-        self.compute_region_cidrs_dict = {}
-        for compute_region, region_dict in self.config['slurm']['InstanceConfig']['Regions'].items():
-            if  compute_region != self.cluster_region:
-                logger.error(f"Can only specify 1 region in slurm/InstanceConfig/Regions and it must be {self.cluster_region}")
-                sys.exit(1)
-            compute_region_cidr = region_dict['CIDR']
-            if compute_region not in self.compute_regions:
-                self.compute_regions.append(compute_region)
-                if compute_region != self.cluster_region:
-                    self.remote_compute_regions[compute_region] = compute_region_cidr
-            if compute_region_cidr not in self.compute_region_cidrs_dict:
-                self.compute_region_cidrs_dict[compute_region] = compute_region_cidr
-        logger.info(f"{len(self.compute_regions)} regions configured: {sorted(self.compute_regions)}")
-
-        self.eC2InstanceTypeInfo = EC2InstanceTypeInfo(self.compute_regions, get_savings_plans=False, json_filename='/tmp/instance_type_info.json', debug=False)
+        self.eC2InstanceTypeInfo = self.get_ec2InstanceTypeInfo()
 
         self.plugin = SlurmPlugin(slurm_config_file=None, region=self.cluster_region)
         self.plugin.instance_type_and_family_info = self.eC2InstanceTypeInfo.instance_type_and_family_info
-        self.az_info = self.plugin.get_az_info_from_instance_config(self.config['slurm']['InstanceConfig'])
-        logger.info(f"{len(self.az_info.keys())} AZs configured: {sorted(self.az_info.keys())}")
 
-        az_partitions = []
-        for az, az_info in self.az_info.items():
-            az_partitions.append(f"{az}_all")
-        self.default_partition = ','.join(az_partitions)
-
-        self.region_instance_types = self.plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], self.compute_regions, self.eC2InstanceTypeInfo)
+        self.region_instance_types = self.plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], [self.cluster_region], self.eC2InstanceTypeInfo)
         self.instance_types = []
-        for compute_region in self.compute_regions:
-            region_instance_types = self.region_instance_types[compute_region]
-            if len(region_instance_types) == 0:
-                logger.error(f"No instance types found in region {compute_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{region_instance_types}")
-                sys.exit(1)
-            logger.info(f"{len(region_instance_types)} instance types configured in {compute_region}:\n{pp.pformat(region_instance_types)}")
-            for instance_type in region_instance_types:
-                self.instance_types.append(instance_type)
+        region_instance_types = self.region_instance_types[self.cluster_region]
+        if len(region_instance_types) == 0:
+            logger.error(f"No instance types found in region {self.cluster_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{region_instance_types}")
+            sys.exit(1)
+        logger.info(f"{len(region_instance_types)} instance types configured in {self.cluster_region}:\n{pp.pformat(region_instance_types)}")
+        for instance_type in region_instance_types:
+            self.instance_types.append(instance_type)
         self.instance_types = sorted(self.instance_types)
 
         # Filter the instance types by architecture due to PC limitation to 1 architecture
@@ -1464,26 +1672,30 @@ class CdkSlurmStack(Stack):
                 )
 
         if 'RESEnvironmentName' in self.config:
-            configureRESClusterManagerLambdaAsset = s3_assets.Asset(self, "ConfigureRESClusterManagerAsset", path="resources/lambdas/ConfigureRESClusterManager")
-            self.configure_res_cluster_manager_lambda = aws_lambda.Function(
-                self, "ConfigRESClusterManagerLambda",
-                function_name=f"{self.stack_name}-ConfigRESClusterManager",
-                description="Configure RES cluster manager",
+            configureRESUsersGroupsJsonLambdaAsset = s3_assets.Asset(self, "ConfigureRESUsersGroupsJsonAsset", path="resources/lambdas/ConfigureRESUsersGroupsJson")
+            self.configure_res_users_groups_json_lambda = aws_lambda.Function(
+                self, "ConfigRESUsersGroupsJsonLambda",
+                function_name=f"{self.stack_name}-ConfigRESUsersGroupsJson",
+                description="Configure RES users and groups json file",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="ConfigureRESClusterManager.lambda_handler",
-                code=aws_lambda.Code.from_bucket(configureRESClusterManagerLambdaAsset.bucket, configureRESClusterManagerLambdaAsset.s3_object_key),
+                handler="ConfigureRESUsersGroupsJson.lambda_handler",
+                code=aws_lambda.Code.from_bucket(configureRESUsersGroupsJsonLambdaAsset.bucket, configureRESUsersGroupsJsonLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                    'RESEnvironmentName': self.config['RESEnvironmentName'],
+                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
+                    'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
+                    'RESDomainJoinedInstanceModuleId': 'vdc',
+                    'RESDomainJoinedInstanceNodeType': 'app'
                 }
             )
-            self.configure_res_cluster_manager_lambda.add_to_role_policy(
+            self.configure_res_users_groups_json_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1495,7 +1707,7 @@ class CdkSlurmStack(Stack):
                     )
                 )
             if 'ErrorSnsTopicArn' in self.config:
-                self.configure_res_cluster_manager_lambda.add_to_role_policy(
+                self.configure_res_users_groups_json_lambda.add_to_role_policy(
                     statement=iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
@@ -1504,10 +1716,10 @@ class CdkSlurmStack(Stack):
                         resources=[self.config['ErrorSnsTopicArn']]
                         )
                     )
-            self.configure_res_cluster_manager_lambda.add_event_source(
-                lambda_event_sources.SnsEventSource(self.configure_res_cluster_manager_sns_topic)
+            self.configure_res_users_groups_json_lambda.add_event_source(
+                lambda_event_sources.SnsEventSource(self.configure_res_users_groups_json_sns_topic)
             )
-            self.configure_res_cluster_manager_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+            self.configure_res_users_groups_json_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
 
             configureRESSubmittersLambdaAsset = s3_assets.Asset(self, "ConfigureRESSubmittersAsset", path="resources/lambdas/ConfigureRESSubmitters")
             self.configure_res_submitters_lambda = aws_lambda.Function(
@@ -1554,26 +1766,30 @@ class CdkSlurmStack(Stack):
             )
             self.configure_res_submitters_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
 
-            self.deconfigureRESClusterManagerLambdaAsset = s3_assets.Asset(self, "DeconfigureRESClusterManagerAsset", path="resources/lambdas/DeconfigureRESClusterManager")
-            self.deconfigure_res_cluster_manager_lambda = aws_lambda.Function(
-                self, "DeconfigRESClusterManagerLambda",
-                function_name=f"{self.stack_name}-DeconfigRESClusterManager",
-                description="Deconfigure RES cluster manager",
+            self.deconfigureRESUsersGroupsJsonLambdaAsset = s3_assets.Asset(self, "DeconfigureRESUsersGroupsJsonAsset", path="resources/lambdas/DeconfigureRESUsersGroupsJson")
+            self.deconfigure_res_users_groups_json_lambda = aws_lambda.Function(
+                self, "DeconfigRESUsersGroupsJsonLambda",
+                function_name=f"{self.stack_name}-DeconfigRESUsersGroupsJson",
+                description="Deconfigure RES users and groups json file",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="DeconfigureRESClusterManager.lambda_handler",
-                code=aws_lambda.Code.from_bucket(self.deconfigureRESClusterManagerLambdaAsset.bucket, self.deconfigureRESClusterManagerLambdaAsset.s3_object_key),
+                handler="DeconfigureRESUsersGroupsJson.lambda_handler",
+                code=aws_lambda.Code.from_bucket(self.deconfigureRESUsersGroupsJsonLambdaAsset.bucket, self.deconfigureRESUsersGroupsJsonLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                    'RESEnvironmentName': self.config['RESEnvironmentName'],
+                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
+                    'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
+                    'RESDomainJoinedInstanceModuleId': 'vdc',
+                    'RESDomainJoinedInstanceNodeType': 'app'
                 }
             )
-            self.deconfigure_res_cluster_manager_lambda.add_to_role_policy(
+            self.deconfigure_res_users_groups_json_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1585,7 +1801,7 @@ class CdkSlurmStack(Stack):
                     )
                 )
             if 'ErrorSnsTopicArn' in self.config:
-                self.deconfigure_res_cluster_manager_lambda.add_to_role_policy(
+                self.deconfigure_res_users_groups_json_lambda.add_to_role_policy(
                     statement=iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
@@ -1819,9 +2035,6 @@ class CdkSlurmStack(Stack):
             fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(self.NFS_PORT), f"{fs_client_sg_name} to Nfs")
         if self.onprem_cidr:
             self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.NFS_PORT), 'OnPremNodes to Nfs')
-        # Allow compute nodes in remote regions access to NFS
-        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.nfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.NFS_PORT), f"{compute_region} to Nfs")
 
         # ZFS Connections
         # https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html
@@ -1844,14 +2057,6 @@ class CdkSlurmStack(Stack):
             self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp_range(20001, 20003), 'OnPremNodes to Zfs')
             self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
             self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
-        # Allow compute nodes in remote regions access to ZFS
-        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(111), f"{compute_region} to Zfs")
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(111), f"{compute_region} to Zfs")
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.NFS_PORT), f"{compute_region} to Zfs")
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp(self.NFS_PORT), f"{compute_region} to Zfs")
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(20001, 20003), f"{compute_region} to Zfs")
-            self.zfs_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.udp_range(20001, 20003), f"{compute_region} to Zfs")
 
         # Lustre Connections
         lustre_fs_client_sgs = copy(fs_client_sgs)
@@ -1871,12 +2076,6 @@ class CdkSlurmStack(Stack):
             self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), 'OnPremNodes to Lustre')
             self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(988), f"Lustre to OnPremNodes")
             self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), f"Lustre to OnPremNodes")
-        # Allow compute nodes in remote regions access to Lustre
-        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.lustre_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(988), f"{compute_region} to Lustre")
-            self.lustre_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1021, 1023), f"{compute_region} to Lustre")
-            self.lustre_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(988), f"Lustre to {compute_region}")
-            self.lustre_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1021, 1023), f"Lustre to {compute_region}")
 
         for fs_type in self.extra_mount_security_groups.keys():
             for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
@@ -1922,8 +2121,6 @@ class CdkSlurmStack(Stack):
         if self.onprem_cidr:
             self.slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f'{self.slurmctl_sg_name} to OnPremNodes')
             self.slurmctl_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f'OnPremNodes to {self.slurmctl_sg_name}')
-        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.slurmctl_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.slurmd_port), f"{self.slurmctl_sg_name} to {compute_region}")
         self.slurmctl_sg.connections.allow_from(self.slurm_rest_api_lambda_sg, ec2.Port.tcp(self.slurmrestd_port), f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
         # slurmdbd connections
         # egress
@@ -1952,10 +2149,6 @@ class CdkSlurmStack(Stack):
                 slurm_submitter_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(6000, 7024), f"OnPremNodes to {slurm_submitter_sg_name} - x11")
                 # @todo Not sure if this is really initiated from the slurm node
                 self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {slurm_submitter_sg_name} - ephemeral")
-            for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-                slurm_submitter_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(6000, 7024), f"{compute_region} to {slurm_submitter_sg_name} - x11")
-                # @todo Not sure if this is really initiated from the slurm node
-                slurm_submitter_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{compute_region} to {slurm_submitter_sg_name} - ephemeral")
         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to slurm submitters: 1024-65535')
         self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(80), description="Internet")
         self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
@@ -1970,12 +2163,6 @@ class CdkSlurmStack(Stack):
         if self.onprem_cidr:
             self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f"OnPremNodes to {self.slurmnode_sg_name}")
             self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {self.slurmnode_sg_name}")
-        for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-            self.slurmctl_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{compute_region} to {self.slurmctl_sg_name}")
-            self.slurmnode_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.slurmd_port), f"{compute_region} to {self.slurmnode_sg_name}")
-            self.slurmnode_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.slurmd_port), f"{self.slurmnode_sg_name} to {compute_region}")
-            self.slurmnode_sg.connections.allow_from(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{compute_region} to {self.slurmnode_sg_name}")
-            self.slurmnode_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {compute_region}")
 
         # slurm submitter connections
         # egress
@@ -1988,8 +2175,6 @@ class CdkSlurmStack(Stack):
             slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.slurmrestd_port), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
             if self.onprem_cidr:
                 slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
-            for compute_region, compute_region_cidr in self.remote_compute_regions.items():
-                slurm_submitter_sg.connections.allow_to(ec2.Peer.ipv4(compute_region_cidr), ec2.Port.tcp(self.slurmd_port), f"{slurm_submitter_sg_name} to {compute_region} - srun")
             # W29:Security Groups found egress with port range instead of just a single port
             self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Port range ok. Submitter to SlurmCtl requires range for slurmctld ports')
 
@@ -2853,7 +3038,8 @@ class CdkSlurmStack(Stack):
         for extra_mount_dict in self.config['slurm'].get('storage', {}).get('ExtraMounts', {}):
             mount_dir = extra_mount_dict['dest']
             if mount_dir == '/home' and not config_schema.PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(self.PARALLEL_CLUSTER_VERSION):
-                continue
+                logger.error(f"Mounting /home is not supported in this version of ParallelCluster.")
+                exit(1)
             storage_type = extra_mount_dict['StorageType']
             if storage_type == 'Efs':
                 parallel_cluster_storage_dict = {
@@ -2883,6 +3069,7 @@ class CdkSlurmStack(Stack):
                     'MountDir': mount_dir,
                     'FsxOpenZfsSettings': {'VolumeId': extra_mount_dict['VolumeId']},
                 }
+            logger.debug(f"Adding SharedStorage:\n{json.dumps(parallel_cluster_storage_dict, indent=4)}")
             self.parallel_cluster_config['SharedStorage'].append(parallel_cluster_storage_dict)
 
         # Save the config template to s3.
@@ -2949,7 +3136,7 @@ class CdkSlurmStack(Stack):
         self.parallel_cluster.node.add_dependency(self.update_head_node_lambda)
         # The lambdas to configure instances must exist befor the cluster so they can be called.
         if 'RESEnvironmentName' in self.config:
-            self.parallel_cluster.node.add_dependency(self.configure_res_cluster_manager_lambda)
+            self.parallel_cluster.node.add_dependency(self.configure_res_users_groups_json_lambda)
             self.parallel_cluster.node.add_dependency(self.configure_res_submitters_lambda)
         # Build config files need to be created before cluster so that they can be downloaded as part of on_head_node_configures
         self.parallel_cluster.node.add_dependency(self.build_config_files)
@@ -2962,20 +3149,20 @@ class CdkSlurmStack(Stack):
             self, "UpdateHeadNode",
             service_token = self.update_head_node_lambda.function_arn,
             properties = {
-                'ParallelClusterConfigHash': self.parallel_cluster_config_yaml_hash,
+                'ParallelClusterConfigHash': self.assets_hash.hexdigest(),
             }
         )
         self.update_head_node.node.add_dependency(self.parallel_cluster)
 
         if 'RESEnvironmentName' in self.config:
             # Custom resource to deconfigure cluster manager before deleting cluster
-            self.deconfigure_res_cluster_manager = CustomResource(
-                self, "DeconfigureRESClusterManager",
-                service_token = self.deconfigure_res_cluster_manager_lambda.function_arn,
+            self.deconfigure_res_users_groups_json = CustomResource(
+                self, "DeconfigureRESUsersGroupsJson",
+                service_token = self.deconfigure_res_users_groups_json_lambda.function_arn,
                 properties = {
                 }
             )
-            self.deconfigure_res_cluster_manager.node.add_dependency(self.parallel_cluster)
+            self.deconfigure_res_users_groups_json.node.add_dependency(self.parallel_cluster)
 
             # Custom resource to deconfigure submitters before deleting cluster
             self.deconfigure_res_submitters = CustomResource(

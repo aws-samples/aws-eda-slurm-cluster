@@ -31,6 +31,11 @@ sys.path.append(installer_path)
 from prompt import get_input as get_input
 
 logger = logging.getLogger(__file__)
+logger_formatter = logging.Formatter('%(levelname)s: %(message)s')
+logger_streamHandler = logging.StreamHandler()
+logger_streamHandler.setFormatter(logger_formatter)
+logger.addHandler(logger_streamHandler)
+logger.propagate = False
 logger.setLevel(logging.INFO)
 
 pp = pprint.PrettyPrinter(indent=4)
@@ -129,6 +134,61 @@ class FindExistingResource:
         allowed_choices = list(options.keys())
         choice = get_input(f"Select a KeyPair:", None, allowed_choices, int)
         return options[choice]
+
+    def check_res_environment_name(self, config_key, res_environment_name, config) -> bool:
+        try:
+            res_stack_name = None
+            stacks = {}
+            for stack_dict in self.cloudformation.list_stacks(
+                    StackStatusFilter=[
+                        'CREATE_COMPLETE',
+                        'ROLLBACK_COMPLETE',
+                        'UPDATE_COMPLETE',
+                        'UPDATE_ROLLBACK_COMPLETE',
+                        'IMPORT_COMPLETE',
+                        'IMPORT_ROLLBACK_COMPLETE'
+                    ]
+                )["StackSummaries"]:
+                stack_name = stack_dict['StackName']
+                if stack_name == res_environment_name:
+                    res_stack_name = stack_dict['StackName']
+                    # Don't break here so get all of the stack names
+                stack_status = stack_dict['StackStatus']
+                stacks[stack_name] = stack_status
+            if not res_stack_name:
+                message = f"CloudFormation RES stack named {res_environment_name} not found. Existing stacks:"
+                for stack_name in sorted(stacks):
+                    message += f"\n    {stack_name:32}: status={stacks[stack_name]}"
+                raise ValueError(message)
+
+            # Get VpcId, SubnetId from RES stack
+            stack_parameters = self.cloudformation.describe_stacks(StackName=res_stack_name)['Stacks'][0]['Parameters']
+            vpc_id = None
+            subnet_ids = []
+            for stack_parameter_dict in stack_parameters:
+                stack_parameter_key = stack_parameter_dict['ParameterKey']
+                if stack_parameter_key == 'VpcId':
+                    vpc_id = stack_parameter_dict['ParameterValue']
+                elif stack_parameter_key in ['PrivateSubnets', 'InfrastructureHostSubnets', 'VdiSubnets']:
+                    subnet_ids += stack_parameter_dict['ParameterValue'].split(',')
+            if not vpc_id:
+                raise ValueError(f"VpcId parameter not found in {res_environment_name} RES stack.")
+            if 'VpcId' in config and config['VpcId'] != vpc_id:
+                raise ValueError(f"Config file VpcId={config['VpcId']} is not the same as RESEnvironmentName VpcId={vpc_id}.")
+            logger.info(f"VpcId set to {vpc_id} by RESEnvironmentName.")
+            config['VpcId'] = vpc_id
+            if not subnet_ids:
+                raise ValueError(f"PrivateSubnets, InfrastructureHostSubnets, or VdiSubnets parameters not found in {res_environment_name} RES stack.")
+            if 'SubnetId' in config and config['SubnetId'] not in subnet_ids:
+                raise ValueError(f"Config file SubnetId={config['SubnetId']} is not a RES private subnet. RES private subnets: {subnet_ids}.")
+            if 'SubnetId' not in config:
+                config['SubnetId'] = subnet_ids[0]
+                logger.info(f"SubnetId set to {config['SubnetId']} by RESEnvironmentName.")
+
+            return True
+        except:
+            raise
+        return False
 
     def check_vpc_id(self, specified_vpc_id):
         try:

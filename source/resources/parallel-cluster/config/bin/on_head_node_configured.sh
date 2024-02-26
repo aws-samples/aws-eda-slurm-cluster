@@ -84,9 +84,9 @@ ansible-playbook $PLAYBOOKS_PATH/ParallelClusterHeadNode.yml \
 popd
 
 # Notify SNS topic that trigger configuration of cluster manager and submitters
-ConfigureRESClusterManagerSnsTopicArnParameter={{ConfigureRESClusterManagerSnsTopicArnParameter}}
-if ! [[ -z "$ConfigureRESClusterManagerSnsTopicArnParameter" ]]; then
-    ConfigureRESClusterManagerSnsTopicArn=$(aws ssm get-parameter --name $ConfigureRESClusterManagerSnsTopicArnParameter --query 'Parameter.Value' --output text)
+ConfigureRESUsersGroupsJsonSnsTopicArnParameter={{ConfigureRESUsersGroupsJsonSnsTopicArnParameter}}
+if ! [[ -z "$ConfigureRESUsersGroupsJsonSnsTopicArnParameter" ]]; then
+    ConfigureRESClusterManagerSnsTopicArn=$(aws ssm get-parameter --name $ConfigureRESUsersGroupsJsonSnsTopicArnParameter --query 'Parameter.Value' --output text)
     aws sns publish --topic-arn $ConfigureRESClusterManagerSnsTopicArn --message 'Configure {{ClusterName}} RES ClusterManager'
 fi
 

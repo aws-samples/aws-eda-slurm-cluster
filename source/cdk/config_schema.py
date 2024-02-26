@@ -35,6 +35,7 @@ logger.propagate = False
 logger.setLevel(logging.INFO)
 
 # MIN_PARALLEL_CLUSTER_VERSION
+# Releases: https://github.com/aws/aws-parallelcluster/releases
 # 3.2.0:
 #     * Add support for memory-based job scheduling in Slurm
 # 3.3.0:
@@ -61,7 +62,7 @@ logger.setLevel(logging.INFO)
 #     * Fix pmix CVE
 #     * Use Slurm 23.02.5
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
-DEFAULT_PARALLEL_CLUSTER_VERSION = parse_version('3.8.0')
+# Update source/resources/default_config.yml with latest version when this is updated.
 PARALLEL_CLUSTER_VERSIONS = [
     '3.6.0',
     '3.6.1',
@@ -124,7 +125,7 @@ PARALLEL_CLUSTER_ALLOWED_OSES = [
     ]
 
 def get_parallel_cluster_version(config):
-    return config['slurm']['ParallelClusterConfig'].get('Version', str(DEFAULT_PARALLEL_CLUSTER_VERSION))
+    return config['slurm']['ParallelClusterConfig']['Version']
 
 def get_PARALLEL_CLUSTER_MUNGE_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
@@ -184,6 +185,38 @@ try:
 except ClientError as err:
     logger.error(f"{fg('red')}Unable to list all AWS regions. Make sure you have set your IAM credentials. {err} {attr('reset')}")
     exit(1)
+
+VALID_ARCHITECTURES = ['arm64', 'x86_64']
+
+DEFAULT_ARCHITECTURE = 'x86_64'
+
+# Controller needs at least 4 GB  or will hit OOM
+
+DEFAULT_ARM_CONTROLLER_INSTANCE_TYPE = 'c6g.large'
+
+DEFAULT_X86_CONTROLLER_INSTANCE_TYPE = 'c6a.large'
+
+def default_controller_instance_type(config):
+    architecture = config['slurm']['ParallelClusterConfig'].get('Architecture', DEFAULT_ARCHITECTURE)
+    if architecture == 'x86_64':
+        return DEFAULT_X86_CONTROLLER_INSTANCE_TYPE
+    elif architecture == 'arm64':
+        return DEFAULT_ARM_CONTROLLER_INSTANCE_TYPE
+    else:
+        raise ValueError(f"Invalid architecture: {architecture}")
+
+DEFAULT_ARM_OS = 'rhel8'
+
+DEFAULT_X86_OS = 'rhel8'
+
+def DEFAULT_OS(config):
+    architecture = config['slurm']['ParallelClusterConfig'].get('Architecture', DEFAULT_ARCHITECTURE)
+    if architecture == 'x86_64':
+        return DEFAULT_X86_OS
+    elif architecture == 'arm64':
+        return DEFAULT_ARM_OS
+    else:
+        raise ValueError(f"Invalid architecture: {architecture}")
 
 filesystem_lifecycle_policies = [
     'None',
@@ -350,12 +383,12 @@ def get_config_schema(config):
         'slurm': {
             Optional('ParallelClusterConfig'): {
                 Optional('Enable', default=True): And(bool, lambda s: s == True),
-                Optional('Version', default=str(DEFAULT_PARALLEL_CLUSTER_VERSION)): And(str, lambda version: version in PARALLEL_CLUSTER_VERSIONS, lambda version: parse_version(version) >= MIN_PARALLEL_CLUSTER_VERSION),
-                Optional('Image', default={'Os': 'centos7'}): {
-                    'Os': And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES, ),
+                'Version': And(str, lambda version: version in PARALLEL_CLUSTER_VERSIONS, lambda version: parse_version(version) >= MIN_PARALLEL_CLUSTER_VERSION),
+                Optional('Image', default={'Os': DEFAULT_OS(config)}): {
+                    'Os': And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES),
                     Optional('CustomAmi'): And(str, lambda s: s.startswith('ami-')),
                 },
-                Optional('Architecture', default='x86_64'): And(str, lambda s: s in ['arm64', 'x86_64']),
+                Optional('Architecture', default=DEFAULT_ARCHITECTURE): And(str, lambda s: s in VALID_ARCHITECTURES),
                 Optional('ComputeNodeAmi'): And(str, lambda s: s.startswith('ami-')),
                 Optional('DisableSimultaneousMultithreading', default=True): bool,
                 # Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group
@@ -424,13 +457,13 @@ def get_config_schema(config):
             #     If the secret doesn't exist one will be created, but won't be part of the cloudformation stack
             #     so that it won't be deleted when the stack is deleted.
             #     Required if your submitters need to use more than 1 cluster.
-            Optional('MungeKeySecret'): str,
+            Optional('MungeKeySecret', default='/slurm/munge_key'): str,
             #
             # SlurmCtl:
             #     Required, but can be an empty dict to accept all of the defaults
             'SlurmCtl': {
                 Optional('SlurmdPort', default=6818): int,
-                Optional('instance_type', default='c6a.large'): str,
+                Optional('instance_type', default=default_controller_instance_type(config)): str,
                 Optional('volume_size', default=200): int,
                 Optional('CloudWatchPeriod', default=5): int,
                 Optional('PreemptMode', default='REQUEUE'): And(str, lambda s: s in ['OFF', 'CANCEL', 'GANG', 'REQUEUE', 'SUSPEND']),
@@ -487,19 +520,6 @@ def get_config_schema(config):
                             Optional('MinCount', default=0): And(int, lambda s: s >= 0),
                             'MaxCount': And(int, lambda s: s >= 0)
                         }
-                    }
-                },
-                Optional('Regions'): {
-                    str: {
-                        'VpcId': And(str, lambda s: re.match('vpc-', s)),
-                        'CIDR': str,
-                        'SshKeyPair': str,
-                        'AZs': [
-                            {
-                                'Priority': int,
-                                'Subnet': And(str, lambda s: re.match('subnet-', s))
-                            }
-                        ],
                     }
                 },
                 Optional('OnPremComputeNodes'): {
