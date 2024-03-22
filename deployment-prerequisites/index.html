@@ -51,6 +51,9 @@
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
                             </li>
                             <li class="navitem">
@@ -60,19 +63,10 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
                             </li>
                             <li class="navitem">
-                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -118,6 +112,10 @@
             
             <li class="nav-item" data-level="1"><a href="#deployment-prerequisites" class="nav-link">Deployment Prerequisites</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#deployment-serverinstance-requirements" class="nav-link">Deployment Server/Instance Requirements</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
             <li class="nav-item" data-level="2"><a href="#configure-aws-cli-credentials" class="nav-link">Configure AWS CLI Credentials</a>
               <ul class="nav flex-column">
               </ul>
@@ -163,6 +161,12 @@
 
 <h1 id="deployment-prerequisites">Deployment Prerequisites</h1>
 <p>This page shows common prerequisites that need to be done before deployment.</p>
+<h2 id="deployment-serverinstance-requirements">Deployment Server/Instance Requirements</h2>
+<p>The deployment process was developed and tested using Amazon Linux 2.
+It has also been tested on RHEL 8 and RHEL 9.
+An easy way to create a deployment instance is to use an AWS Cloud 9 desktop.
+This will give you a code editor IDE and shell environment that you can use to deploy the cluster.</p>
+<p>If the required packages aren't installed then you will need sudo or root access on the instance.</p>
 <h2 id="configure-aws-cli-credentials">Configure AWS CLI Credentials</h2>
 <p>You will needs AWS credentials that provide admin access to deploy the cluster.</p>
 <h2 id="clone-or-download-the-repository">Clone or Download the Repository</h2>
@@ -225,49 +229,49 @@ You should save your selections in the config file.</p>
 </thead>
 <tbody>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L221">StackName</a>]</td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L366-L367">StackName</a></td>
 <td>The cloudformation stack that will deploy the cluster.</td>
 <td></td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L318-L320">slurm/ClusterName</a></td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L447-L452">slurm/ClusterName</a></td>
 <td>Name of the Slurm cluster</td>
 <td>For ParallelCluster shouldn't be the same as StackName</td>
 <td></td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L222-L223">Region</a></td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L368-L369">Region</a></td>
 <td>Region where VPC is located</td>
 <td></td>
 <td><code>$AWS_DEFAULT_REGION</code></td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L226-L227">VpcId</a></td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L372-L373">VpcId</a></td>
 <td>The vpc where the cluster will be deployed.</td>
 <td>vpc-*</td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L224-L225">SshKeyPair</a></td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L370-L371">SshKeyPair</a></td>
 <td>EC2 Keypair to use for instances</td>
 <td></td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L435-L439">slurm/SubmitterSecurityGroupIds</a></td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L480-L485">slurm/SubmitterSecurityGroupIds</a></td>
 <td>Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource.</td>
 <td>sg-*</td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L233-L234">ErrorSnsTopicArn</a></td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L379-L380">ErrorSnsTopicArn</a></td>
 <td>ARN of an SNS topic that will be notified of errors</td>
 <td><code>arn:aws:sns:{{region}}:{AccountId}:{TopicName}</code></td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509">slurm/InstanceConfig</a></td>
+<td><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543">slurm/InstanceConfig</a></td>
 <td>Configure instance types that the cluster can use and number of nodes.</td>
 <td></td>
 <td>See <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">default_config.yml</a></td>
@@ -275,7 +279,7 @@ You should save your selections in the config file.</p>
 </tbody>
 </table>
 <h3 id="configure-the-compute-instances">Configure the Compute Instances</h3>
-<p>The <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509">slurm/InstanceConfig</a> configuration parameter configures the base operating systems, CPU architectures, instance families,
+<p>The <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543">slurm/InstanceConfig</a> configuration parameter configures the base operating systems, CPU architectures, instance families,
 and instance types that the Slurm cluster should support.
 ParallelCluster currently doesn't support heterogeneous clusters;
 all nodes must have the same architecture and Base OS.</p>
@@ -303,6 +307,10 @@ all nodes must have the same architecture and Base OS.</p>
 <td>RedHat 8</td>
 <td>x86_64, arm64</td>
 </tr>
+<tr>
+<td>Rocky 8</td>
+<td>x86_64, arm64</td>
+</tr>
 </tbody>
 </table>
 <p>You can exclude instances types by family or specific instance type.
@@ -318,17 +326,14 @@ The disadvantage is higher cost if the instance is lightly loaded.</p>
 <p>The default InstanceConfig includes all supported base OSes and architectures and burstable and general purpose
 instance types.</p>
 <ul>
-<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L124-L166">default instance families</a></li>
-<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L168-L173">default instance types</a></li>
-<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L175-L192">default excluded instance families</a></li>
-<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L194-L197">default excluded instance types</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L230-L271">default instance families</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L314-L319">default instance types</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L321-L338">default excluded instance families</a></li>
+<li><a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L340-L343">default excluded instance types</a></li>
 </ul>
 <p>Note that instance types and families are python regular expressions.</p>
 <pre><code>slurm:
   InstanceConfig:
-    BaseOsArchitecture:
-      CentOS:
-        7: [x86_64]
     Include:
       InstanceFamilies:
         - t3.*
@@ -339,9 +344,6 @@ instance types.</p>
 <p>The following InstanceConfig configures instance types recommended for EDA workloads running on CentOS.</p>
 <pre><code>slurm:
   InstanceConfig:
-    BaseOsArchitecture:
-      CentOS:
-          7: [x86_64]
     Include:
       InstanceFamilies:
         - c5.*
@@ -360,12 +362,6 @@ To do this add a MinCount greater than 0 for the compute resources that contain 
   InstanceConfig:
     NodeCounts:
       DefaultMinCount: 1
-</code></pre>
-<p>The Legacy cluster also allows you to specify the names of specific nodes.</p>
-<pre><code>slurm:
-  InstanceConfig:
-    AlwaysOnNodes:
-      - nodename-[0-4]
 </code></pre>
 <h3 id="configure-fair-share-scheduling-optional">Configure Fair Share Scheduling (Optional)</h3>
 <p>Slurm supports <a href="https://slurm.schedmd.com/fair_tree.html">fair share scheduling</a>, but it requires the fair share policy to be configured.
@@ -442,7 +438,7 @@ It will keep track of how many running jobs are using a license and when no more
 then jobs will stay pending in the queue until a job completes and frees up a license.
 Combined with the fairshare algorithm, this can prevent users from monopolizing licenses and preventing others from
 being able to run their jobs.</p>
-<p>Licenses are configured using the <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L621-L629">slurm/Licenses</a> configuration variable.
+<p>Licenses are configured using the <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L569-L577">slurm/Licenses</a> configuration variable.
 If you are using the Slurm database then these will be configured in the database.
 Otherwises they will be configured in <strong>/opt/slurm/{{ClusterName}}/etc/slurm_licenses.conf</strong>.</p>
 <p>The example configuration shows how the number of licenses can be configured.

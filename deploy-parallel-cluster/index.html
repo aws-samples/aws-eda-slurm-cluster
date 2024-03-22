@@ -51,6 +51,9 @@
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
                             </li>
                             <li class="navitem">
@@ -60,19 +63,10 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
                             </li>
                             <li class="navitem">
-                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -164,9 +158,9 @@
 <h1 id="deploy-aws-parallelcluster">Deploy AWS ParallelCluster</h1>
 <p>A ParallelCluster configuration will be generated and used to create a ParallelCluster slurm cluster.
 The first supported ParallelCluster version is 3.6.0.
-Version 3.7.0 is the recommended minimum version because it support compute node weighting that is proportional to instance type
+Version 3.7.0 is the recommended minimum version because it supports compute node weighting that is proportional to instance type
 cost so that the least expensive instance types that meet job requirements are used.
-The current latest version is 3.7.2.</p>
+The current latest version is 3.8.0.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <p>See <a href="../deployment-prerequisites/">Deployment Prerequisites</a> page.</p>
 <h3 id="create-parallelcluster-ui-optional-but-recommended">Create ParallelCluster UI (optional but recommended)</h3>

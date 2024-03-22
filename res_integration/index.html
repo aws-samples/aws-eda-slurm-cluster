@@ -51,6 +51,9 @@
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
                             </li>
                             <li class="navitem">
@@ -60,19 +63,10 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem">
-                                <a href="../onprem/" class="nav-link">On-Premises Integration (legacy)</a>
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
                             </li>
                             <li class="navitem">
-                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -126,8 +120,12 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="res-integration">RES Integration</h1>
-<p>Integration with <a href="https://docs.aws.amazon.com/res/latest/ug/overview.html">Research and Engineering Studion (RES)</a> is straightforward.</p>
-<p>Set the following parameters in your config file.</p>
+<p>Integration with <a href="https://docs.aws.amazon.com/res/latest/ug/overview.html">Research and Engineering Studion (RES)</a> is straightforward.
+You simply specify the <strong>--RESEnvironmentName</strong> option for the <code>install.sh</code> script or add the <strong>RESEnvironmentName</strong> configuration parameter
+to your configuration file.
+The install script will set the following configuration parameters based on your RES environment or check them if you have them set to make sure they are consistent
+with your RES environment.
+The intention is to completely automate the deployment of ParallelCluster and set up the RES environment so that it can easily be used.</p>
 <table>
 <thead>
 <tr>
@@ -144,12 +142,12 @@
 </tr>
 <tr>
 <td>SubnetId</td>
-<td>Private subnet in the RES VPC.</td>
+<td>Subnet in the RES VPC.</td>
 <td>subnet-xxxxx</td>
 </tr>
 <tr>
 <td>SubmitterSecurityGroupIds</td>
-<td>The security group name and id used by RES VDIs. The name will be something like <em>EnvironmentName</em>-vdc-dcv-host-security-group</td>
+<td>The security group names and ids used by RES VDIs. The name will be something like <em>EnvironmentName</em>-vdc-dcv-host-security-group</td>
 <td><em>EnvironmentName</em>-<em>VDISG</em>: sg-xxxxxxxx</td>
 </tr>
 <tr>
@@ -159,7 +157,7 @@
 </tr>
 <tr>
 <td>ExtraMounts</td>
-<td>Add the mount parameters for the /home directory. This is required for access to the home directory.</td>
+<td>The mount parameters for the /home directory. This is required for access to the home directory.</td>
 <td></td>
 </tr>
 <tr>
@@ -169,6 +167,7 @@
 </tr>
 </tbody>
 </table>
+<p>When you specify <strong>RESEnvironmentName</strong>, a lambda function will run SSM commands to create a cron job on a RES domain joined instance to update the users_groups.json file every hour. Another lambda function will also automatically configure all running VDI hosts to use the cluster.</p>
 <p>The following example shows the configuration parameters for a RES with the EnvironmentName=res-eda.</p>
 <pre><code>---
 #====================================================================
@@ -178,36 +177,27 @@
 # Command line values override values in the config file.
 #====================================================================
 
-StackName: res-eda-pc-3-7-2-r8-x86-config
+StackName: res-eda-pc-3-8-0-rhel8-x86-config
 
 Region: &lt;region&gt;
 SshKeyPair: &lt;key-name&gt;
 
-VpcId: vpc-xxxxxxxxxxxxxxxxx # res-bi
-
-SubnetId: subnet-xxxxxxxxxxxxxxxxx # res-bi, res-bi-Networking-xxxxxxxxxxxxx:PrivateSubnetA-&lt;region&gt;
+RESEnvironmentName: res-eda
 
 ErrorSnsTopicArn: &lt;topic-arn&gt;
 
 TimeZone: 'US/Central'
 
 slurm:
-  ClusterName: res-eda-pc-3-7-2-r8-x86
+  ClusterName: res-eda-pc-3-8-0-rhel8-x86
 
   ParallelClusterConfig:
-    Version: '3.7.2'
+    Version: '3.8.0'
     Image:
       Os: 'rhel8'
     Architecture: 'x86_64'
     Database:
       DatabaseStackName: pcluster-slurm-db-res
-
-  # External security groups that should be able to use the cluster
-  SubmitterSecurityGroupIds:
-    res-eda-DCV-SG: sg-xxxxxxxxxxxxxxxxx # res-eda-vdc-dcv-host-security-group
-
-  SubmitterInstanceTags:
-    'res:EnvironmentName': ['res-eda']
 
   SlurmCtl: {}
 
@@ -217,37 +207,8 @@ slurm:
     UseSpot: true
     NodeCounts:
       DefaultMaxCount: 10
-
-  storage:
-    ExtraMounts:
-      - dest: /home
-        StorageType: Efs
-        FileSystemId: 'fs-06613eabfa09fe039'
-        FileSystemId: 'fs-xxxxxxxxxxxxxxxxx'
-        src: fs-xxxxxxxxxxxxxxxxx.efs.&lt;region&gt;.amazonaws.com:/
-        type: nfs4
-        options: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport
-    ExtraMountSecurityGroups:
-      nfs:
-        res-eda-DCV-SG: sg-xxxxxxxxxxxxxxxxx # res-eda-vdc-dcv-host-security-group
-
-Licenses:
-  vcs:
-    Count: 10
-    Server: synopsys_licenses
-    Port: '24680'
-    ServerType: flexlm
-  ansys:
-    Count: 1
-    Server: ansys_licenses
-    Port: '2200'
 </code></pre>
-<p>Deploy your cluster.</p>
-<p>Connect to the RES cluster manager instance and follow the instructions to <a href="../deploy-parallel-cluster/#create-users_groupsjson">Create users_groups.json</a>.</p>
-<p>Connect to a remote desktop instance and follow the instructions in <a href="../deploy-parallel-cluster/#configure-submission-hosts-to-use-the-cluster">Configure submission hosts to use the cluster</a>.
-If all users need to use the cluster then it is probably best to create a custom AMI that is configured with the configuration
-commands.</p>
-<p>You are now ready to run jobs from your RES DCV desktop.</p></div>
+<p>When the cluster deployment finishes you are ready to run jobs from your RES DCV desktop.</p></div>
             </div>
         </div>
 

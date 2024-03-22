@@ -8,7 +8,7 @@
         
         
         <link rel="shortcut icon" href="../img/favicon.ico">
-        <title>On-Premises Integration (legacy) - EDA SLURM Cluster on AWS</title>
+        <title>On-Premises Integration - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
@@ -51,6 +51,9 @@
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
                             </li>
                             <li class="navitem">
@@ -60,19 +63,10 @@
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
                             <li class="navitem active">
-                                <a href="./" class="nav-link">On-Premises Integration (legacy)</a>
+                                <a href="./" class="nav-link">On-Premises Integration</a>
                             </li>
                             <li class="navitem">
-                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../federation/" class="nav-link">Federation (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../delete-cluster/" class="nav-link">Delete Cluster (legacy)</a>
-                            </li>
-                            <li class="navitem">
-                                <a href="../implementation/" class="nav-link">Implementation Details (legacy)</a>
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
                             </li>
                             <li class="navitem">
                                 <a href="../debug/" class="nav-link">Debug</a>
@@ -91,7 +85,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../custom-amis/" class="nav-link">
+                                <a rel="next" href="../delete-cluster/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -116,7 +110,7 @@
     <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#on-premises-integration-legacy" class="nav-link">On-Premises Integration (legacy)</a>
+            <li class="nav-item" data-level="1"><a href="#on-premises-integration" class="nav-link">On-Premises Integration</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-level="2"><a href="#network-requirements" class="nav-link">Network Requirements</a>
               <ul class="nav flex-column">
@@ -145,8 +139,8 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="on-premises-integration-legacy">On-Premises Integration (legacy)</h1>
-<p>The slurm cluster can also be configured to manage on-premises compute nodes.
+<h1 id="on-premises-integration">On-Premises Integration</h1>
+<p>The Slurm cluster can also be configured to manage on-premises compute nodes.
 The user must configure the on-premises compute nodes and then give the configuration information.</p>
 <h2 id="network-requirements">Network Requirements</h2>
 <p>The on-prem network must have a CIDR range that doesn't overlap the Slurm cluster's VPC and the two networks
@@ -159,27 +153,14 @@ The ports are used to connect to the file systems, slurm controllers, and allow 
 <p>All of the compute nodes in the cluster, including the on-prem nodes, must have file system mounts that replicate the same directory structure.
 This can involve mounting filesystems across VPN or Direct Connect or synchronizing file systems using tools like rsync or NetApp FlexCache or SnapMirror.
 Performance will dictate the architecture of the file system.</p>
+<p>The onprem compute nodes must mount the Slurm controller's NFS export so that they have access to the Slurm binaries and configuration file.
+They must then be configured to run slurmd so that they can be managed by Slurm.</p>
 <h2 id="slurm-configuration-of-on-premises-compute-nodes">Slurm Configuration of On-Premises Compute Nodes</h2>
 <p>The slurm cluster's configuration file allows the configuration of on-premises compute nodes.
 The Slurm cluster will not provision any of the on-prem nodes, network, or firewall, but it will configure
 the cluster's resources to be used by the on-prem nodes.
 All that needs to be configured are the configuration file for the on-prem nodes and the CIDR block.</p>
 <pre><code>  InstanceConfig:
-    UseSpot: true
-    DefaultPartition: CentOS_7_x86_64_spot
-    NodesPerInstanceType: 10
-    BaseOsArchitecture:
-      CentOS: {7: [x86_64]}
-    Include:
-      MaxSizeOnly: false
-      InstanceFamilies:
-        - t3
-      InstanceTypes: []
-    Exclude:
-      InstanceFamilies: []
-      InstanceTypes:
-        - '.+\.(micro|nano)'   # Not enough memory
-        - '.*\.metal'
     OnPremComputeNodes:
       ConfigFile: 'slurm_nodes_on_prem.conf'
       CIDR: '10.1.0.0/16'
