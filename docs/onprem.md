@@ -1,6 +1,6 @@
-# On-Premises Integration (legacy)
+# On-Premises Integration
 
-The slurm cluster can also be configured to manage on-premises compute nodes.
+The Slurm cluster can also be configured to manage on-premises compute nodes.
 The user must configure the on-premises compute nodes and then give the configuration information.
 
 ## Network Requirements
@@ -20,6 +20,9 @@ All of the compute nodes in the cluster, including the on-prem nodes, must have 
 This can involve mounting filesystems across VPN or Direct Connect or synchronizing file systems using tools like rsync or NetApp FlexCache or SnapMirror.
 Performance will dictate the architecture of the file system.
 
+The onprem compute nodes must mount the Slurm controller's NFS export so that they have access to the Slurm binaries and configuration file.
+They must then be configured to run slurmd so that they can be managed by Slurm.
+
 ## Slurm Configuration of On-Premises Compute Nodes
 
 The slurm cluster's configuration file allows the configuration of on-premises compute nodes.
@@ -29,21 +32,6 @@ All that needs to be configured are the configuration file for the on-prem nodes
 
 ```
   InstanceConfig:
-    UseSpot: true
-    DefaultPartition: CentOS_7_x86_64_spot
-    NodesPerInstanceType: 10
-    BaseOsArchitecture:
-      CentOS: {7: [x86_64]}
-    Include:
-      MaxSizeOnly: false
-      InstanceFamilies:
-        - t3
-      InstanceTypes: []
-    Exclude:
-      InstanceFamilies: []
-      InstanceTypes:
-        - '.+\.(micro|nano)'   # Not enough memory
-        - '.*\.metal'
     OnPremComputeNodes:
       ConfigFile: 'slurm_nodes_on_prem.conf'
       CIDR: '10.1.0.0/16'

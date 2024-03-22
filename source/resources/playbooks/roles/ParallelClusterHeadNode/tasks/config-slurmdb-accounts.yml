@@ -14,19 +14,19 @@
     name:
       - pyyaml
 
-- name: Create {{SlurmConfigDir}}/bin/create_slurm_accounts.py
+- name: Create {{ SlurmConfigDir }}/bin/create_slurm_accounts.py
   when: PrimaryController|bool
   copy:
-    dest: "{{SlurmConfigDir}}/bin/create_slurm_accounts.py"
+    dest: "{{ SlurmConfigDir }}/bin/create_slurm_accounts.py"
     src:  opt/slurm/config/bin/create_slurm_accounts.py
     owner: root
     group: root
     mode: 0755
 
-- name: Create {{SlurmConfigDir}}/accounts.yml
+- name: Create {{ SlurmConfigDir }}/accounts.yml
   when: PrimaryController|bool
   copy:
-    dest: "{{SlurmConfigDir}}/accounts.yml"
+    dest: "{{ SlurmConfigDir }}/accounts.yml"
     src:  opt/slurm/config/accounts.yml.example
     owner: root
     group: root
@@ -44,15 +44,15 @@
     group: root
     mode: 0755
 
-- name: Run {{SlurmConfigDir}}/bin/create_slurm_accounts.py to make sure it works
+- name: Run {{ SlurmConfigDir }}/bin/create_slurm_accounts.py to make sure it works
   # This uses sacctmcr so must do this after slurmctld and slurmdbd are working.
-  when: PrimaryController|bool and (AccountingStorageHost != '') and Licenses
+  when: PrimaryController|bool and AccountingStorageHost and Licenses
   shell:
     cmd: |
       set -ex
 
-      export SLURM_ROOT={{SlurmRoot}}
-      {{SlurmConfigDir}}/bin/create_slurm_accounts.py --accounts {{SlurmConfigDir}}/accounts.yml --users {{SlurmConfigDir}}/users_groups.json --default-account unassigned -d
+      export SLURM_ROOT={{ SlurmRoot }}
+      {{ SlurmConfigDir }}/bin/create_slurm_accounts.py --accounts {{ SlurmConfigDir }}/accounts.yml --users {{ SlurmConfigDir }}/users_groups.json --default-account unassigned -d
 
 - name: Create /etc/cron.d/slurm_accounts
   when: PrimaryController|bool

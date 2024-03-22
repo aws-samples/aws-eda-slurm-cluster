@@ -17,7 +17,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 '''
-Update the head node when the config assets hash changes.
+Deconfigure users and groups crontab using ssm run command.
 '''
 import boto3
 import cfnresponse
@@ -59,6 +59,10 @@ def lambda_handler(event, context):
         cluster_name = environ['ClusterName']
         cluster_region = environ['Region']
         environment_name = environ['RESEnvironmentName']
+        res_domain_joined_instance_name        = environ['RESDomainJoinedInstanceName']
+        res_domain_joined_instance_module_name = environ['RESDomainJoinedInstanceModuleName']
+        res_domain_joined_instance_module_id   = environ['RESDomainJoinedInstanceModuleId']
+        res_domain_joined_instance_node_type   = environ['RESDomainJoinedInstanceNodeType']
         logger.info(f"{requestType} request for {cluster_name} in {cluster_region}")
 
         if requestType != 'Delete':
@@ -66,15 +70,28 @@ def lambda_handler(event, context):
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
             return
 
+        logger.info(f"Deconfigure update of /opt/slurm/{cluster_name}/config/users_groups.json from RES {environment_name} domain joined instance with following tags:\nName={res_domain_joined_instance_name}\nres:ModuleName={res_domain_joined_instance_module_name}\nres:ModuleId={res_domain_joined_instance_module_name}\nres:NodeType={res_domain_joined_instance_node_type}\nstate=running")
+
+        domain_joined_instance_id = None
         ec2_client = boto3.client('ec2', region_name=cluster_region)
-        cluster_manager_info = ec2_client.describe_instances(
-            Filters = [
+        describe_instances_paginator = ec2_client.get_paginator('describe_instances')
+        describe_instances_kwargs = {
+            'Filters': [
                 {'Name': 'tag:res:EnvironmentName', 'Values': [environment_name]},
-                {'Name': 'tag:res:ModuleId', 'Values': ['cluster-manager']}
+                {'Name': 'tag:Name',           'Values': [res_domain_joined_instance_name]},
+                {'Name': 'tag:res:ModuleName', 'Values': [res_domain_joined_instance_module_name]},
+                {'Name': 'tag:res:ModuleId',   'Values': [res_domain_joined_instance_module_id]},
+                {'Name': 'tag:res:NodeType',   'Values': [res_domain_joined_instance_node_type]},
+                {'Name': 'instance-state-name', 'Values': ['running']}
             ]
-        )['Reservations'][0]['Instances'][0]
-        cluster_manager_instance_id = cluster_manager_info['InstanceId']
-        logger.info(f"cluster manager instance id: {cluster_manager_instance_id}")
+        }
+        for describe_instances_response in describe_instances_paginator.paginate(**describe_instances_kwargs):
+            for reservation_dict in describe_instances_response['Reservations']:
+                domain_joined_instance_info = reservation_dict['Instances'][0]
+                domain_joined_instance_id = domain_joined_instance_info['InstanceId']
+                logger.info(f"Domain joined instance id: {domain_joined_instance_id}")
+        if not domain_joined_instance_id:
+            raise RuntimeError(f"No running instances found with tags res:EnvironmentName={environment_name} and res:ModuleId={res_domain_joined_instance_module_name}")
 
         ssm_client = boto3.client('ssm', region_name=cluster_region)
         commands = f"""
@@ -120,46 +137,43 @@ if timeout 1s ls $mount_dest; then
 fi
         """
         logger.info(f"Submitting SSM command")
-        response = ssm_client.send_command(
+        send_command_response = ssm_client.send_command(
             DocumentName = 'AWS-RunShellScript',
-            InstanceIds = [cluster_manager_instance_id],
+            InstanceIds = [domain_joined_instance_id],
             Parameters = {'commands': [commands]},
-            Comment = f"Deconfigure {environment_name} cluster manager for {cluster_name}"
+            Comment = f"Deconfigure {environment_name} users and groups for {cluster_name}"
         )
-        command_id = response['Command']['CommandId']
+        command_id = send_command_response['Command']['CommandId']
         logger.info(f"Sent SSM command {command_id}")
 
         # Wait for the command invocations to be made
         time.sleep(5)
+
         # Wait for the command to complete before returning so that the cluster resources aren't removed before the command completes.
-        num_errors = 0
-        MAX_WAIT_TIME = 13 * 60
-        wait_time = 0
-        instance_id = cluster_manager_instance_id
-        command_complete = False
-        while not command_complete:
-            response = ssm_client.get_command_invocation(
-                CommandId = command_id,
-                InstanceId = instance_id
+        MAX_WAIT_TIME = 5 * 60
+        DELAY = 10
+        MAX_ATTEMPTS = int(MAX_WAIT_TIME / DELAY)
+        waiter = ssm_client.get_waiter('command_executed')
+        waiter.wait(
+            CommandId=command_id,
+            InstanceId=domain_joined_instance_id,
+            WaiterConfig={
+                'Delay': DELAY,
+                'MaxAttempts': MAX_ATTEMPTS
+            }
             )
-            command_status = response['Status']
-            if command_status in ['Success']:
-                logger.info(f"Command passed on {instance_id}")
-                break
-            elif command_status in ['Cancelled', 'TimedOut', 'Failed', 'Cancelling']:
-                logger.error(f"Command {command_status} on {instance_id}")
-                num_errors += 1
-                break
-            else:
-                logger.info(f"Command still running on {instance_id}")
-            if wait_time >= MAX_WAIT_TIME:
-                logger.error(f"Timed out waiting for command completion.")
-                num_errors += 1
-                break
-            time.sleep(10)
-            wait_time += 10
-        if num_errors:
-            cfnresponse.send(event, context, cfnresponse.FAILED, {'error': f"Denconfigure command failed."}, physicalResourceId=cluster_name)
+
+        # Check the result of the command
+        get_command_invocation_response = ssm_client.get_command_invocation(
+            CommandId = command_id,
+            InstanceId = domain_joined_instance_id
+        )
+        command_status = get_command_invocation_response['Status']
+        if command_status in ['Success']:
+            logger.info(f"Command passed on {domain_joined_instance_id}")
+        else:
+            logger.error(f"Command {command_status} on {domain_joined_instance_id}")
+            cfnresponse.send(event, context, cfnresponse.FAILED, {'error': f"Deconfigure command failed."}, physicalResourceId=cluster_name)
             return
 
     except Exception as e:
@@ -168,7 +182,7 @@ fi
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
-            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Subject = f"{cluster_name} DeconfigureRESUsersGroupsJson failed",
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")

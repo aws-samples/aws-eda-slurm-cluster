@@ -7,14 +7,14 @@ nav:
   - 'deploy-parallel-cluster.md'
   - 'res_integration.md'
   - 'soca_integration.md'
+  - 'custom-amis.md'
   - 'run_jobs.md'
   - 'job_preemption.md'
   - 'rest_api.md'
   - 'onprem.md'
-  - 'custom-amis.md'
-  - 'federation.md'
+ # - 'federation.md'
   - 'delete-cluster.md'
-  - 'implementation.md'
+ # - 'implementation.md'
   - 'debug.md'
 strict: true
 theme:

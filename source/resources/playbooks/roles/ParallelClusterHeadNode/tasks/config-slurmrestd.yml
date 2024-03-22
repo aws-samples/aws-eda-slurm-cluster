@@ -21,17 +21,17 @@
     make -j
     make install
 
-- name: Build {{SlurmSbinDir}}/slurmrestd
+- name: Build {{ SlurmSbinDir }}/slurmrestd
   when: PrimaryController|bool
   args:
-    creates: "{{SlurmSbinDir}}/slurmrestd"
+    creates: "{{ SlurmSbinDir }}/slurmrestd"
   shell:
     cmd: |
       set -ex
 
-      source /opt/parallelcluster/pyenv/versions/{{ParallelClusterPythonVersion}}/envs/cookbook_virtualenv/bin/activate
+      source /opt/parallelcluster/pyenv/versions/{{ ParallelClusterPythonVersion }}/envs/cookbook_virtualenv/bin/activate
 
-      cd /etc/chef/local-mode-cache/cache/slurm-slurm-{{PCSlurmVersion}}
+      cd /etc/chef/local-mode-cache/cache/slurm-slurm-{{ PCSlurmVersion }}
       ./configure --prefix /opt/slurm --with-pmix=/opt/pmix --with-slurmrestd --enable-slurmrestd &> configure.log
       CORES=$(grep processor /proc/cpuinfo | wc -l)
       make -j $CORES         &> make_all.log
@@ -43,22 +43,22 @@
   user:
     name: slurmrestd
     system: yes
-    uid: '{{SlurmrestdUid}}'
+    uid: '{{ SlurmrestdUid }}'
     create_home: no
 
-- name: Create {{SlurmrestdSocketDir}}
+- name: Create {{ SlurmrestdSocketDir }}
   when: PrimaryController|bool
   file:
-    path: "{{SlurmrestdSocketDir}}"
+    path: "{{ SlurmrestdSocketDir }}"
     state: directory
     owner: slurmrestd
     group: slurmrestd
     mode: 0755
 
-- name: Create {{SlurmSpoolDir}}
+- name: Create {{ SlurmSpoolDir }}
   when: PrimaryController|bool
   file:
-    path: "{{SlurmSpoolDir}}"
+    path: "{{ SlurmSpoolDir }}"
     state: directory
     owner: slurmrestd
     group: slurmrestd
@@ -67,14 +67,14 @@
 - name: Create jwt key for slurmrestd
   when: PrimaryController|bool
   args:
-    creates: "{{SlurmSpoolDir}}/jwt_hs256.key"
+    creates: "{{ SlurmSpoolDir }}/jwt_hs256.key"
   shell:
     cmd: |
       set -ex
 
-      dd if=/dev/random of={{SlurmSpoolDir}}/jwt_hs256.key bs=32 count=1
-      chown slurm:slurm {{SlurmSpoolDir}}/jwt_hs256.key
-      chmod 0600 {{SlurmSpoolDir}}/jwt_hs256.key
+      dd if=/dev/random of={{ SlurmSpoolDir }}/jwt_hs256.key bs=32 count=1
+      chown slurm:slurm {{ SlurmSpoolDir }}/jwt_hs256.key
+      chmod 0600 {{ SlurmSpoolDir }}/jwt_hs256.key
 
 - name: Create /etc/sysconfig/slurmrestd
   template:
@@ -143,15 +143,15 @@
     state: started
   register: slurmrestd_started
 
-- name: Wait for {{SlurmBinDir}}/scontrol
+- name: Wait for {{ SlurmBinDir }}/scontrol
   wait_for:
-    path: "{{SlurmBinDir}}/scontrol"
+    path: "{{ SlurmBinDir }}/scontrol"
     timeout: 1800 # 30 minutes
 
-- name: Wait for slurmctld to accept requests on port {{SlurmctldPortMin}}
+- name: Wait for slurmctld to accept requests on port {{ SlurmctldPortMin }}
   wait_for:
     host: "127.0.0.1"
-    port: "{{SlurmctldPortMin}}"
+    port: "{{ SlurmctldPortMin }}"
     timeout: 1800 # 30 minutes
 
 - name: Test scontrol token
@@ -159,4 +159,4 @@
   shell: |
     set -xe
 
-    {{SlurmBinDir}}/scontrol token
+    {{ SlurmBinDir }}/scontrol token

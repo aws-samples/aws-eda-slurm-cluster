@@ -4,51 +4,51 @@
 - name: Show variables used by this role
   debug:
     msg: |
-      ansible_architecture:       {{ansible_architecture}}
-      Architecture:               {{Architecture}}
-      distribution:               {{distribution}}
-      distribution_major_version: {{distribution_major_version}}
-      distribution_version:       {{distribution_version}}
+      ansible_architecture:       {{ ansible_architecture }}
+      Architecture:               {{ Architecture }}
+      distribution:               {{ distribution }}
+      distribution_major_version: {{ distribution_major_version }}
+      distribution_version:       {{ distribution_version }}
 
-      amazonlinux2:   {{amazonlinux2}}
-      alma:           {{alma}}
-      alma8:          {{alma8}}
-      centos:         {{centos}}
-      centos7:        {{centos7}}
-      rhel:           {{rhel}}
-      rhel7:          {{rhel7}}
-      rhel8:          {{rhel8}}
-      rocky:          {{rocky}}
-      rocky8:         {{rocky8}}
-      rhelclone:      {{rhelclone}}
-      rhel8clone:     {{rhel8clone}}
-      centos7_5_to_6: {{centos7_5_to_6}}
-      centos7_5_to_9: {{centos7_5_to_9}}
-      centos7_7_to_9: {{centos7_7_to_9}}
+      amazonlinux2:   {{ amazonlinux2 }}
+      alma:           {{ alma }}
+      alma8:          {{ alma8 }}
+      centos:         {{ centos }}
+      centos7:        {{ centos7 }}
+      rhel:           {{ rhel }}
+      rhel7:          {{ rhel7 }}
+      rhel8:          {{ rhel8 }}
+      rocky:          {{ rocky }}
+      rocky8:         {{ rocky8 }}
+      rhelclone:      {{ rhelclone }}
+      rhel8clone:     {{ rhel8clone }}
+      centos7_5_to_6: {{ centos7_5_to_6 }}
+      centos7_5_to_9: {{ centos7_5_to_9 }}
+      centos7_7_to_9: {{ centos7_7_to_9 }}
 
 - name: Set SlurmSrcDir
   set_fact:
-    SlurmSrcDir: "/opt/slurm/{{ClusterName}}/config/src/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
+    SlurmSrcDir: "/opt/slurm/{{ ClusterName }}/config/src/{{ distribution }}/{{ distribution_major_version }}/{{ Architecture }}"
 
 - name: Set SlurmOSDir
   set_fact:
-    SlurmOSDir:  "/opt/slurm/{{ClusterName}}/config/os/{{distribution}}/{{distribution_major_version}}/{{Architecture}}"
+    SlurmOSDir:  "/opt/slurm/{{ ClusterName }}/config/os/{{ distribution }}/{{ distribution_major_version }}/{{ Architecture }}"
 
 - name: Set SlurmBinDir
   set_fact:
-    SlurmBinDir: "{{SlurmOSDir}}/bin"
+    SlurmBinDir: "{{ SlurmOSDir }}/bin"
 
 - name: Show variables used by this role
   debug:
     msg: |
-      SlurmVersion:       {{SlurmVersion}}
-      SlurmSrcDir:        {{SlurmSrcDir}}
-      SlurmBinDir:        {{SlurmBinDir}}
-      SlurmConfigDir:     {{SlurmConfigDir}}
-      SlurmOSDir:         {{SlurmOSDir}}
-      SlurmrestdPort:     {{SlurmrestdPort}}
-      SlurmEtcDir:        {{SlurmEtcDir}}
-      ModulefilesBaseDir: {{ModulefilesBaseDir}}
+      SlurmVersion:       {{ SlurmVersion }}
+      SlurmSrcDir:        {{ SlurmSrcDir }}
+      SlurmBinDir:        {{ SlurmBinDir }}
+      SlurmConfigDir:     {{ SlurmConfigDir }}
+      SlurmOSDir:         {{ SlurmOSDir }}
+      SlurmrestdPort:     {{ SlurmrestdPort }}
+      SlurmEtcDir:        {{ SlurmEtcDir }}
+      ModulefilesBaseDir: {{ ModulefilesBaseDir }}
 
 - name: Install epel from amazon-linux-extras
   when: distribution == 'Amazon'
@@ -108,9 +108,10 @@
       - mailx
       - make
       - man2html
-      - munge
-      - munge-devel
-      - munge-libs
+      # munge is built from ParallelCluster version
+      # - munge
+      # - munge-devel
+      # - munge-libs
       - mysql-devel
       - numactl-devel
       - openmpi
@@ -156,32 +157,34 @@
   shell: |
     set -xe
 
-    mkdir -p {{SlurmSrcDir}}
-    cd {{SlurmSrcDir}}
-    wget https://download.schedmd.com/slurm/slurm-{{SlurmVersion}}.tar.bz2
-    bzip2 -d -f slurm-{{SlurmVersion}}.tar.bz2
-    tar -xf slurm-{{SlurmVersion}}.tar
-    rm slurm-{{SlurmVersion}}.tar
+    mkdir -p {{ SlurmSrcDir }}
+    cd {{ SlurmSrcDir }}
+    wget https://download.schedmd.com/slurm/slurm-{{ SlurmVersion }}.tar.bz2
+    bzip2 -d -f slurm-{{ SlurmVersion }}.tar.bz2
+    tar -xf slurm-{{ SlurmVersion }}.tar
+    rm slurm-{{ SlurmVersion }}.tar
 
   args:
-    creates: "{{SlurmSrcDir}}/slurm-{{SlurmVersion}}/INSTALL"
+    creates: "{{ SlurmSrcDir }}/slurm-{{ SlurmVersion }}/INSTALL"
 
-- name: Create {{SlurmOSDir}}
+- name: Create {{ SlurmOSDir }}
   file:
-    path: "{{SlurmOSDir}}"
+    path: "{{ SlurmOSDir }}"
     state: directory
     owner: root
     group: root
     mode: 0775
 
-- name: Build and install slurm on {{distribution}} {{distribution_major_version}} on {{Architecture}}
+- name: Build and install slurm on {{ distribution }} {{ distribution_major_version }} on {{ Architecture }}
   args:
-    creates: "{{SlurmBinDir}}/srun"
+    creates: "{{ SlurmBinDir }}/srun"
   shell: |
     set -xe
 
-    cd {{SlurmSrcDir}}/slurm-{{SlurmVersion}}
-    ./configure --prefix {{SlurmOSDir}} --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{SlurmrestdPort}} &> configure.log
+    set -o pipefail
+
+    cd {{ SlurmSrcDir }}/slurm-{{ SlurmVersion }}
+    ./configure --prefix {{ SlurmOSDir }} --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{ SlurmrestdPort }} &> configure.log
     CORES=$(grep processor /proc/cpuinfo | wc -l)
     make -j $CORES &> slurm-make.log
     make -j $CORES contrib &> slurm-make-contrib.log
@@ -189,26 +192,26 @@
     make install &> slurm-make-install.log
     make install-contrib &> slurm-make-install-contrib.log
 
-- name: Create {{SlurmEtcDir}}
+- name: Create {{ SlurmEtcDir }}
   file:
-    path: "{{SlurmEtcDir}}"
+    path: "{{ SlurmEtcDir }}"
     state: directory
     owner: root
     group: root
     mode: 0775
 
-- name: Create {{SlurmOSDir}}/etc
+- name: Create {{ SlurmOSDir }}/etc
   file:
     state: link
-    src:  "{{SlurmEtcDir}}"
-    path: "{{SlurmOSDir}}/etc"
+    src:  "{{ SlurmEtcDir }}"
+    path: "{{ SlurmOSDir }}/etc"
     owner: root
     group: root
 
-- name: Create {{SlurmOSDir}}/etc
+- name: Create {{ SlurmOSDir }}/etc
   file:
     state: link
-    src:  "{{SlurmOSDir}}/lib/libnss_slurm.so.2"
+    src:  "{{ SlurmOSDir }}/lib/libnss_slurm.so.2"
     path: "/usr/lib64/libnss_slurm.so.2"
     owner: root
     group: root
@@ -224,15 +227,15 @@
 
 - name: Fix permissions on config dir so users can access it to get the modulefiles
   file:
-    path: "{{SlurmConfigDir}}"
+    path: "{{ SlurmConfigDir }}"
     state: directory
     owner: root
     group: root
     mode: '0755'
 
-- name: Create {{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}
+- name: Create {{ ModulefilesBaseDir }}/{{ distribution }}/{{ distribution_major_version }}/{{ Architecture }}/{{ ClusterName }}
   file:
-    path: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}"
+    path: "{{ ModulefilesBaseDir }}/{{ distribution }}/{{ distribution_major_version }}/{{ Architecture }}/{{ ClusterName }}"
     state: directory
     owner: root
     group: root
@@ -245,11 +248,11 @@
     cmd: |
       set -ex
 
-      chmod -R 0755 {{SlurmConfigDir}}
+      chmod -R 0755 {{ SlurmConfigDir }}
 
 - name: Create slurm modulefile .template
   template:
-    dest: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/.template"
+    dest: "{{ ModulefilesBaseDir }}/{{ distribution }}/{{ distribution_major_version }}/{{ Architecture }}/{{ ClusterName }}/.template"
     src:  opt/slurm/config/modules/modulefiles/slurm/.template
     owner: root
     group: root
@@ -258,7 +261,7 @@
 
 - name: Create slurm modulefile
   file:
-    path: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/{{ParallelClusterVersion}}"
+    path: "{{ ModulefilesBaseDir }}/{{ distribution }}/{{ distribution_major_version }}/{{ Architecture }}/{{ ClusterName }}/{{ ParallelClusterVersion }}"
     src:  ".template"
     state: link
     owner: root
@@ -267,7 +270,7 @@
 
 - name: Create slurm modulefile .version
   template:
-    dest: "{{ModulefilesBaseDir}}/{{distribution}}/{{distribution_major_version}}/{{Architecture}}/{{ClusterName}}/.version"
+    dest: "{{ ModulefilesBaseDir }}/{{ distribution }}/{{ distribution_major_version }}/{{ Architecture }}/{{ ClusterName }}/.version"
     src:   opt/slurm/config/modules/modulefiles/slurm/.version
     owner: root
     group: root

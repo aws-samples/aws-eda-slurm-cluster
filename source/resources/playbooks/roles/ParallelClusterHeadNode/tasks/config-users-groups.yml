@@ -14,4 +14,4 @@
   shell: |
     set -ex
 
-    {{SlurmConfigDir}}/bin//create_users_groups.py -i {{SlurmConfigDir}}/users_groups.json
+    {{ SlurmConfigDir }}/bin//create_users_groups.py -i {{ SlurmConfigDir }}/users_groups.json

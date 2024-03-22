@@ -4,7 +4,7 @@
 - name: Print vars
   debug:
     msg: |
-      ExtraMounts: {{ExtraMounts}}
+      ExtraMounts: {{ ExtraMounts }}
 
 - name: Install nfs-utils
   yum:
@@ -14,7 +14,7 @@
 
 - name: Mount ExtraMounts
   when: ExtraMounts|length > 0
-  loop: "{{ExtraMounts}}"
+  loop: "{{ ExtraMounts }}"
   mount:
     backup: yes
     fstype: "{{item.type}}"

@@ -73,7 +73,8 @@ def lambda_handler(event, context):
         describe_instances_iterator = describe_instances_paginator.paginate(
             Filters = [
                 {'Name': 'tag:res:EnvironmentName', 'Values': [environment_name]},
-                {'Name': 'tag:res:NodeType', 'Values': ['virtual-desktop-dcv-host']}
+                {'Name': 'tag:res:NodeType', 'Values': ['virtual-desktop-dcv-host']},
+                {'Name': 'instance-state-name', 'Values': ['running']}
             ]
         )
         submitter_instance_ids = []
@@ -96,6 +97,7 @@ def lambda_handler(event, context):
         logger.info(f"submitter_instance_ids: {submitter_instance_ids}")
         if not submitter_instance_ids:
             logger.info("No running submitters.")
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
             return
 
         ssm_client = boto3.client('ssm', region_name=cluster_region)
@@ -192,7 +194,7 @@ fi
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
-            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Subject = f"{cluster_name} DeconfigureRESSubmitters failed",
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")

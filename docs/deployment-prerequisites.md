@@ -96,18 +96,18 @@ You should save your selections in the config file.
 
 | Parameter                          | Description | Valid Values | Default
 |------------------------------------|-------------|--------------|--------
-| [StackName](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L221)] | The cloudformation stack that will deploy the cluster. |  | None
-| [slurm/ClusterName](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L318-L320) | Name of the Slurm cluster | For ParallelCluster shouldn't be the same as StackName | | None
-| [Region](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L222-L223) | Region where VPC is located | | `$AWS_DEFAULT_REGION`
-| [VpcId](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L226-L227)  | The vpc where the cluster will be deployed. |  vpc-* | None
-| [SshKeyPair](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L224-L225) | EC2 Keypair to use for instances | | None
-| [slurm/SubmitterSecurityGroupIds](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L435-L439) | Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource. | sg-* | None
-| [ErrorSnsTopicArn](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L233-L234) | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
-| [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509) | Configure instance types that the cluster can use and number of nodes. | | See [default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml)
+| [StackName](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L366-L367) | The cloudformation stack that will deploy the cluster. |  | None
+| [slurm/ClusterName](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L447-L452) | Name of the Slurm cluster | For ParallelCluster shouldn't be the same as StackName | | None
+| [Region](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L368-L369) | Region where VPC is located | | `$AWS_DEFAULT_REGION`
+| [VpcId](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L372-L373)  | The vpc where the cluster will be deployed. |  vpc-* | None
+| [SshKeyPair](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L370-L371) | EC2 Keypair to use for instances | | None
+| [slurm/SubmitterSecurityGroupIds](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L480-L485) | Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource. | sg-* | None
+| [ErrorSnsTopicArn](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L379-L380) | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
+| [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543) | Configure instance types that the cluster can use and number of nodes. | | See [default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml)
 
 ### Configure the Compute Instances
 
-The [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L444-L509) configuration parameter configures the base operating systems, CPU architectures, instance families,
+The [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543) configuration parameter configures the base operating systems, CPU architectures, instance families,
 and instance types that the Slurm cluster should support.
 ParallelCluster currently doesn't support heterogeneous clusters;
 all nodes must have the same architecture and Base OS.
@@ -118,6 +118,7 @@ all nodes must have the same architecture and Base OS.
 | CentOS 7       | x86_64
 | RedHat 7       | x86_64
 | RedHat 8       | x86_64, arm64
+| Rocky 8        | x86_64, arm64
 
 You can exclude instances types by family or specific instance type.
 By default the InstanceConfig excludes older generation instance families.
@@ -134,19 +135,16 @@ The disadvantage is higher cost if the instance is lightly loaded.
 The default InstanceConfig includes all supported base OSes and architectures and burstable and general purpose
 instance types.
 
-* [default instance families](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L124-L166)
-* [default instance types](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L168-L173)
-* [default excluded instance families](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L175-L192)
-* [default excluded instance types](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L194-L197)
+* [default instance families](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L230-L271)
+* [default instance types](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L314-L319)
+* [default excluded instance families](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L321-L338)
+* [default excluded instance types](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L340-L343)
 
 Note that instance types and families are python regular expressions.
 
 ```
 slurm:
   InstanceConfig:
-    BaseOsArchitecture:
-      CentOS:
-        7: [x86_64]
     Include:
       InstanceFamilies:
         - t3.*
@@ -160,9 +158,6 @@ The following InstanceConfig configures instance types recommended for EDA workl
 ```
 slurm:
   InstanceConfig:
-    BaseOsArchitecture:
-      CentOS:
-          7: [x86_64]
     Include:
       InstanceFamilies:
         - c5.*
@@ -184,15 +179,6 @@ slurm:
   InstanceConfig:
     NodeCounts:
       DefaultMinCount: 1
-```
-
-The Legacy cluster also allows you to specify the names of specific nodes.
-
-```
-slurm:
-  InstanceConfig:
-    AlwaysOnNodes:
-      - nodename-[0-4]
 ```
 
 ### Configure Fair Share Scheduling (Optional)
@@ -285,7 +271,7 @@ then jobs will stay pending in the queue until a job completes and frees up a li
 Combined with the fairshare algorithm, this can prevent users from monopolizing licenses and preventing others from
 being able to run their jobs.
 
-Licenses are configured using the [slurm/Licenses](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L621-L629) configuration variable.
+Licenses are configured using the [slurm/Licenses](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L569-L577) configuration variable.
 If you are using the Slurm database then these will be configured in the database.
 Otherwises they will be configured in **/opt/slurm/{{ClusterName}}/etc/slurm_licenses.conf**.
 

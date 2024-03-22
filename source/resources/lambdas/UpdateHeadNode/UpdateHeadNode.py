@@ -71,32 +71,31 @@ def lambda_handler(event, context):
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
             return
 
+        head_node_ip_address = None
+        head_node_instance_id = None
         ec2_client = boto3.client('ec2', region_name=cluster_region)
-        reservations_info = ec2_client.describe_instances(
-            Filters = [
+        describe_instances_paginator = ec2_client.get_paginator('describe_instances')
+        describe_instances_kwargs = {
+            'Filters': [
                 {'Name': 'tag:parallelcluster:cluster-name', 'Values': [cluster_name]},
                 {'Name': 'tag:parallelcluster:node-type', 'Values': ['HeadNode']},
                 {'Name': 'instance-state-name', 'Values': ['running']}
             ]
-        )['Reservations']
-        # If the cluster hasn't deployed yet or didn't successfully deploy initially, then the head node might not exist.
-        # This shouldn't cause the custom resource to fail.
-        if not reservations_info:
+        }
+        for describe_instances_response in describe_instances_paginator.paginate(**describe_instances_kwargs):
+            for reservation_dict in describe_instances_response['Reservations']:
+                if reservation_dict['Instances']:
+                    head_node_info = reservation_dict['Instances'][0]
+                    if 'PrivateIpAddress' in head_node_info:
+                        head_node_ip_address = head_node_info['PrivateIpAddress']
+                        head_node_instance_id = head_node_info['InstanceId']
+                        break
+        if not head_node_instance_id:
+            # If the cluster hasn't deployed yet or didn't successfully deploy initially, then the head node might not exist.
+            # This shouldn't cause the custom resource to fail.
             logger.info(f"No head node instance found.")
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
             return
-        instances_info = reservations_info[0]['Instances']
-        if not instances_info:
-            logger.info(f"No head node instance found.")
-            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
-            return
-        head_node_info = instances_info[0]
-        if 'PrivateIpAddress' not in head_node_info:
-            logger.info(f"No head node private IP address found.")
-            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
-            return
-        head_node_ip_address = head_node_info['PrivateIpAddress']
-        head_node_instance_id = head_node_info['InstanceId']
         logger.info(f"head node instance id: {head_node_instance_id}")
         logger.info(f"head node ip address: {head_node_ip_address}")
 
@@ -112,13 +111,32 @@ fi
 
 sudo $script
         """
-        response = ssm_client.send_command(
+        send_command_response = ssm_client.send_command(
             DocumentName = 'AWS-RunShellScript',
             InstanceIds = [head_node_instance_id],
             Parameters = {'commands': [commands]},
             Comment = f"''Update head node of {cluster_name}({head_node_instance_id})"
         )
-        logger.info(f"Sent SSM command {response['Command']['CommandId']}")
+        command_id = send_command_response['Command']['CommandId']
+        logger.info(f"Sent SSM command {command_id}")
+
+        # If I wait then the stack creation or update won't finish until the command completes.
+        # I like the idea that the stack waits for the update to complete.
+        MAX_WAIT_TIME = 15 * 60
+        DELAY = 5
+        MAX_ATTEMPTS = int(MAX_WAIT_TIME / DELAY)
+        waiter = ssm_client.get_waiter('command_executed')
+        waiter.wait(
+            CommandId=command_id,
+            InstanceId=head_node_instance_id,
+            WaiterConfig={
+                'Delay': DELAY,
+                'MaxAttempts': MAX_ATTEMPTS
+            }
+            )
+
+        # I want the custom resource to be successful whether script passes or not so
+        # don't need to check the return status.
 
     except Exception as e:
         logger.exception(str(e))
@@ -126,7 +144,7 @@ sudo $script
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
-            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Subject = f"{cluster_name} UpdateHeadNode failed",
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")

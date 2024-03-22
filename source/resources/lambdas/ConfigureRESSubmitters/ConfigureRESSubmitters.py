@@ -46,7 +46,8 @@ def lambda_handler(event, context):
         describe_instances_iterator = describe_instances_paginator.paginate(
             Filters = [
                 {'Name': 'tag:res:EnvironmentName', 'Values': [environment_name]},
-                {'Name': 'tag:res:NodeType', 'Values': ['virtual-desktop-dcv-host']}
+                {'Name': 'tag:res:NodeType', 'Values': ['virtual-desktop-dcv-host']},
+                {'Name': 'instance-state-name', 'Values': ['running']}
             ]
         )
         submitter_instance_ids = []
@@ -90,22 +91,23 @@ fi
 
 sudo $script
         """
-        # @todo Command is failing because the DCV instance doesn't have permissions to describe instances in the playbook
-        # I should be able to pass it in as a variable.
-        response = ssm_client.send_command(
+        TIMEOUT_MINUTES = 90
+        TIMEOUT_SECONDS = TIMEOUT_MINUTES * 60
+        send_command_response = ssm_client.send_command(
             DocumentName = 'AWS-RunShellScript',
             InstanceIds = submitter_instance_ids,
             Parameters = {'commands': [commands]},
-            Comment = f"Configure {environment_name} submitters for {cluster_name}"
+            Comment = f"Configure {environment_name} submitters for {cluster_name}",
+            TimeoutSeconds = TIMEOUT_SECONDS
         )
-        logger.info(f"Sent SSM command {response['Command']['CommandId']}")
+        logger.info(f"Sent SSM command {send_command_response['Command']['CommandId']}")
 
     except Exception as e:
         logger.exception(str(e))
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
-            Subject = f"{cluster_name} CreateHeadNodeARecord failed",
+            Subject = f"{cluster_name} ConfigureRESSubmitters failed",
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
