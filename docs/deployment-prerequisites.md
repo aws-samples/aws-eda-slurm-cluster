@@ -33,6 +33,25 @@ The simplest is to subscribe your email address to the topic so that you get an 
 You could also use it to trigger a CloudWatch alarm that could be used to trigger a lambda to do automatic
 remediation or create a support ticket.
 
+## Make sure using at least python version 3.7
+
+This application requires at least python version 3.7.
+
+Many distributions use older versions of python by default such as python 3.6.8 in RHEL 8 and Rocky Linux 8.
+Newer versions are available, but can't be made the system default without breaking OS tools such as yum.
+The easiest way to get around this is to create a python virtual environment using a newer version of python.
+Simply install the newer version and then use it to create and activate a virtual environment.
+
+```
+$ python3 --version
+Python 3.6.8
+$ yum -y install python3.11
+$ python3.11 -m venv ~/.venv-python3.11
+$ source ~/.venv-python3.11/bin/activate
+$ python3 --version
+Python 3.11.5
+```
+
 ## Make sure required packages are installed
 
 ```
