@@ -8,9 +8,6 @@ repodir=$scriptdir
 
 pushd $repodir
 
-# Deactivate any active virtual envs
-deactivate &> /dev/null || true
-
 if ! yum list installed make &> /dev/null; then
     echo -e "\nInstalling make"
     if ! sudo yum -y install make; then
@@ -29,7 +26,7 @@ if ! python3 --version &> /dev/null; then
     echo -e "\nInstalling python3"
     if ! sudo yum -y install python3; then
         echo -e "\nerror: Couldn't find python3 in the path or install it. This is required."
-        exit 1
+        return 1
     fi
 fi
 
@@ -39,14 +36,14 @@ python_major_version=$(echo $python_version | cut -d '.' -f 1)
 python_minor_version=$(echo $python_version | cut -d '.' -f 2)
 if [[ $python_minor_version -lt 7 ]]; then
     echo "error: CDK requires python 3.7 or later. You have $python_version. Update your python3 version."
-    exit 1
+    return 1
 fi
 echo "Using python $python_version"
 
 # Check nodejs version
 required_nodejs_version=16.20.2
 export JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION=1
-if ! node -v &> /dev/null; then
+if ! which node &> /dev/null; then
     echo -e "\nnode not found in your path."
     echo "Installing nodejs in your home dir. Hit ctrl-c to abort"
     pushd $HOME
@@ -68,11 +65,11 @@ node_major_version=$(echo $nodejs_version | cut -d '.' -f 1)
 node_minor_version=$(echo $nodejs_version | cut -d '.' -f 2)
 if [[ $node_major_version -lt 14 ]]; then
     echo "error: CDK requires node 14.15.0 or later. You have $nodejs_version. Update your node version."
-    exit 1
+    return 1
 fi
 if [[ $node_major_version -eq 14 ]] && [[ $node_minor_version -lt 6 ]]; then
     echo "error: CDK requires node 14.15.0 or later. You have $nodejs_version. Update your node version."
-    exit 1
+    return 1
 fi
 if [[ $nodejs_version != $required_nodejs_version ]]; then
     echo "Updating nodejs version from $nodejs_version toe $required_nodejs_version"
