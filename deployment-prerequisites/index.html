@@ -12,14 +12,11 @@
         <link href="../css/bootstrap.min.css" rel="stylesheet">
         <link href="../css/font-awesome.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css">
-
-        <script src="../js/jquery-1.10.2.min.js" defer></script>
-        <script src="../js/bootstrap.min.js" defer></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/python.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/languages/yaml.min.js"></script>
-        <script>hljs.initHighlightingOnLoad();</script> 
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script>hljs.highlightAll();</script> 
     </head>
 
     <body>
@@ -128,6 +125,10 @@
               <ul class="nav flex-column">
               </ul>
             </li>
+            <li class="nav-item" data-level="2"><a href="#make-sure-using-at-least-python-version-37" class="nav-link">Make sure using at least python version 3.7</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
             <li class="nav-item" data-level="2"><a href="#make-sure-required-packages-are-installed" class="nav-link">Make sure required packages are installed</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-level="3"><a href="#install-cloud-development-kit-cdk-optional" class="nav-link">Install Cloud Development Kit (CDK) (Optional)</a>
@@ -180,6 +181,20 @@ You can provide the ARN for the topic in the config file or on the command line.
 The simplest is to subscribe your email address to the topic so that you get an email when there is an error.
 You could also use it to trigger a CloudWatch alarm that could be used to trigger a lambda to do automatic
 remediation or create a support ticket.</p>
+<h2 id="make-sure-using-at-least-python-version-37">Make sure using at least python version 3.7</h2>
+<p>This application requires at least python version 3.7.</p>
+<p>Many distributions use older versions of python by default such as python 3.6.8 in RHEL 8 and Rocky Linux 8.
+Newer versions are available, but can't be made the system default without breaking OS tools such as yum.
+The easiest way to get around this is to create a python virtual environment using a newer version of python.
+Simply install the newer version and then use it to create and activate a virtual environment.</p>
+<pre><code>$ python3 --version
+Python 3.6.8
+$ yum -y install python3.11
+$ python3.11 -m venv ~/.venv-python3.11
+$ source ~/.venv-python3.11/bin/activate
+$ python3 --version
+Python 3.11.5
+</code></pre>
 <h2 id="make-sure-required-packages-are-installed">Make sure required packages are installed</h2>
 <pre><code>cd aws-eda-slurm-cluster
 source setup.sh
@@ -458,12 +473,14 @@ Users must request a license using the <strong>-L</strong> or <strong>--licenses
             <hr>
             <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
         </footer>
+        <script src="../js/jquery-3.6.0.min.js"></script>
+        <script src="../js/bootstrap.min.js"></script>
         <script>
             var base_url = "..",
                 shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
         </script>
-        <script src="../js/base.js" defer></script>
-        <script src="../search/main.js" defer></script>
+        <script src="../js/base.js"></script>
+        <script src="../search/main.js"></script>
 
         <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
