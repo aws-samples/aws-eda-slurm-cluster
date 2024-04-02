@@ -111,13 +111,9 @@
               <ul class="nav flex-column">
             <li class="nav-item" data-level="2"><a href="#fpga-developer-ami" class="nav-link">FPGA Developer AMI</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#subscribe-to-the-ami" class="nav-link">Subscribe To the AMI</a>
-              <ul class="nav flex-column">
               </ul>
             </li>
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#deploy-the-cluster" class="nav-link">Deploy the Cluster</a>
+            <li class="nav-item" data-level="2"><a href="#deploy-or-update-the-cluster" class="nav-link">Deploy or update the Cluster</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -130,10 +126,13 @@
 
 <h1 id="custom-amis-for-parallelcluster">Custom AMIs for ParallelCluster</h1>
 <p>ParallelCluster supports <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/building-custom-ami-v3.html">building custom AMIs for the compute nodes</a>.
-The easiest way is to start an EC2 instances, update it with your changes, and create a new AMI from that instance.
+The easiest way is to start an EC2 instance, update it with your changes, and create a new AMI from that instance.
 You can then add the new AMI to your configuration file.</p>
-<p>ParallelCluster can also automate this process for you and when you build your cluster, example ParallelCluster build configuration files
-will be created for you in <code>source/resources/parallel-cluster/config/build-files/parallelcluster-eda-*.yml</code>.</p>
+<p>ParallelCluster can also automate this process for you using EC2 ImageBuilder.
+When you build your cluster, example ParallelCluster build configuration files
+will be created for you and stored on the head node at:</p>
+<p><code>/opt/slurm/</code><strong>ClusterName</strong><code>/config/build-files/parallelcluster-</code><strong>PCVersion</strong><code>-*.yml</code></p>
+<p>The build files with <strong>eda</strong> in the name build an image that installs the packages that are typically used by EDA tools.</p>
 <p>The easiest way is to use the ParallelCluster UI to build the AMI using a build config file.</p>
 <ul>
 <li>Click on <strong>Images</strong> on the left</li>
@@ -143,15 +142,23 @@ will be created for you in <code>source/resources/parallel-cluster/config/build-
 <li>Copy the image/name value into the <strong>Image Id</strong> field. It should begin with parallelcluster-</li>
 <li>Click <strong>Build Image</strong></li>
 </ul>
+<p>The UI will create a cloudformation template that uses EC2 ImageBuilder.
+While it is being built it will show up as <strong>Pending</strong> in the UI.
+When the build is complete the AMI will show up either as <strong>Available</strong> or <strong>Failed</strong>.
+If it fails, the instance used to do the build will be left running.
+You can connect to it using SSM and lookin in <code>/var/log/messages</code> for error messages.</p>
+<p>When the build is successful, the stack will be deleted.
+There is currently a bug where the stack deletion will fail.
+This doesn't mean that the AMI build failed.
+Simply select the stack and delete it manually and it should successfully delete.</p>
 <h2 id="fpga-developer-ami">FPGA Developer AMI</h2>
-<p>This tutorial shows how to create an AMI based on the AWS FPGA Developer AMI.
+<p>The build file with <strong>fpga</strong> in the name is based on the FPGS Developer AMI.
 The FPGA Developer AMI has the Xilinx Vivado tools that can be used free of additional
 charges when run on AWS EC2 instances to develop FPGA images that can be run on AWS F1 instances.</p>
-<h3 id="subscribe-to-the-ami">Subscribe To the AMI</h3>
 <p>First subscribe to the FPGA developer AMI in the <a href="https://us-east-1.console.aws.amazon.com/marketplace/home?region=us-east-1#/landing">AWS Marketplace</a>.
 There are 2 versions, one for <a href="https://aws.amazon.com/marketplace/pp/prodview-gimv3gqbpe57k?ref=cns_1clkPro">CentOS 7</a> and the other for <a href="https://aws.amazon.com/marketplace/pp/prodview-iehshpgi7hcjg?ref=cns_1clkPro">Amazon Linux 2</a>.</p>
-<h2 id="deploy-the-cluster">Deploy the Cluster</h2>
-<p>With the config updated, the AMIs for the compute nodes will be built using the specified base AMIs.</p></div>
+<h2 id="deploy-or-update-the-cluster">Deploy or update the Cluster</h2>
+<p>After the AMI is built, add it to the config and create or update your cluster to use the AMI.</p></div>
             </div>
         </div>
 
