@@ -1,6 +1,10 @@
 # Custom AMIs for ParallelCluster
 
-ParallelCluster supports [building custom AMIs for the compute nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/building-custom-ami-v3.html).
+ParallelCluster supports [building custom ParallelCluster AMIs for the head and compute nodes](https://docs.aws.amazon.com/parallelcluster/latest/ug/building-custom-ami-v3.html). You can specify a custom AMI for the entire cluster (head and compute nodes) and you can also specify a custom AMI for just the compute nodes.
+By default, ParallelCluster will use pre-built AMIs for the OS that you select.
+The exception is Rocky 8 and 9, for which ParallelCluster does not provide pre-built AMIs.
+To use Rocky Linux, you must first build a custom AMI and specify it in your config file at **slurm/ParallelClusterConfig/Os/CustomAmi**.
+
 The easiest way is to start an EC2 instance, update it with your changes, and create a new AMI from that instance.
 You can then add the new AMI to your configuration file.
 
@@ -11,6 +15,11 @@ will be created for you and stored on the head node at:
 `/opt/slurm/`**ClusterName**`/config/build-files/parallelcluster-`**PCVersion**`-*.yml`
 
 The build files with **eda** in the name build an image that installs the packages that are typically used by EDA tools.
+
+The build files can be modified for your needs.
+The build file format is docummented in the [ParallelCluster User Guide](https://docs.aws.amazon.com/parallelcluster/latest/ug/image-builder-configuration-file-v3.html).
+For example, you can add your own scripts to run during the AMI
+build process.
 
 The easiest way is to use the ParallelCluster UI to build the AMI using a build config file.
 
@@ -44,3 +53,17 @@ There are 2 versions, one for [CentOS 7](https://aws.amazon.com/marketplace/pp/p
 ## Deploy or update the Cluster
 
 After the AMI is built, add it to the config and create or update your cluster to use the AMI.
+You can set the AMI for the compute and head nodes using **slurm/ParallelClusterConfig/Os/CustomAmi** and for the compute nodes only using **slurm/ParallelClusterConfig/ComputeNodeAmi**.
+
+**Note**: You cannot update the OS of the cluster or the AMI of the head node. If they need to change then you will need to create a new cluster.
+
+The config file will look something like the following:
+
+```
+slurm:
+  ParallelClusterConfig:
+    Image:
+      Os: rocky8
+      CustomAmi: ami-abc123 # Rocky linux
+    ComputeNodeAmi: ami-def456 # Rocky linux + EDA packages and EDA file systems
+```
