@@ -386,6 +386,7 @@ def get_config_schema(config):
                 'Version': And(str, lambda version: version in PARALLEL_CLUSTER_VERSIONS, lambda version: parse_version(version) >= MIN_PARALLEL_CLUSTER_VERSION),
                 Optional('Image', default={'Os': DEFAULT_OS(config)}): {
                     'Os': And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES),
+                    # CustomAmi: AMI to use for head and compute nodes instead of the pre-built AMIs.
                     Optional('CustomAmi'): And(str, lambda s: s.startswith('ami-')),
                 },
                 Optional('Architecture', default=DEFAULT_ARCHITECTURE): And(str, lambda s: s in VALID_ARCHITECTURES),
