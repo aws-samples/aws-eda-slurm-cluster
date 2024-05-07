@@ -364,7 +364,7 @@ def get_config_schema(config):
         #     Enable Cloudformation Stack termination protection
         Optional('termination_protection', default=True): bool,
         # Optional so can be specified on the command-line
-        Optional('StackName', default='slurm-top'): str,
+        Optional('StackName', default='slurm-config'): str,
         # Optional so can be specified on the command-line
         Optional('Region'): And(str, lambda s: s in valid_regions),
         # Optional so can be specified on the command-line
@@ -384,6 +384,7 @@ def get_config_schema(config):
             Optional('ParallelClusterConfig'): {
                 Optional('Enable', default=True): And(bool, lambda s: s == True),
                 'Version': And(str, lambda version: version in PARALLEL_CLUSTER_VERSIONS, lambda version: parse_version(version) >= MIN_PARALLEL_CLUSTER_VERSION),
+                Optional('ClusterConfig'): lambda s: True,
                 Optional('Image', default={'Os': DEFAULT_OS(config)}): {
                     'Os': And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES),
                     # CustomAmi: AMI to use for head and compute nodes instead of the pre-built AMIs.
@@ -397,7 +398,6 @@ def get_config_schema(config):
                 Optional('EnableEfa', default=False): bool,
                 Optional('Database'): {
                     Optional('DatabaseStackName'): str,
-                    Optional('EdaSlurmClusterStackName'): str,
                     Optional('FQDN'): str,
                     Optional('Port'): int,
                     Optional('AdminUserName'): str,
@@ -405,19 +405,23 @@ def get_config_schema(config):
                     Optional('ClientSecurityGroup'): {str: And(str, lambda s: re.match('sg-', s))},
                 },
                 Optional('Dcv', default={}): {
-                    Optional('Enable', default=False): bool,
+                    Optional('Enabled', default=False): bool,
                     Optional('Port', default=8443): int,
-                    Optional('AllowedIps'): str # Can't set a default without know the VPC's CIDR range.
+                    Optional('AllowedIps'): str # Can't set a default without knowing the VPC's CIDR range.
                 },
                 Optional('LoginNodes'): {
                     'Pools': [
                         {
                             'Name': str,
+                            'Count': int,
+                            'InstanceType': str,
+                            Optional('GracetimePeriod'): And(int, lambda s: s > 0 and s <= 120), # optional, default value: 60 mins (max 120 mins)
                             Optional('Image'): {
                                 'CustomAmi': And(str, lambda s: s.startswith('ami-'))
                             },
-                            'Count': int,
-                            'InstanceType': str,
+                            Optional('Ssh'): {
+                                'KeyName': str # default value: same ssh key used for the Head Node
+                            },
                             Optional('Networking'): {
                                 Optional('SubnetIds'): [ # Only 1 subnet supported for the MVP. Default to slurm subnet
                                     And(str, lambda s: s.startswith('subnet-'))
@@ -429,9 +433,6 @@ def get_config_schema(config):
                                     And(str, lambda s: s.startswith('sg-'))
                                 ],
                             },
-                            Optional('Ssh'): {
-                                'KeyName': str # default value: same ssh key used for the Head Node
-                            },
                             Optional('Iam'): {
                                 'InstanceRole': str,
                                 'InstanceProfile': str,
@@ -439,7 +440,6 @@ def get_config_schema(config):
                                     {'Policy': str}
                                 ]
                             },
-                            Optional('GracetimePeriod'): And(int, lambda s: s > 0 and s <= 120) # optional, default value: 60 mins (max 120 mins)
                         }
                     ]
                 }
@@ -476,6 +476,15 @@ def get_config_schema(config):
                 Optional('SlurmConfOverrides'): str,
                 Optional('SlurmrestdUid', default=901): int,
                 Optional('SlurmRestApiVersion', default=get_slurm_rest_api_version(config)): str,
+                Optional('AdditionalSecurityGroups'): [
+                    And(str, lambda s: s.startswith('sg-'))
+                ],
+                Optional('AdditionalIamPolicies'): [
+                    str
+                ],
+                Optional('Imds', default={'Secured': True}): {
+                    Optional('Secured', default=True): bool
+                }
             },
             #
             # SubmitterSecurityGroupIds:
@@ -523,6 +532,12 @@ def get_config_schema(config):
                         }
                     }
                 },
+                Optional('AdditionalSecurityGroups'): [
+                    And(str, lambda s: s.startswith('sg-'))
+                ],
+                Optional('AdditionalIamPolicies'): [
+                    str
+                ],
                 Optional('OnPremComputeNodes'): {
                     'ConfigFile': str,
                     'CIDR': str,

@@ -299,15 +299,11 @@ class CdkSlurmStack(Stack):
                 config_errors += 1
 
         if 'Database' in self.config['slurm']['ParallelClusterConfig']:
-            if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database'] and 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
-                logger.error(f"Cannot specify both slurm/ParallelClusterConfig/Database/DatabaseStackName and slurm/ParallelClusterConfig/Database/EdaSlurmClusterStackName")
-                config_errors += 1
-
             required_keys = ['ClientSecurityGroup', 'FQDN', 'Port', 'AdminUserName', 'AdminPasswordSecretArn']
-            if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database'] or 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
+            if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
                 invalid_keys = []
                 for database_key in self.config['slurm']['ParallelClusterConfig']['Database']:
-                    if database_key in ['DatabaseStackName', 'EdaSlurmClusterStackName']:
+                    if database_key in ['DatabaseStackName']:
                         continue
                     if database_key in required_keys:
                         logger.error(f"Cannot specify slurm/ParallelClusterConfig/Database/{database_key} and slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName")
@@ -365,31 +361,6 @@ class CdkSlurmStack(Stack):
                 for output, database_key in output_to_key_map.items():
                     if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
                         logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'] stack to set slurm/ParallelClusterConfig/Database/{database_key}")
-
-            elif 'EdaSlurmClusterStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
-                cfn_client = boto3.client('cloudformation', region_name=self.config['region'])
-                stack_outputs = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['EdaSlurmClusterStackName'])['Stacks'][0]['Outputs']
-                output_to_key_map = {
-                    'DatabaseHost': 'FQDN',
-                    'DatabasePort': 'Port',
-                    'DatabaseAdminUser': 'AdminUserName',
-                    'DatabaseAdminPasswordSecretArn': 'AdminPasswordSecretArn',
-                    'SlurmDbdSecurityGroup': 'ClientSecurityGroup'
-                }
-                for output in stack_outputs:
-                    if output['OutputKey'] in output_to_key_map:
-                        database_key = output_to_key_map[output['OutputKey']]
-                        if database_key == 'Port':
-                            value = int(output['OutputValue'])
-                        else:
-                            value = output['OutputValue']
-                        if database_key == 'ClientSecurityGroup':
-                            self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = {f"{self.config['slurm']['ParallelClusterConfig']['Database']['EdaSlurmClusterStackName']}-SlurmDbdSG": value}
-                        else:
-                            self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = value
-                for output, database_key in output_to_key_map.items():
-                    if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
-                        logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Database']['EdaSlurmClusterStackName'] stack to set slurm/ParallelClusterConfig/Database/{database_key}")
 
             else:
                 for database_key in required_keys:
@@ -2337,130 +2308,136 @@ class CdkSlurmStack(Stack):
                 logger.error(f"Config slurm/ParallelClusterConfig/ComputeNodeAmi({compute_node_ami}) architecture=={ami_architecture}. Must be the same as slurm/ParallelClusterConfig/Architecture({cluster_architecture})")
                 exit(1)
 
-        self.parallel_cluster_config = {
-            'HeadNode': {
-                'Dcv': {
-                    'Enabled': self.config['slurm']['ParallelClusterConfig']['Dcv']['Enable'],
-                    'Port': self.config['slurm']['ParallelClusterConfig']['Dcv']['Port']
-                },
-                'Iam': {
-                    'AdditionalIamPolicies': [
-                        {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
-                        {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
-                        {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'},
-                        {'Policy': '{{ParallelClusterJwtWritePolicyArn}}'},
-                        {'Policy': '{{ParallelClusterMungeKeyWritePolicyArn}}'},
-                    ],
-                },
-                'Imds': {
-                    'Secured': True
-                },
-                'InstanceType': self.config['slurm']['SlurmCtl']['instance_type'],
-                'Ssh': {
-                    'KeyName':self.config['SshKeyPair']
-                },
-                'Networking': {
-                    'SubnetId': self.config['SubnetId'],
-                    'AdditionalSecurityGroups': [
-                        '{{SlurmCtlSecurityGroupId}}'
-                    ]
-                },
-                'CustomActions': {
-                    'OnNodeStart': {
-                        'Sequence': [
-                            {
-                                'Script': self.custom_action_s3_urls['config/bin/on_head_node_start.sh'],
-                                'Args': []
-                            }
-                        ]
-                    },
-                    'OnNodeConfigured': {
-                        'Sequence': [
-                            {
-                                'Script': self.custom_action_s3_urls['config/bin/on_head_node_configured.sh'],
-                                'Args': []
-                            }
-                        ]
-                    },
-                    'OnNodeUpdated': {
-                        'Sequence': [
-                            {
-                                'Script': self.custom_action_s3_urls['config/bin/on_head_node_updated.sh'],
-                                'Args': []
-                            }
-                        ]
-                    }
-                },
-            },
-            'Image': {
-                'Os': self.config['slurm']['ParallelClusterConfig']['Image']['Os']
-            },
-            'Imds': {
-                'ImdsSupport': 'v2.0'
-            },
-            'Region': self.cluster_region,
-            'Scheduling': {
-                'Scheduler': 'slurm',
-                'SlurmQueues': [],
-                'SlurmSettings': {
-                    'EnableMemoryBasedScheduling': True,
-                    'CustomSlurmSettings': [
-                        {'AuthAltTypes': 'auth/jwt'},
-                        {'AuthAltParameters': 'jwt_key=/opt/slurm/var/spool/jwt_hs256.key'},
-                        {'FederationParameters': 'fed_display'},
-                        # JobRequeue must be set to 1 to enable preemption to requeue jobs.
-                        {'JobRequeue': 1},
-                        # {'LaunchParameters': 'enable_nss_slurm'},
-                        {'PreemptExemptTime': self.config['slurm']['SlurmCtl']['PreemptExemptTime']},
-                        {'PreemptMode': self.config['slurm']['SlurmCtl']['PreemptMode']},
-                        {'PreemptParameters': ','.join([
-                            'reclaim_licenses',
-                            'send_user_signal',
-                            'strict_order',
-                            'youngest_first',
-                        ])},
-                        {'PreemptType': self.config['slurm']['SlurmCtl']['PreemptType']},
-                        {'PrologFlags': 'X11'},
-                        {'SchedulerParameters': ','.join([
-                            'batch_sched_delay=10',
-                            'bf_continue',
-                            'bf_interval=30',
-                            'bf_licenses',
-                            'bf_max_job_test=500',
-                            'bf_max_job_user=0',
-                            'bf_yield_interval=1000000',
-                            'default_queue_depth=10000',
-                            'max_rpc_cnt=100',
-                            'nohold_on_prolog_fail',
-                            'sched_min_internal=2000000',
-                        ])},
-                        {'ScronParameters': 'enable'},
-                    ],
-                },
-            },
-            'Tags': [
-                {
-                    'Key': 'parallelcluster-ui',
-                    'Value': 'true'
-                }
-            ]
-        }
+        self.parallel_cluster_config = self.config['slurm']['ParallelClusterConfig'].get('ClusterConfig', {})
 
+        self.parallel_cluster_config['HeadNode'] = self.parallel_cluster_config.get('HeadNode', {})
+
+        self.parallel_cluster_config['HeadNode']['Dcv'] = self.parallel_cluster_config['HeadNode'].get('Dcv', {})
+
+        self.parallel_cluster_config['HeadNode']['Dcv']['Enabled'] = self.config['slurm']['ParallelClusterConfig']['Dcv']['Enabled']
+        self.parallel_cluster_config['HeadNode']['Dcv']['Port'] = self.config['slurm']['ParallelClusterConfig']['Dcv']['Port']
         if 'AllowedIps' in self.config['slurm']['ParallelClusterConfig']['Dcv']:
-            self.parallel_cluster_config['HeadNode']['Dcv']['AllowedIps'] = self.config['slurm']['ParallelClusterConfig']['AllowedIps']
+            self.parallel_cluster_config['HeadNode']['Dcv']['AllowedIps'] = self.config['slurm']['ParallelClusterConfig']['Dcv']['AllowedIps']
 
-        if self.munge_key_secret_arn:
-                self.parallel_cluster_config['Scheduling']['SlurmSettings']['MungeKeySecretArn'] = self.munge_key_secret_arn
+        self.parallel_cluster_config['HeadNode']['Iam'] = self.parallel_cluster_config['HeadNode'].get('Iam', {})
+        self.parallel_cluster_config['HeadNode']['Iam']['AdditionalIamPolicies'] = self.parallel_cluster_config['HeadNode']['Iam'].get('AdditionalIamPolicies', [])
+        self.parallel_cluster_config['HeadNode']['Iam']['AdditionalIamPolicies'].append({'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'})
+        self.parallel_cluster_config['HeadNode']['Iam']['AdditionalIamPolicies'].append({'Policy': '{{ParallelClusterAssetReadPolicyArn}}'})
+        self.parallel_cluster_config['HeadNode']['Iam']['AdditionalIamPolicies'].append({'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'})
+        self.parallel_cluster_config['HeadNode']['Iam']['AdditionalIamPolicies'].append({'Policy': '{{ParallelClusterJwtWritePolicyArn}}'})
+        self.parallel_cluster_config['HeadNode']['Iam']['AdditionalIamPolicies'].append({'Policy': '{{ParallelClusterMungeKeyWritePolicyArn}}'})
+        if 'AdditionalIamPolicies' in self.config['slurm']['SlurmCtl']:
+            for iam_policy_arn in self.config['slurm']['SlurmCtl']['AdditionalIamPolicies']:
+                self.parallel_cluster_config['HeadNode']['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
 
+        self.parallel_cluster_config['HeadNode']['Imds'] = self.parallel_cluster_config['HeadNode'].get('Imds', {})
+        self.parallel_cluster_config['HeadNode']['Imds']['Secured'] =  self.config['slurm']['SlurmCtl'].get('Imds', {}).get('Secured', True)
+
+        self.parallel_cluster_config['HeadNode']['InstanceType'] =  self.config['slurm']['SlurmCtl']['instance_type']
+
+        self.parallel_cluster_config['HeadNode']['Ssh'] = self.parallel_cluster_config['HeadNode'].get('Ssh', {})
+        self.parallel_cluster_config['HeadNode']['Ssh']['KeyName'] = self.parallel_cluster_config['HeadNode']['Ssh'].get('KeyName', self.config['SshKeyPair'])
+
+        if 'volume_size' in self.config['slurm']['SlurmCtl']:
+            self.parallel_cluster_config['HeadNode']['LocalStorage'] = self.parallel_cluster_config['HeadNode'].get('LocalStorage', {})
+            self.parallel_cluster_config['HeadNode']['LocalStorage']['RootVolume'] = self.parallel_cluster_config['HeadNode']['LocalStorage'].get('RootVolume', {})
+            self.parallel_cluster_config['HeadNode']['LocalStorage']['RootVolume'] = {
+                'Size': self.config['slurm']['SlurmCtl']['volume_size']
+            }
+
+        self.parallel_cluster_config['HeadNode']['Networking'] = self.parallel_cluster_config['HeadNode'].get('Networking', {})
+        self.parallel_cluster_config['HeadNode']['Networking']['SubnetId'] = self.config['SubnetId']
+
+        self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'] = self.parallel_cluster_config['HeadNode']['Networking'].get('AdditionalSecurityGroups', [])
+        self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append('{{SlurmCtlSecurityGroupId}}')
+        if 'AdditionalSecurityGroups' in self.config['slurm']['SlurmCtl']:
+            for security_group_id in self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups']:
+                self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(security_group_id)
+
+        self.parallel_cluster_config['HeadNode']['CustomActions'] = self.parallel_cluster_config['HeadNode'].get('CustomActions', {})
+        self.parallel_cluster_config['HeadNode']['CustomActions']['OnNodeStart'] = self.parallel_cluster_config['HeadNode']['CustomActions'].get('OnNodeStart', {'Sequence': []})
+        self.parallel_cluster_config['HeadNode']['CustomActions']['OnNodeStart']['Sequence'].append(
+            {
+                'Script': self.custom_action_s3_urls['config/bin/on_head_node_start.sh'],
+                'Args': []
+            }
+        )
+        self.parallel_cluster_config['HeadNode']['CustomActions']['OnNodeConfigured'] = self.parallel_cluster_config['HeadNode']['CustomActions'].get('OnNodeConfigured', {'Sequence': []})
+        self.parallel_cluster_config['HeadNode']['CustomActions']['OnNodeConfigured']['Sequence'].append(
+            {
+                'Script': self.custom_action_s3_urls['config/bin/on_head_node_configured.sh'],
+                'Args': []
+            }
+        )
+        self.parallel_cluster_config['HeadNode']['CustomActions']['OnNodeUpdated'] = self.parallel_cluster_config['HeadNode']['CustomActions'].get('OnNodeUpdated', {'Sequence': []})
+        self.parallel_cluster_config['HeadNode']['CustomActions']['OnNodeUpdated']['Sequence'].append(
+            {
+                'Script': self.custom_action_s3_urls['config/bin/on_head_node_updated.sh'],
+                'Args': []
+            }
+        )
+
+        self.parallel_cluster_config['Image'] = self.parallel_cluster_config.get('Image', {})
+        self.parallel_cluster_config['Image']['Os'] = self.config['slurm']['ParallelClusterConfig']['Image']['Os']
         if 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
             self.parallel_cluster_config['Image']['CustomAmi'] = self.config['slurm']['ParallelClusterConfig']['Image']['CustomAmi']
 
-        if 'volume_size' in self.config['slurm']['SlurmCtl']:
-            self.parallel_cluster_config['HeadNode']['LocalStorage'] = {
-                'RootVolume': {
-                    'Size': self.config['slurm']['SlurmCtl']['volume_size']
-                }
+        self.parallel_cluster_config['Imds'] = self.parallel_cluster_config.get('Imds', {'ImdsSupport': 'v2.0'})
+
+        self.parallel_cluster_config['Region'] = self.cluster_region
+
+        self.parallel_cluster_config['Scheduling'] = self.parallel_cluster_config.get('Scheduling', {})
+        self.parallel_cluster_config['Scheduling']['Scheduler'] = 'slurm'
+
+        self.parallel_cluster_config['Scheduling']['SlurmQueues'] = self.parallel_cluster_config['Scheduling'].get('SlurmQueues', [])
+
+        self.parallel_cluster_config['Scheduling']['SlurmSettings'] = self.parallel_cluster_config['Scheduling'].get('SlurmSettings', {})
+        self.parallel_cluster_config['Scheduling']['SlurmSettings']['EnableMemoryBasedScheduling'] = self.parallel_cluster_config['Scheduling']['SlurmSettings'].get('EnableMemoryBasedScheduling', True)
+
+        self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'] = self.parallel_cluster_config['Scheduling']['SlurmSettings'].get('CustomSlurmSettings', [])
+        self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'] += [
+            {'AuthAltTypes': 'auth/jwt'},
+            {'AuthAltParameters': 'jwt_key=/opt/slurm/var/spool/jwt_hs256.key'},
+            {'FederationParameters': 'fed_display'},
+            # JobRequeue must be set to 1 to enable preemption to requeue jobs.
+            {'JobRequeue': 1},
+            # {'LaunchParameters': 'enable_nss_slurm'},
+            {'PreemptExemptTime': self.config['slurm']['SlurmCtl']['PreemptExemptTime']},
+            {'PreemptMode': self.config['slurm']['SlurmCtl']['PreemptMode']},
+            {'PreemptParameters': ','.join([
+                'reclaim_licenses',
+                'send_user_signal',
+                'strict_order',
+                'youngest_first',
+            ])},
+            {'PreemptType': self.config['slurm']['SlurmCtl']['PreemptType']},
+            {'PrologFlags': 'X11'},
+            {'SchedulerParameters': ','.join([
+                'batch_sched_delay=10',
+                'bf_continue',
+                'bf_interval=30',
+                'bf_licenses',
+                'bf_max_job_test=500',
+                'bf_max_job_user=0',
+                'bf_yield_interval=1000000',
+                'default_queue_depth=10000',
+                'max_rpc_cnt=100',
+                'nohold_on_prolog_fail',
+                'sched_min_internal=2000000',
+            ])},
+            {'ScronParameters': 'enable'},
+        ]
+
+        if self.munge_key_secret_arn:
+            self.parallel_cluster_config['Scheduling']['SlurmSettings']['MungeKeySecretArn'] = self.munge_key_secret_arn
+
+        self.parallel_cluster_config['Tags'] = self.parallel_cluster_config.get('Tags', [])
+        self.parallel_cluster_config['Tags'].append(
+            {
+                'Key': 'parallelcluster-ui',
+                'Value': 'true'
             }
+        )
 
         if 'Database' in self.config['slurm']['ParallelClusterConfig']:
             for security_group_name, security_group_id in self.config['slurm']['ParallelClusterConfig']['Database']['ClientSecurityGroup'].items():
@@ -2619,6 +2596,12 @@ class CdkSlurmStack(Stack):
                         parallel_cluster_queue['Image'] = {
                             'CustomAmi': self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
                         }
+                    if 'AdditionalSecurityGroups' in self.config['slurm']['InstanceConfig']:
+                        for security_group_id in self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups']:
+                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(security_group_id)
+                    if 'AdditionalIamPolicies' in self.config['slurm']['InstanceConfig']:
+                        for iam_policy_arn in self.config['slurm']['InstanceConfig']['AdditionalIamPolicies']:
+                            parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
                     number_of_queues += 1
 
                     # Give the compute node access to extra mounts
@@ -2747,6 +2730,12 @@ class CdkSlurmStack(Stack):
                         parallel_cluster_queue['Image'] = {
                             'CustomAmi': self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
                         }
+                    if 'AdditionalSecurityGroups' in self.config['slurm']['InstanceConfig']:
+                        for security_group_id in self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups']:
+                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(security_group_id)
+                    if 'AdditionalIamPolicies' in self.config['slurm']['InstanceConfig']:
+                        for iam_policy_arn in self.config['slurm']['InstanceConfig']['AdditionalIamPolicies']:
+                            parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
 
                     # Give the compute node access to extra mounts
                     for fs_type in self.extra_mount_security_groups.keys():
