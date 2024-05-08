@@ -42,6 +42,9 @@
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
@@ -156,11 +159,11 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="run-jobs">Run Jobs</h1>
+<h1 id="run-jobs">Run Jobs<a class="headerlink" href="#run-jobs" title="Permanent link"></a></h1>
 <p>This page is to give some basic instructions on how to run and monitor jobs on Slurm.
 Slurm provides excellent man pages for all of its commands, so if you have questions refer
 to the man pages.</p>
-<h2 id="set-up">Set Up</h2>
+<h2 id="set-up">Set Up<a class="headerlink" href="#set-up" title="Permanent link"></a></h2>
 <p>Load the environment module for Slurm to configure your PATH and Slurm related environment
 variables.</p>
 <pre><code>module load {{ClusterName}}
@@ -173,7 +176,7 @@ The environment variables can always be overridden by the command line options.<
 <p>For example, the SQUEUE_FORMAT2 and SQUEUE_SORT environment variables are set so that
 the default output format is easier to read and contains useful information that isn't
 in the default format.</p>
-<h2 id="key-slurm-commands">Key Slurm Commands</h2>
+<h2 id="key-slurm-commands">Key Slurm Commands<a class="headerlink" href="#key-slurm-commands" title="Permanent link"></a></h2>
 <p>The key Slurm commands are</p>
 <table>
 <thead>
@@ -251,7 +254,7 @@ in the default format.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="sbatch">sbatch</h2>
+<h2 id="sbatch">sbatch<a class="headerlink" href="#sbatch" title="Permanent link"></a></h2>
 <p>The most common options for sbatch are listed here.
 For more details run <code>man sbatch</code>.</p>
 <table>
@@ -320,7 +323,7 @@ For more details run <code>man sbatch</code>.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="run-a-simulation-build-followed-by-a-regression">Run a simulation build followed by a regression</h3>
+<h3 id="run-a-simulation-build-followed-by-a-regression">Run a simulation build followed by a regression<a class="headerlink" href="#run-a-simulation-build-followed-by-a-regression" title="Permanent link"></a></h3>
 <pre><code>build_jobid=$(sbatch -c 4 --mem 4G -L vcs_build -C 'GHz:4|GHz:4.5' -t 30:0 sim-build.sh)
 if sbatch -d &quot;afterok:$build_jobid&quot; -c 1 --mem 100M --wait submit-regression.sh; then
     echo &quot;Regression Passed&quot;
@@ -328,7 +331,7 @@ else
     echo &quot;Regression Failed&quot;
 fi
 </code></pre>
-<h2 id="srun">srun</h2>
+<h2 id="srun">srun<a class="headerlink" href="#srun" title="Permanent link"></a></h2>
 <p>The srun is usually used to open a pseudo terminal on a compute node for you to run interactive jobs.
 It accepts most of the same options as sbatch to request cpus, memory, and node features.</p>
 <p>To open up a pseudo terminal in your shell on a compute node with 4 cores and 16G of memory, execute the following command.</p>
@@ -346,18 +349,18 @@ emacs . # Or whatever gui application you want to run. Should open a window.
 <p>Another way to run interactive GUI jobs is to use <strong>srun</strong>'s <strong>--x11</strong> flag to enable X11 forwarding.</p>
 <pre><code>srun -c 1 --mem 8G --pty --x11 emacs
 </code></pre>
-<h2 id="squeue">squeue</h2>
+<h2 id="squeue">squeue<a class="headerlink" href="#squeue" title="Permanent link"></a></h2>
 <p>The squeue command shows the status of jobs.</p>
 <p>The output format can be customized using the <strong>--format</strong> or <strong>--Format</strong> options and you can configure
 the default output format using the corresponding <strong>SQUEUE_FORMAT</strong> or <strong>SQUEUE_FORMAT2</strong> environment variables.</p>
 <pre><code>squeue
 </code></pre>
-<h2 id="sprio">sprio</h2>
+<h2 id="sprio">sprio<a class="headerlink" href="#sprio" title="Permanent link"></a></h2>
 <p>Use <code>sprio</code> to get information about a job's priority.
 This can be useful to figure out why a job is scheduled before or after another job.</p>
 <pre><code>sprio -j10,11
 </code></pre>
-<h2 id="sacct">sacct</h2>
+<h2 id="sacct">sacct<a class="headerlink" href="#sacct" title="Permanent link"></a></h2>
 <p>Display accounting information about jobs.
 For example, it can be used to get the requested CPU and memory and see the CPU time and memory actually used.</p>
 <pre><code>sacct -o JobID,User,JobName,AllocCPUS,State,ExitCode,Elapsed,CPUTime,MaxRSS,MaxVMSize,ReqCPUS,ReqMem,SystemCPU,TotalCPU,UserCPU -j 44
@@ -368,9 +371,9 @@ For example, it can be used to get the requested CPU and memory and see the CPU 
 <p>For more information:</p>
 <pre><code>man sacct
 </code></pre>
-<h2 id="sreport">sreport</h2>
+<h2 id="sreport">sreport<a class="headerlink" href="#sreport" title="Permanent link"></a></h2>
 <p>The <code>sreport</code> command can be used to generate report from the Slurm database.</p>
-<h2 id="other-slurm-commands">Other Slurm Commands</h2>
+<h2 id="other-slurm-commands">Other Slurm Commands<a class="headerlink" href="#other-slurm-commands" title="Permanent link"></a></h2>
 <p>Use <code>man command</code> to get information about these less commonly used Slurm commands.</p>
 <table>
 <thead>

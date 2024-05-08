@@ -42,6 +42,9 @@
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
@@ -120,10 +123,10 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="slurm-rest-api">Slurm REST API</h1>
+<h1 id="slurm-rest-api">Slurm REST API<a class="headerlink" href="#slurm-rest-api" title="Permanent link"></a></h1>
 <p>The <a href="https://slurm.schedmd.com/rest_api.html">Slurm REST API</a> give a programmatic way to access the features of Slurm.
 The REST API can be used, for example, to use a Lambda function to submit jobs to the Slurm cluster.</p>
-<h2 id="how-to-use-the-rest-api">How to use the REST API</h2>
+<h2 id="how-to-use-the-rest-api">How to use the REST API<a class="headerlink" href="#how-to-use-the-rest-api" title="Permanent link"></a></h2>
 <p>The following shows how to run a simple REST call.</p>
 <pre><code>source /opt/slurm/{{ClusterName}}/config/slurm_config.sh
 unset SLURM_JWT

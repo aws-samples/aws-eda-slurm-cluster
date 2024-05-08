@@ -42,6 +42,9 @@
                                 <a href="./" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
@@ -82,7 +85,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a rel="next" href="../res_integration/" class="nav-link">
+                                <a rel="next" href="../config/" class="nav-link">
                                     Next <i class="fa fa-arrow-right"></i>
                                 </a>
                             </li>
@@ -152,15 +155,15 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="deploy-aws-parallelcluster">Deploy AWS ParallelCluster</h1>
+<h1 id="deploy-aws-parallelcluster">Deploy AWS ParallelCluster<a class="headerlink" href="#deploy-aws-parallelcluster" title="Permanent link"></a></h1>
 <p>A ParallelCluster configuration will be generated and used to create a ParallelCluster slurm cluster.
 The first supported ParallelCluster version is 3.6.0.
 Version 3.7.0 is the recommended minimum version because it supports compute node weighting that is proportional to instance type
 cost so that the least expensive instance types that meet job requirements are used.
 The current latest version is 3.8.0.</p>
-<h2 id="prerequisites">Prerequisites</h2>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link"></a></h2>
 <p>See <a href="../deployment-prerequisites/">Deployment Prerequisites</a> page.</p>
-<h3 id="create-parallelcluster-ui-optional-but-recommended">Create ParallelCluster UI (optional but recommended)</h3>
+<h3 id="create-parallelcluster-ui-optional-but-recommended">Create ParallelCluster UI (optional but recommended)<a class="headerlink" href="#create-parallelcluster-ui-optional-but-recommended" title="Permanent link"></a></h3>
 <p>It is highly recommended to create a ParallelCluster UI to manage your ParallelCluster clusters.
 A different UI is required for each version of ParallelCluster that you are using.
 The versions are list in the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/document_history.html">ParallelCluster Release Notes</a>.
@@ -168,12 +171,12 @@ The minimum required version is 3.6.0 which adds support for RHEL 8 and increase
 The suggested version is at least 3.7.0 because it adds configurable compute node weights which we use to prioritize the selection of
 compute nodes by their cost.</p>
 <p>The instructions are in the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/install-pcui-v3.html">ParallelCluster User Guide</a>.</p>
-<h3 id="create-parallelcluster-slurm-database">Create ParallelCluster Slurm Database</h3>
+<h3 id="create-parallelcluster-slurm-database">Create ParallelCluster Slurm Database<a class="headerlink" href="#create-parallelcluster-slurm-database" title="Permanent link"></a></h3>
 <p>The Slurm Database is required for configuring Slurm accounts, users, groups, and fair share scheduling.
 It you need these and other features then you will need to create a ParallelCluster Slurm Database.
 You do not need to create a new database for each cluster; multiple clusters can share the same database.
 Follow the directions in this <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3">ParallelCluster tutorial to configure slurm accounting</a>.</p>
-<h2 id="create-the-cluster">Create the Cluster</h2>
+<h2 id="create-the-cluster">Create the Cluster<a class="headerlink" href="#create-the-cluster" title="Permanent link"></a></h2>
 <p>To install the cluster run the install script. You can override some parameters in the config file
 with command line arguments, however it is better to specify all of the parameters in the config file.</p>
 <pre><code>./install.sh --config-file &lt;config-file&gt; --cdk-cmd create
@@ -181,7 +184,7 @@ with command line arguments, however it is better to specify all of the paramete
 <p>This will create the ParallelCuster configuration file, store it in S3, and then use a lambda function to create the cluster.</p>
 <p>If you look in CloudFormation you will see 2 new stacks when deployment is finished.
 The first is the configuration stack and the second is the cluster.</p>
-<h2 id="create-users_groupsjson">Create users_groups.json</h2>
+<h2 id="create-users_groupsjson">Create users_groups.json<a class="headerlink" href="#create-users_groupsjson" title="Permanent link"></a></h2>
 <p>Before you can use the cluster you must configure the Linux users and groups for the head and compute nodes.
 One way to do that would be to join the cluster to your domain.
 But joining each compute node to a domain effectively creates a distributed denial of service (DDOS) attack on the demain controller
@@ -228,7 +231,7 @@ The outputs of the configuration stack have the commands required.</p>
 <p>Now the cluster is ready to be used by sshing into the head node or a login node, if you configured one.</p>
 <p>If you configured extra file systems for the cluster that contain the users' home directories, then they should be able to ssh
 in with their own ssh keys.</p>
-<h2 id="configure-submission-hosts-to-use-the-cluster">Configure submission hosts to use the cluster</h2>
+<h2 id="configure-submission-hosts-to-use-the-cluster">Configure submission hosts to use the cluster<a class="headerlink" href="#configure-submission-hosts-to-use-the-cluster" title="Permanent link"></a></h2>
 <p>ParallelCluster was built assuming that users would ssh into the head node or login nodes to execute Slurm commands.
 This can be undesirable for a number of reasons.
 First, users shouldn't be given ssh access to a critical infrastructure like the cluster head node.
@@ -263,7 +266,7 @@ Run them in the following order:</p>
 It also configures the modulefile that sets up the environment to use the slurm cluster.</p>
 <p>The clusters have been configured so that a submission host can use more than one cluster by simply changing the modulefile that is loaded.</p>
 <p>On the submission host just open a new shell and load the modulefile for your cluster and you can access Slurm.</p>
-<h2 id="customize-the-compute-node-ami">Customize the compute node AMI</h2>
+<h2 id="customize-the-compute-node-ami">Customize the compute node AMI<a class="headerlink" href="#customize-the-compute-node-ami" title="Permanent link"></a></h2>
 <p>The easiest way to create a custom AMI is to find the default ParallelCluster AMI in the UI.
 Create an instance using the AMI and make whatever customizations you require such as installing packages and
 configuring users and groups.</p>
@@ -276,7 +279,7 @@ After it is available you can add the custom ami to the aws-eda-slurm-cluster co
     ComputeNodeAmi: ami-0fdb972bda05d2932
 </code></pre>
 <p>Then update your aws-eda-slurm-cluster stack by running the install script again.</p>
-<h2 id="run-your-first-job">Run Your First Job</h2>
+<h2 id="run-your-first-job">Run Your First Job<a class="headerlink" href="#run-your-first-job" title="Permanent link"></a></h2>
 <p>Run the following command in a shell to configure your environment to use your slurm cluster.</p>
 <pre><code>module load {{ClusterName}}
 </code></pre>
@@ -289,7 +292,7 @@ After it is available you can add the custom ami to the aws-eda-slurm-cluster co
 <p>To open an interactive shell on a slurm node.</p>
 <pre><code>srun --pty /bin/bash
 </code></pre>
-<h2 id="slurm-documentation">Slurm Documentation</h2>
+<h2 id="slurm-documentation">Slurm Documentation<a class="headerlink" href="#slurm-documentation" title="Permanent link"></a></h2>
 <p><a href="https://slurm.schedmd.com">https://slurm.schedmd.com</a></p></div>
             </div>
         </div>

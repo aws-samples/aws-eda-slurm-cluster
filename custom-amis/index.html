@@ -42,6 +42,9 @@
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
@@ -124,15 +127,22 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="custom-amis-for-parallelcluster">Custom AMIs for ParallelCluster</h1>
-<p>ParallelCluster supports <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/building-custom-ami-v3.html">building custom AMIs for the compute nodes</a>.
-The easiest way is to start an EC2 instance, update it with your changes, and create a new AMI from that instance.
+<h1 id="custom-amis-for-parallelcluster">Custom AMIs for ParallelCluster<a class="headerlink" href="#custom-amis-for-parallelcluster" title="Permanent link"></a></h1>
+<p>ParallelCluster supports <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/building-custom-ami-v3.html">building custom ParallelCluster AMIs for the head and compute nodes</a>. You can specify a custom AMI for the entire cluster (head and compute nodes) and you can also specify a custom AMI for just the compute nodes.
+By default, ParallelCluster will use pre-built AMIs for the OS that you select.
+The exception is Rocky 8 and 9, for which ParallelCluster does not provide pre-built AMIs.
+To use Rocky Linux, you must first build a custom AMI and specify it in your config file at <strong>slurm/ParallelClusterConfig/Os/CustomAmi</strong>.</p>
+<p>The easiest way is to start an EC2 instance, update it with your changes, and create a new AMI from that instance.
 You can then add the new AMI to your configuration file.</p>
 <p>ParallelCluster can also automate this process for you using EC2 ImageBuilder.
 When you build your cluster, example ParallelCluster build configuration files
 will be created for you and stored on the head node at:</p>
 <p><code>/opt/slurm/</code><strong>ClusterName</strong><code>/config/build-files/parallelcluster-</code><strong>PCVersion</strong><code>-*.yml</code></p>
 <p>The build files with <strong>eda</strong> in the name build an image that installs the packages that are typically used by EDA tools.</p>
+<p>The build files can be modified for your needs.
+The build file format is docummented in the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/image-builder-configuration-file-v3.html">ParallelCluster User Guide</a>.
+For example, you can add your own scripts to run during the AMI
+build process.</p>
 <p>The easiest way is to use the ParallelCluster UI to build the AMI using a build config file.</p>
 <ul>
 <li>Click on <strong>Images</strong> on the left</li>
@@ -151,14 +161,24 @@ You can connect to it using SSM and lookin in <code>/var/log/messages</code> for
 There is currently a bug where the stack deletion will fail.
 This doesn't mean that the AMI build failed.
 Simply select the stack and delete it manually and it should successfully delete.</p>
-<h2 id="fpga-developer-ami">FPGA Developer AMI</h2>
+<h2 id="fpga-developer-ami">FPGA Developer AMI<a class="headerlink" href="#fpga-developer-ami" title="Permanent link"></a></h2>
 <p>The build file with <strong>fpga</strong> in the name is based on the FPGS Developer AMI.
 The FPGA Developer AMI has the Xilinx Vivado tools that can be used free of additional
 charges when run on AWS EC2 instances to develop FPGA images that can be run on AWS F1 instances.</p>
 <p>First subscribe to the FPGA developer AMI in the <a href="https://us-east-1.console.aws.amazon.com/marketplace/home?region=us-east-1#/landing">AWS Marketplace</a>.
 There are 2 versions, one for <a href="https://aws.amazon.com/marketplace/pp/prodview-gimv3gqbpe57k?ref=cns_1clkPro">CentOS 7</a> and the other for <a href="https://aws.amazon.com/marketplace/pp/prodview-iehshpgi7hcjg?ref=cns_1clkPro">Amazon Linux 2</a>.</p>
-<h2 id="deploy-or-update-the-cluster">Deploy or update the Cluster</h2>
-<p>After the AMI is built, add it to the config and create or update your cluster to use the AMI.</p></div>
+<h2 id="deploy-or-update-the-cluster">Deploy or update the Cluster<a class="headerlink" href="#deploy-or-update-the-cluster" title="Permanent link"></a></h2>
+<p>After the AMI is built, add it to the config and create or update your cluster to use the AMI.
+You can set the AMI for the compute and head nodes using <strong>slurm/ParallelClusterConfig/Os/CustomAmi</strong> and for the compute nodes only using <strong>slurm/ParallelClusterConfig/ComputeNodeAmi</strong>.</p>
+<p><strong>Note</strong>: You cannot update the OS of the cluster or the AMI of the head node. If they need to change then you will need to create a new cluster.</p>
+<p>The config file will look something like the following:</p>
+<pre><code>slurm:
+  ParallelClusterConfig:
+    Image:
+      Os: rocky8
+      CustomAmi: ami-abc123 # Rocky linux
+    ComputeNodeAmi: ami-def456 # Rocky linux + EDA packages and EDA file systems
+</code></pre></div>
             </div>
         </div>
 

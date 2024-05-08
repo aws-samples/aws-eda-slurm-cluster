@@ -42,6 +42,9 @@
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
@@ -160,28 +163,28 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="deployment-prerequisites">Deployment Prerequisites</h1>
+<h1 id="deployment-prerequisites">Deployment Prerequisites<a class="headerlink" href="#deployment-prerequisites" title="Permanent link"></a></h1>
 <p>This page shows common prerequisites that need to be done before deployment.</p>
-<h2 id="deployment-serverinstance-requirements">Deployment Server/Instance Requirements</h2>
+<h2 id="deployment-serverinstance-requirements">Deployment Server/Instance Requirements<a class="headerlink" href="#deployment-serverinstance-requirements" title="Permanent link"></a></h2>
 <p>The deployment process was developed and tested using Amazon Linux 2.
 It has also been tested on RHEL 8 and RHEL 9.
 An easy way to create a deployment instance is to use an AWS Cloud 9 desktop.
 This will give you a code editor IDE and shell environment that you can use to deploy the cluster.</p>
 <p>If the required packages aren't installed then you will need sudo or root access on the instance.</p>
-<h2 id="configure-aws-cli-credentials">Configure AWS CLI Credentials</h2>
+<h2 id="configure-aws-cli-credentials">Configure AWS CLI Credentials<a class="headerlink" href="#configure-aws-cli-credentials" title="Permanent link"></a></h2>
 <p>You will needs AWS credentials that provide admin access to deploy the cluster.</p>
-<h2 id="clone-or-download-the-repository">Clone or Download the Repository</h2>
+<h2 id="clone-or-download-the-repository">Clone or Download the Repository<a class="headerlink" href="#clone-or-download-the-repository" title="Permanent link"></a></h2>
 <p>Clone or download the aws-eda-slurm-cluster repository to your system.</p>
 <pre><code>git clone git@github.com:aws-samples/aws-eda-slurm-cluster.git
 </code></pre>
-<h2 id="create-sns-topic-for-error-notifications-optional-but-recommended">Create SNS Topic for Error Notifications (Optional but recommended)</h2>
+<h2 id="create-sns-topic-for-error-notifications-optional-but-recommended">Create SNS Topic for Error Notifications (Optional but recommended)<a class="headerlink" href="#create-sns-topic-for-error-notifications-optional-but-recommended" title="Permanent link"></a></h2>
 <p>The Slurm cluster allows you to specify an SNS notification that will be notified when an error is detected.
 You can provide the ARN for the topic in the config file or on the command line.</p>
 <p>You can use the SNS notification in various ways.
 The simplest is to subscribe your email address to the topic so that you get an email when there is an error.
 You could also use it to trigger a CloudWatch alarm that could be used to trigger a lambda to do automatic
 remediation or create a support ticket.</p>
-<h2 id="make-sure-using-at-least-python-version-37">Make sure using at least python version 3.7</h2>
+<h2 id="make-sure-using-at-least-python-version-37">Make sure using at least python version 3.7<a class="headerlink" href="#make-sure-using-at-least-python-version-37" title="Permanent link"></a></h2>
 <p>This application requires at least python version 3.7.</p>
 <p>Many distributions use older versions of python by default such as python 3.6.8 in RHEL 8 and Rocky Linux 8.
 Newer versions are available, but can't be made the system default without breaking OS tools such as yum.
@@ -195,14 +198,14 @@ $ source ~/.venv-python3.11/bin/activate
 $ python3 --version
 Python 3.11.5
 </code></pre>
-<h2 id="make-sure-required-packages-are-installed">Make sure required packages are installed</h2>
+<h2 id="make-sure-required-packages-are-installed">Make sure required packages are installed<a class="headerlink" href="#make-sure-required-packages-are-installed" title="Permanent link"></a></h2>
 <pre><code>cd aws-eda-slurm-cluster
 source setup.sh
 </code></pre>
 <p>The setup script assumes that you have sudo access so that you can install or update packages.
 If you do not, then contact an administrator to help you do the updates.
 If necessary modify the setup script for your environment.</p>
-<h3 id="install-cloud-development-kit-cdk-optional">Install Cloud Development Kit (CDK) (Optional)</h3>
+<h3 id="install-cloud-development-kit-cdk-optional">Install Cloud Development Kit (CDK) (Optional)<a class="headerlink" href="#install-cloud-development-kit-cdk-optional" title="Permanent link"></a></h3>
 <p>The setup script will attempt to install all of the prerequisites for you.
 If the install script fails on your system then you can refer to this section for instructions
 on how to install or update CDK.</p>
@@ -223,7 +226,7 @@ tar -xf node-v16.13.1-linux-x64.tar.xz ~
 <p>Note that the version of aws-cdk changes frequently.
 The version that has been tested is in the CDK_VERSION variable in the install script.</p>
 <p>The install script will try to install the prerequisites if they aren't already installed.</p>
-<h2 id="create-configuration-file">Create Configuration File</h2>
+<h2 id="create-configuration-file">Create Configuration File<a class="headerlink" href="#create-configuration-file" title="Permanent link"></a></h2>
 <p>Before you deploy a cluster you need to create a configuration file.
 A default configuration file is found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">source/resources/config/default_config.yml</a>.
 You should create a new config file and update the parameters for your cluster.
@@ -293,7 +296,7 @@ You should save your selections in the config file.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="configure-the-compute-instances">Configure the Compute Instances</h3>
+<h3 id="configure-the-compute-instances">Configure the Compute Instances<a class="headerlink" href="#configure-the-compute-instances" title="Permanent link"></a></h3>
 <p>The <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543">slurm/InstanceConfig</a> configuration parameter configures the base operating systems, CPU architectures, instance families,
 and instance types that the Slurm cluster should support.
 ParallelCluster currently doesn't support heterogeneous clusters;
@@ -378,7 +381,7 @@ To do this add a MinCount greater than 0 for the compute resources that contain 
     NodeCounts:
       DefaultMinCount: 1
 </code></pre>
-<h3 id="configure-fair-share-scheduling-optional">Configure Fair Share Scheduling (Optional)</h3>
+<h3 id="configure-fair-share-scheduling-optional">Configure Fair Share Scheduling (Optional)<a class="headerlink" href="#configure-fair-share-scheduling-optional" title="Permanent link"></a></h3>
 <p>Slurm supports <a href="https://slurm.schedmd.com/fair_tree.html">fair share scheduling</a>, but it requires the fair share policy to be configured.
 By default, all users will be put into a default group that has a low fair share.
 The configuration file is at <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/playbooks/roles/ParallelClusterHeadNode/files/opt/slurm/config/accounts.yml.example">source/resources/playbooks/roles/ParallelClusterHeadNode/files/opt/slurm/config/accounts.yml.example</a>
@@ -447,7 +450,7 @@ PriorityWeightAssoc=0
 PriorityWeightJobSize=0
 </code></pre>
 <p>These weights can be adjusted based on your needs to control job priorities.</p>
-<h3 id="configure-licenses">Configure Licenses</h3>
+<h3 id="configure-licenses">Configure Licenses<a class="headerlink" href="#configure-licenses" title="Permanent link"></a></h3>
 <p>Slurm supports <a href="https://slurm.schedmd.com/licenses.html">configuring licenses as a consumable resource</a>.
 It will keep track of how many running jobs are using a license and when no more licenses are available
 then jobs will stay pending in the queue until a job completes and frees up a license.

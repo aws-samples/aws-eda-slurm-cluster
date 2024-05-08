@@ -42,6 +42,9 @@
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
                             <li class="navitem">
@@ -136,9 +139,9 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="debug">Debug</h1>
+<h1 id="debug">Debug<a class="headerlink" href="#debug" title="Permanent link"></a></h1>
 <p>For ParallelCluster and Slurm issues, refer to the official <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/troubleshooting-v3.html">AWS ParallelCluster Troubleshooting documentation</a>.</p>
-<h2 id="slurm-head-node">Slurm Head Node</h2>
+<h2 id="slurm-head-node">Slurm Head Node<a class="headerlink" href="#slurm-head-node" title="Permanent link"></a></h2>
 <p>If slurm commands hang, then it's likely a problem with the Slurm controller.</p>
 <p>Connect to the head node from the EC2 console using SSM Manager or ssh and switch to the root user.</p>
 <p><code>sudo su</code></p>
@@ -157,14 +160,14 @@ The first thing to do is get the path to the slurmctld binary.</p>
 <p>Then you can run slurmctld:</p>
 <pre><code>$slurmctld -D -vvvvv
 </code></pre>
-<h2 id="compute-nodes">Compute Nodes</h2>
+<h2 id="compute-nodes">Compute Nodes<a class="headerlink" href="#compute-nodes" title="Permanent link"></a></h2>
 <p>If there are problems with the compute nodes, connect to them using SSM Manager.</p>
 <p>Check for cloud-init errors the same way as for the slurmctl instance.
 The compute nodes do not run ansible; their AMIs are configured using ansible.</p>
 <p>Also check the <code>slurmd.log</code>.</p>
 <p>Check that the slurm daemon is running.</p>
 <p><code>systemctl status slurmd</code></p>
-<h3 id="log-files">Log Files</h3>
+<h3 id="log-files">Log Files<a class="headerlink" href="#log-files" title="Permanent link"></a></h3>
 <table>
 <thead>
 <tr>
@@ -179,11 +182,11 @@ The compute nodes do not run ansible; their AMIs are configured using ansible.</
 </tr>
 </tbody>
 </table>
-<h2 id="job-stuck-in-pending-state">Job Stuck in Pending State</h2>
+<h2 id="job-stuck-in-pending-state">Job Stuck in Pending State<a class="headerlink" href="#job-stuck-in-pending-state" title="Permanent link"></a></h2>
 <p>You can use scontrol to get detailed information about a job.</p>
 <pre><code>scontrol show job *jobid*
 </code></pre>
-<h2 id="job-stuck-in-completing-state">Job Stuck in Completing State</h2>
+<h2 id="job-stuck-in-completing-state">Job Stuck in Completing State<a class="headerlink" href="#job-stuck-in-completing-state" title="Permanent link"></a></h2>
 <p>When a node starts it reports it's number of cores and free memory to the controller.
 If the memory is less than in slurm_node.conf then the controller will mark the node
 as invalid.

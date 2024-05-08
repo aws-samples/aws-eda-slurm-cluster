@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Configuraton File Format - EDA SLURM Cluster on AWS</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/font-awesome.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+            <div class="container">
+                <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-collapse">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="navitem">
+                                <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
+                            </li>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../res_integration/" class="nav-link">RES Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../run_jobs/" class="nav-link">Run Jobs</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../job_preemption/" class="nav-link">Job Preemption</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../rest_api/" class="nav-link">Slurm REST API</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../debug/" class="nav-link">Debug</a>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-toggle="modal" data-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../deploy-parallel-cluster/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../res_integration/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/config.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-light navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-level="1"><a href="#configuraton-file-format" class="nav-link">Configuraton File Format</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#top-level-config" class="nav-link">Top Level Config</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#termination_protection" class="nav-link">termination_protection</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#stackname" class="nav-link">StackName</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#region" class="nav-link">Region</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#sshkeypair" class="nav-link">SshKeyPair</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#vpcid" class="nav-link">VpcId</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#cidr" class="nav-link">CIDR</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#subnetid" class="nav-link">SubnetId</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#errorsnstopicarn" class="nav-link">ErrorSnsTopicArn</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#timezone" class="nav-link">TimeZone</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#resenvironmentname" class="nav-link">RESEnvironmentName</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#slurm" class="nav-link">slurm</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#parallelclusterconfig" class="nav-link">ParallelClusterConfig</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="4"><a href="#version" class="nav-link">Version</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#architecture" class="nav-link">Architecture</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#computenodeami" class="nav-link">ComputeNodeAmi</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#disablesimultaneousmultithreading" class="nav-link">DisableSimultaneousMultithreading</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#enableefa" class="nav-link">EnableEfa</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#database" class="nav-link">Database</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#clusterconfig" class="nav-link">ClusterConfig</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#clustername" class="nav-link">ClusterName</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#mungekeysecret" class="nav-link">MungeKeySecret</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#slurmctl" class="nav-link">SlurmCtl</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="4"><a href="#slurmdport" class="nav-link">SlurmdPort</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#instance_type" class="nav-link">instance_type</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#volume_size" class="nav-link">volume_size</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#cloudwatchperiod" class="nav-link">CloudWatchPeriod</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#preemptmode" class="nav-link">PreemptMode</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#preempttype" class="nav-link">PreemptType</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#preemptexempttime" class="nav-link">PreemptExemptTime</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#slurmconfoverrides" class="nav-link">SlurmConfOverrides</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#slurmrestduid" class="nav-link">SlurmrestdUid</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#slurmrestapiversion" class="nav-link">SlurmRestApiVersion</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#head-node-additionalsecuritygroups" class="nav-link">Head Node AdditionalSecurityGroups</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#head-node-additionaliampolicies" class="nav-link">Head Node AdditionalIamPolicies</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#submittersecuritygroupids" class="nav-link">SubmitterSecurityGroupIds</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#submitterinstancetags" class="nav-link">SubmitterInstanceTags</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#instanceconfig" class="nav-link">InstanceConfig</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="4"><a href="#usespot" class="nav-link">UseSpot</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#exclude" class="nav-link">Exclude</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#include" class="nav-link">Include</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#nodecounts" class="nav-link">NodeCounts</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#compute-node-additionalsecuritygroups" class="nav-link">Compute Node AdditionalSecurityGroups</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#compute-node-additionaliampolicies" class="nav-link">Compute Node AdditionalIamPolicies</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#onpremcomputenodes" class="nav-link">OnPremComputeNodes</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#slurmuid" class="nav-link">SlurmUid</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#storage" class="nav-link">storage</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="4"><a href="#extramounts" class="nav-link">ExtraMounts</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#extramountsecuritygroups" class="nav-link">ExtraMountSecurityGroups</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#licenses" class="nav-link">Licenses</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="4"><a href="#licensename" class="nav-link">LicenseName</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="configuraton-file-format">Configuraton File Format<a class="headerlink" href="#configuraton-file-format" title="Permanent link"></a></h1>
+<p>This project creates a ParallelCluster configuration file that is documented in the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/cluster-configuration-file-v3.html">ParallelCluster User Guide</a>.</p>
+<pre>
+<a href="#termination_protection">termination_protection</a>: bool
+<a href="#stackname">StackName</a>: str
+<a href="#region">Region</a>: str
+<a href="#sshkeypair">SshKeyPair</a>: str
+<a href="#vpcid">VpcId</a>: str
+<a href="#cidr">CIDR</a>: str
+<a href="#subnetid">SubnetId</a>: str
+<a href="#errorsnstopicarn">ErrorSnsTopicArn</a>: str
+<a href="#timezone">TimeZone</a>: str
+<a href="#resenvironmentname">RESEnvironmentName</a>: str
+<a href="#slurm">slurm</a>:
+    <a href="#parallelclusterconfig">ParallelClusterConfig</a>:
+        <a href="#version">Version</a>: str
+        Image:
+            <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-Os">Os</a>: str
+            <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-CustomAmi">CustomAmi</a>: str
+        <a href="#architecture">Architecture</a>: str
+        <a href="#computenodeami">ComputeNodeAmi</a>: str
+        <a href="#disablesimultaneousmultithreading">DisableSimultaneousMultithreading</a>: str
+        <a href="#enableefa">EnableEfa</a>: bool
+        <a href="#database">Database</a>:
+            <a href="#databasestackname">DatabaseStackName</a>: str
+            <a href="#fqdn">FQDN</a>: str
+            <a href="#port">Port</a>: str
+            <a href="#adminusername">AdminUserName</a>: str
+            <a href="#adminpasswordsecretarn">AdminPasswordSecretArn</a>: str
+            <a href="#clientsecuritygroup">ClientSecurityGroup</a>:
+                SecurityGroupName: SecurityGroupId
+        <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Dcv">Dcv:</a>
+            <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Dcv-Enabled">Enabled</a>: bool
+            <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Dcv-Port">Port</a>: int
+            <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Dcv-AllowedIps">AllowedIps</a>: str
+        <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html">LoginNodes</a>:
+            <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#LoginNodes-v3-Pools">Pools</a>:
+            - <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Name">Name</a>: str
+                <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Count">Count</a>: int
+                <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-InstanceType">InstanceType</a>: str
+                <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-GracetimePeriod">GracetimePeriod</a>: int
+                <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Image">Image</a>:
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Image-CustomAmi">CustomAmi</a>: str
+                <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Ssh">Ssh</a>:
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Ssh-KeyName">KeyName</a>: str
+                <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Networking">Networking</a>:
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Networking-SubnetIds">SubnetIds</a>:
+                        - str
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Networking-SecurityGroups">SecurityGroups</a>:
+                        - str
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Networking-AdditionalSecurityGroups">AdditionalSecurityGroups</a>:
+                        - str
+                <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Iam">Iam</a>:
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Iam-InstanceRole">InstanceRole</a>: str
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Iam-InstanceProfile">InstanceProfile</a>: str
+                    <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Iam-AdditionalIamPolicies">AdditionalIamPolicies</a>:
+                    - <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/LoginNodes-v3.html#yaml-LoginNodes-Pools-Iam-AdditionalIamPolicies-Policy">Policy</a>: str
+        <a href="#clusterconfig">ClusterConfig</a>: dict
+    <a href="#clustername">ClusterName</a>: str
+    <a href="#mungekeysecret">MungeKeySecret</a>: str
+    <a href="#slurmctl">SlurmCtl</a>:
+        <a href="#slurmdport">SlurmdPort</a>: int
+        <a href="#instance_type">instance_type</a>: str
+        <a href="#volume_size">volume_size</a>: str
+        <a href="#cloudwatchperiod">CloudWatchPeriod</a>: int
+        <a href="#preemptmode">PreemptMode</a>: str
+        <a href="#preempttype">PreemptType</a>: str
+        <a href="#preemptexempttime">PreemptExemptTime</a>: str
+        <a href="#slurmconfoverrides">SlurmConfOverrides</a>: str
+        <a href="#slurmrestduid">SlurmrestdUid</a>: str
+        <a href="#head-node-additionalsecuritygroups">AdditionalSecurityGroups</a>:
+        - str
+        <a href="#head-node-additionaliampolicies">AdditionalIamPolicies</a>:
+        - str
+        <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Imds">Imds</a>:
+            <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Imds-Secured">Secured</a>: bool
+    <a href="#submittersecuritygroupids">SubmitterSecurityGroupIds</a>:
+        SecurityGroupName: SecurityGroupId
+    <a href="#submitterinstancetags">SubmitterInstanceTags</a>: str
+        TagName:
+        - TagValues
+    <a href="#instanceconfig">InstanceConfig</a>:
+        <a href="#usespot">UseSpot</a>: str
+        <a href="#exclude">Exclude</a>:
+            <a href="#exclude-instancefamilies">InstanceFamilies</a>:
+            - str
+            <a href="#exclude-instancetypes">InstanceTypes</a>:
+            - str
+        <a href="#include">Include</a>:
+            <a href="#maxsizeonly">MaxSizeOnly</a>: bool
+            <a href="#include-instancefamilies">InstanceFamilies</a>:
+            - str
+            <a href="#include-instancetypes">InstanceTypes</a>:
+            - str
+        <a href="#nodecounts">NodeCounts</a>:
+            <a href="#defaultmincount">DefaultMinCount</a>: str
+            <a href="#defaultmaxcount">DefaultMaxCount</a>: str
+            <a href="#computeresourcecounts">ComputeResourceCounts</a>:
+                str: # <a href="#computeresourcename">ComputeResourceName</a>
+                    <a href="#compute-resource-mincount">MinCount</a>: int
+                    <a href="#compute-resource-maxcount">MaxCount</a>: int
+        <a href="#compute-node-additionalsecuritygroups">AdditionalSecurityGroups</a>:
+        - str
+        <a href="#compute-node-additionaliampolicies">AdditionalIamPolicies</a>:
+        - str
+        <a href="#onpremcomputenodes">OnPremComputeNodes</a>:
+            <a href="#configfile">ConfigFile</a>: str
+            <a href="#on-premises-cidr">CIDR</a>: str
+            <a href="#partition">Partition</a>: str
+    <a href="#slurmuid">SlurmUid</a>: int
+    <a href="#storage">storage</a>:
+        <a href="#extramounts">ExtraMounts</a>:
+        - <a href="#dest">dest</a>: str
+          <a href="#src">src</a>: str
+          <a href="#type">type</a>: str
+          <a href="#options">options</a>: str
+          <a href="#storagetype">StorageType</a>: str
+          <a href="#filesystemid">FileSystemId</a>: str
+          <a href="#volumeid">VolumeId</a>: str
+        <a href="#extramountsecuritygroups">ExtraMountSecurityGroups</a>:
+            <a href="#filesystemtype">FileSystemType</a>:
+                SecurityGroupName: SecurityGroupId
+    <a href="#licenses">Licenses</a>:
+        <a href="#licensename">LicenseName</a>:
+            <a href="#count">Count</a>: int
+            <a href="#server">Server</a>: str
+            <a href="#port">Port</a>: str
+            <a href="#servertype">ServerType</a>:
+            <a href="#statusscript">StatusScript</a>:
+</pre>
+
+<h2 id="top-level-config">Top Level Config<a class="headerlink" href="#top-level-config" title="Permanent link"></a></h2>
+<h3 id="termination_protection">termination_protection<a class="headerlink" href="#termination_protection" title="Permanent link"></a></h3>
+<p>Enable Cloudformation Stack termination protection</p>
+<p>default=True</p>
+<h3 id="stackname">StackName<a class="headerlink" href="#stackname" title="Permanent link"></a></h3>
+<p>Optional so can be specified on the command-line</p>
+<p>default='slurm-top'</p>
+<h3 id="region">Region<a class="headerlink" href="#region" title="Permanent link"></a></h3>
+<p>Optional so can be specified on the command-line</p>
+<h3 id="sshkeypair">SshKeyPair<a class="headerlink" href="#sshkeypair" title="Permanent link"></a></h3>
+<p>Optional so can be specified on the command-line</p>
+<h3 id="vpcid">VpcId<a class="headerlink" href="#vpcid" title="Permanent link"></a></h3>
+<p>Optional so can be specified on the command-line</p>
+<h3 id="cidr">CIDR<a class="headerlink" href="#cidr" title="Permanent link"></a></h3>
+<h3 id="subnetid">SubnetId<a class="headerlink" href="#subnetid" title="Permanent link"></a></h3>
+<p>Optional. If not specified then the first private subnet is chosen.</p>
+<h3 id="errorsnstopicarn">ErrorSnsTopicArn<a class="headerlink" href="#errorsnstopicarn" title="Permanent link"></a></h3>
+<p>Optional, but highly recommended</p>
+<h3 id="timezone">TimeZone<a class="headerlink" href="#timezone" title="Permanent link"></a></h3>
+<p>default='US/Central'</p>
+<h3 id="resenvironmentname">RESEnvironmentName<a class="headerlink" href="#resenvironmentname" title="Permanent link"></a></h3>
+<h2 id="slurm">slurm<a class="headerlink" href="#slurm" title="Permanent link"></a></h2>
+<h3 id="parallelclusterconfig">ParallelClusterConfig<a class="headerlink" href="#parallelclusterconfig" title="Permanent link"></a></h3>
+<h4 id="version">Version<a class="headerlink" href="#version" title="Permanent link"></a></h4>
+<p>ParallelCluster Version</p>
+<h4 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link"></a></h4>
+<ul>
+<li>arm64</li>
+<li>x86_64</li>
+</ul>
+<p>default: x86_64</p>
+<h4 id="computenodeami">ComputeNodeAmi<a class="headerlink" href="#computenodeami" title="Permanent link"></a></h4>
+<p>AMI to use for compute nodes.</p>
+<h4 id="disablesimultaneousmultithreading">DisableSimultaneousMultithreading<a class="headerlink" href="#disablesimultaneousmultithreading" title="Permanent link"></a></h4>
+<p>type: bool</p>
+<p>default=True</p>
+<p>Disable SMT on the compute nodes.</p>
+<p>If true, multithreading on the compute nodes is disabled.</p>
+<p>Not all instance types can disable multithreading. For a list of instance types that support disabling multithreading, see CPU cores and threads for each CPU core per instance type in the Amazon EC2 User Guide for Linux Instances.</p>
+<p>Update policy: The compute fleet must be stopped for this setting to be changed for an update.</p>
+<p><a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmQueues-ComputeResources-DisableSimultaneousMultithreading">ParallelCluster documentation</a></p>
+<h4 id="enableefa">EnableEfa<a class="headerlink" href="#enableefa" title="Permanent link"></a></h4>
+<p>type: bool</p>
+<p>default: False</p>
+<p>Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group.</p>
+<p>See <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster">https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster</a></p>
+<h4 id="database">Database<a class="headerlink" href="#database" title="Permanent link"></a></h4>
+<p>Optional</p>
+<p>Configure the Slurm database to use with the cluster.</p>
+<p>This is created independently of the cluster so that the same database can be used with multiple clusters.</p>
+<p>The easiest way to do this is to use the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3">CloudFormation template provided by ParallelCluster</a> and then to just pass
+the name of the stack in <a href="#databasestackname">DatabaseStackName</a>.
+All of the other parameters will be pulled from the stack.</p>
+<p>See the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmSettings-Database">ParallelCluster documentation</a>.</p>
+<h5 id="databasestackname">DatabaseStackName<a class="headerlink" href="#databasestackname" title="Permanent link"></a></h5>
+<p>Name of the ParallelCluster CloudFormation stack that created the database.</p>
+<p>The following parameters will be set using the outputs of the stack:</p>
+<ul>
+<li>FQDN</li>
+<li>Port</li>
+<li>AdminUserName</li>
+<li>AdminPasswordSecretArn</li>
+<li>ClientSecurityGroup</li>
+</ul>
+<h5 id="fqdn">FQDN<a class="headerlink" href="#fqdn" title="Permanent link"></a></h5>
+<p>Used with the Port to set the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-Uri">Uri</a> of the database.</p>
+<h5 id="port">Port<a class="headerlink" href="#port" title="Permanent link"></a></h5>
+<p>type: int</p>
+<p>Database's port.</p>
+<h5 id="adminusername">AdminUserName<a class="headerlink" href="#adminusername" title="Permanent link"></a></h5>
+<p>type: str</p>
+<p>The identity that Slurm uses to connect to the database, write accounting logs, and perform queries. The user must have both read and write permissions on the database.</p>
+<p>Sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-UserName">UserName</a> parameter in ParallelCluster.</p>
+<h5 id="adminpasswordsecretarn">AdminPasswordSecretArn<a class="headerlink" href="#adminpasswordsecretarn" title="Permanent link"></a></h5>
+<p>type: str</p>
+<p>The Amazon Resource Name (ARN) of the AWS Secrets Manager secret that contains the AdminUserName plaintext password.
+This password is used together with AdminUserName and Slurm accounting to authenticate on the database server.</p>
+<p>Sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-PasswordSecretArn">PasswordSecretArn</a> parameter in ParallelCluster.</p>
+<h5 id="clientsecuritygroup">ClientSecurityGroup<a class="headerlink" href="#clientsecuritygroup" title="Permanent link"></a></h5>
+<p>Security group that has permissions to connect to the database.</p>
+<p>Required to be attached to the head node that is running slurmdbd so that the port connection to the database is allows.</p>
+<h4 id="clusterconfig">ClusterConfig<a class="headerlink" href="#clusterconfig" title="Permanent link"></a></h4>
+<p>type: dict</p>
+<p>Additional ParallelCluster configuration settings that will be directly added
+to the configuration without checking.
+These will override any other settings from the config file.</p>
+<h3 id="clustername">ClusterName<a class="headerlink" href="#clustername" title="Permanent link"></a></h3>
+<p>Name of the ParallelCluster cluster.</p>
+<p>Default: If StackName ends with "-config" then ClusterName is StackName with "-config" stripped off.
+Otherwise add "-cl" to end of StackName.</p>
+<h3 id="mungekeysecret">MungeKeySecret<a class="headerlink" href="#mungekeysecret" title="Permanent link"></a></h3>
+<p>AWS secret with a base64 encoded munge key to use for the cluster.
+For an existing secret can be the secret name or the ARN.
+If the secret doesn't exist one will be created, but won't be part of the cloudformation stack so that it won't be deleted when the stack is deleted.
+Required if your submitters need to use more than 1 cluster.</p>
+<h3 id="slurmctl">SlurmCtl<a class="headerlink" href="#slurmctl" title="Permanent link"></a></h3>
+<p>Configure the Slurm head node or controller.</p>
+<p>Required, but can be an empty dict to accept all of the defaults.</p>
+<h4 id="slurmdport">SlurmdPort<a class="headerlink" href="#slurmdport" title="Permanent link"></a></h4>
+<p>default=6818</p>
+<p>type: int</p>
+<h4 id="instance_type">instance_type<a class="headerlink" href="#instance_type" title="Permanent link"></a></h4>
+<p>Instance type of the head node.</p>
+<p>Must match the architecture of the cluster.</p>
+<h4 id="volume_size">volume_size<a class="headerlink" href="#volume_size" title="Permanent link"></a></h4>
+<p>default=200</p>
+<p>type: int</p>
+<h4 id="cloudwatchperiod">CloudWatchPeriod<a class="headerlink" href="#cloudwatchperiod" title="Permanent link"></a></h4>
+<p>default=5</p>
+<p>type: int</p>
+<h4 id="preemptmode">PreemptMode<a class="headerlink" href="#preemptmode" title="Permanent link"></a></h4>
+<p><a href="https://slurm.schedmd.com/slurm.conf.html#OPT_PreemptMode">Slurm documentation</a></p>
+<p>Valid values:</p>
+<ul>
+<li>'OFF'</li>
+<li>'CANCEL'</li>
+<li>'GANG'</li>
+<li>'REQUEUE'</li>
+<li>'SUSPEND'</li>
+</ul>
+<p>default='REQUEUE'</p>
+<h4 id="preempttype">PreemptType<a class="headerlink" href="#preempttype" title="Permanent link"></a></h4>
+<p><a href="https://slurm.schedmd.com/slurm.conf.html#OPT_PreemptType">Slurm documentation</a></p>
+<p>Valid values:</p>
+<ul>
+<li>'preempt/none'</li>
+<li>'preempt/partition_prio'</li>
+<li>'preempt/qos'</li>
+</ul>
+<p>default='preempt/partition_prio'</p>
+<h4 id="preemptexempttime">PreemptExemptTime<a class="headerlink" href="#preemptexempttime" title="Permanent link"></a></h4>
+<p><a href="https://slurm.schedmd.com/slurm.conf.html#OPT_PreemptExemptTime">Slurm documentation</a></p>
+<p>Global option for minimum run time for all jobs before they can be considered for preemption.</p>
+<p>A time of -1 disables the option, equivalent to 0. Acceptable time formats include "minutes", "minutes:seconds", "hours:minutes:seconds", "days-hours", "days-hours:minutes", and "days-hours:minutes:seconds".</p>
+<p>default='0'</p>
+<p>type: str</p>
+<h4 id="slurmconfoverrides">SlurmConfOverrides<a class="headerlink" href="#slurmconfoverrides" title="Permanent link"></a></h4>
+<p>File that will be included at end of slurm.conf to override configuration parameters.</p>
+<p>type: str</p>
+<h4 id="slurmrestduid">SlurmrestdUid<a class="headerlink" href="#slurmrestduid" title="Permanent link"></a></h4>
+<p>User ID for the slurmrestd daemon.</p>
+<p>type: int</p>
+<p>default=901</p>
+<h4 id="slurmrestapiversion">SlurmRestApiVersion<a class="headerlink" href="#slurmrestapiversion" title="Permanent link"></a></h4>
+<p>type: str</p>
+<p>default: ''0.0.39'</p>
+<h4 id="head-node-additionalsecuritygroups">Head Node AdditionalSecurityGroups<a class="headerlink" href="#head-node-additionalsecuritygroups" title="Permanent link"></a></h4>
+<p>Additional security groups that will be added to the head node instance.</p>
+<h4 id="head-node-additionaliampolicies">Head Node AdditionalIamPolicies<a class="headerlink" href="#head-node-additionaliampolicies" title="Permanent link"></a></h4>
+<p>List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the head node instance.</p>
+<h3 id="submittersecuritygroupids">SubmitterSecurityGroupIds<a class="headerlink" href="#submittersecuritygroupids" title="Permanent link"></a></h3>
+<p>External security groups that should be able to use the cluster.</p>
+<p>Rules will be added to allow it to interact with Slurm.</p>
+<h3 id="submitterinstancetags">SubmitterInstanceTags<a class="headerlink" href="#submitterinstancetags" title="Permanent link"></a></h3>
+<p>Tags of instances that can be configured to submit to the cluster.</p>
+<p>When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.</p>
+<h3 id="instanceconfig">InstanceConfig<a class="headerlink" href="#instanceconfig" title="Permanent link"></a></h3>
+<p>Configure the instances used by the cluster.</p>
+<p>A partition will be created for each combination of Base OS, Architecture, and Spot.</p>
+<h4 id="usespot">UseSpot<a class="headerlink" href="#usespot" title="Permanent link"></a></h4>
+<p>Configure spot instances.</p>
+<p>type: bool</p>
+<p>default: True</p>
+<h4 id="exclude">Exclude<a class="headerlink" href="#exclude" title="Permanent link"></a></h4>
+<p>Instance families and types to exclude.</p>
+<p>Exclude patterns are processed first and take precesdence over any includes.</p>
+<p>Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.</p>
+<h5 id="exclude-instancefamilies">Exclude InstanceFamilies<a class="headerlink" href="#exclude-instancefamilies" title="Permanent link"></a></h5>
+<p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
+<p>An empty list is the same as '.*'.</p>
+<p>Default:</p>
+<pre><code>default_excluded_instance_families = [
+    'a1',   # Graviton 1
+    'c4',   # Replaced by c5
+    'd2',   # SSD optimized
+    'g3',   # Replaced by g4
+    'g3s',  # Replaced by g4
+    'h1',   # SSD optimized
+    'i3',   # SSD optimized
+    'i3en', # SSD optimized
+    'm4',   # Replaced by m5
+    'p2',   # Replaced by p3
+    'p3',
+    'p3dn',
+    'r4',   # Replaced by r5
+    't2',   # Replaced by t3
+    'x1',
+    'x1e',
+]
+</code></pre>
+<h5 id="exclude-instancetypes">Exclude InstanceTypes<a class="headerlink" href="#exclude-instancetypes" title="Permanent link"></a></h5>
+<p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
+<p>An empty list is the same as '.*'.</p>
+<p>Default:</p>
+<pre><code>default_excluded_instance_types = [
+    '.+\.(micro|nano)', # Not enough memory
+    '.*\.metal.*'
+]
+</code></pre>
+<h4 id="include">Include<a class="headerlink" href="#include" title="Permanent link"></a></h4>
+<p>Instance families and types to include.</p>
+<p>Exclude patterns are processed first and take precesdence over any includes.</p>
+<p>Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.</p>
+<h5 id="maxsizeonly">MaxSizeOnly<a class="headerlink" href="#maxsizeonly" title="Permanent link"></a></h5>
+<p>type: bool</p>
+<p>default: False</p>
+<p>If MaxSizeOnly is True then only the largest instance type in a family will be included unless specific instance types are included.</p>
+<h5 id="include-instancefamilies">Include InstanceFamilies<a class="headerlink" href="#include-instancefamilies" title="Permanent link"></a></h5>
+<p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
+<p>An empty list is the same as '.*'.</p>
+<p>Default:</p>
+<pre><code>default_eda_instance_families = [
+    'c7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+
+    'c7g',               # AWS Graviton3 Processor 2.6 GHz
+    # 'c7gd',              # AWS Graviton3 Processor 2.6 GHz
+    # 'c7gn',              # AWS Graviton3 Processor 2.6 GHz
+
+    # 'c7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    #'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
+
+    'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
+
+    'm7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+
+    # 'm7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    'm7g',               # AWS Graviton3 Processor 2.6 GHz
+    # 'm7gd',               # AWS Graviton3 Processor 2.6 GHz
+
+    'r7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+
+    'r7g',               # AWS Graviton3 Processor 2.6 GHz
+    # 'r7gd',               # AWS Graviton3 Processor 2.6 GHz
+
+    # 'r7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    'r7iz',              # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
+
+    'x2idn',             # Intel Xeon Scalable (Icelake) 3.5 GHz 2 TB
+
+    'x2iedn',            # Intel Xeon Scalable (Icelake) 3.5 GHz 4 TB
+
+    'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
+
+    #'u-6tb1',            # Intel Xeon Scalable (Skylake) 6 TB
+    #'u-9tb1',            # Intel Xeon Scalable (Skylake) 9 TB
+    #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
+]
+</code></pre>
+<h5 id="include-instancetypes">Include InstanceTypes<a class="headerlink" href="#include-instancetypes" title="Permanent link"></a></h5>
+<p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
+<p>An empty list is the same as '.*'.</p>
+<p>Default:</p>
+<pre><code>default_eda_instance_types = [
+    #'c5\.(l|x|2|4|9|18).*',  # Intel Xeon Platinum 8124M 3.4 GHz
+    #'c5\.(12|24).*',         # Intel Xeon Platinum 8275L 3.6 GHz
+    #'c5d\.(l|x|2|4|9|18).*', # Intel Xeon Platinum 8124M 3.4 GHz
+    #'c5d\.(12|24).*',        # Intel Xeon Platinum 8275L 3.6 GHz
+]
+</code></pre>
+<h4 id="nodecounts">NodeCounts<a class="headerlink" href="#nodecounts" title="Permanent link"></a></h4>
+<p>Configure the number of compute nodes of each instance type.</p>
+<h5 id="defaultmincount">DefaultMinCount<a class="headerlink" href="#defaultmincount" title="Permanent link"></a></h5>
+<p>type: int</p>
+<p>default: 0</p>
+<p>Minimum number of compute nodes to keep running in a compute resource.
+If the number is greater than zero then static nodes will be created.</p>
+<h5 id="defaultmaxcount">DefaultMaxCount<a class="headerlink" href="#defaultmaxcount" title="Permanent link"></a></h5>
+<p>type: int</p>
+<p>The maximum number of compute nodes to create in a compute resource.</p>
+<h5 id="computeresourcecounts">ComputeResourceCounts<a class="headerlink" href="#computeresourcecounts" title="Permanent link"></a></h5>
+<p>Define compute node counts per compute resource.</p>
+<p>These counts will override the defaults set by <a href="#defaultmincount">DefaultMinCount</a> and <a href="#defaultmaxcount">DefaultMaxCount</a>.</p>
+<h6 id="computeresourcename">ComputeResourceName<a class="headerlink" href="#computeresourcename" title="Permanent link"></a></h6>
+<p>Name of the ParallelCluster compute resource. Can be found using <code>sinfo</code>.</p>
+<h6 id="compute-resource-mincount"># Compute Resource MinCount<a class="headerlink" href="#compute-resource-mincount" title="Permanent link"></a></h6>
+<p>type: int</p>
+<p>default: 0</p>
+<h6 id="compute-resource-maxcount"># Compute Resource MaxCount<a class="headerlink" href="#compute-resource-maxcount" title="Permanent link"></a></h6>
+<p>type: int</p>
+<h4 id="compute-node-additionalsecuritygroups">Compute Node AdditionalSecurityGroups<a class="headerlink" href="#compute-node-additionalsecuritygroups" title="Permanent link"></a></h4>
+<p>Additional security groups that will be added to the compute node instances.</p>
+<h4 id="compute-node-additionaliampolicies">Compute Node AdditionalIamPolicies<a class="headerlink" href="#compute-node-additionaliampolicies" title="Permanent link"></a></h4>
+<p>List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the compute node instances.</p>
+<h4 id="onpremcomputenodes">OnPremComputeNodes<a class="headerlink" href="#onpremcomputenodes" title="Permanent link"></a></h4>
+<p>Define on-premises compute nodes that will be managed by the ParallelCluster head node.</p>
+<p>The compute nodes must be accessible from the head node over the network and any firewalls must allow all of the Slurm ports between the head node and compute nodes.</p>
+<p>ParallelCluster will be configured to allow the neccessary network traffic and
+the on-premises firewall can be configured to match the ParallelCluster seccurity groups.</p>
+<h5 id="configfile">ConfigFile<a class="headerlink" href="#configfile" title="Permanent link"></a></h5>
+<p>Configuration file with the on-premises compute nodes defined in Slurm NodeName format as described in the <a href="https://slurm.schedmd.com/slurm.conf.html#OPT_NodeName">Slurm slurm.conf documentation</a>.</p>
+<p>The file will be included in the ParallelCluster slurm.conf so it can technically include any Slurm configuration updates including custom partition definitions.</p>
+<p><strong>NOTE</strong>: The syntax of the file isn't checked and syntax errors can result in the slurmctld daemon failing on the head node.</p>
+<h5 id="on-premises-cidr">On-Premises CIDR<a class="headerlink" href="#on-premises-cidr" title="Permanent link"></a></h5>
+<p>The CIDR that contains the on-premises compute nodes.</p>
+<p>This is to allow egress from the head node to the on-premises nodes.</p>
+<h5 id="partition">Partition<a class="headerlink" href="#partition" title="Permanent link"></a></h5>
+<p>A partition that will contain all of the on-premises nodes.</p>
+<h3 id="slurmuid">SlurmUid<a class="headerlink" href="#slurmuid" title="Permanent link"></a></h3>
+<p>type: int</p>
+<p>default: 900</p>
+<p>The user id of the slurm user.</p>
+<h3 id="storage">storage<a class="headerlink" href="#storage" title="Permanent link"></a></h3>
+<h4 id="extramounts">ExtraMounts<a class="headerlink" href="#extramounts" title="Permanent link"></a></h4>
+<p>Additional mounts for compute nodes.</p>
+<p>This can be used so the compute nodes have the same file structure as the remote desktops.</p>
+<p>This is used to configure <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html">ParallelCluster SharedStorage</a>.</p>
+<h5 id="dest">dest<a class="headerlink" href="#dest" title="Permanent link"></a></h5>
+<p>The directory where the file system will be mounted.</p>
+<p>This sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-MountDir">MountDir</a>.</p>
+<h5 id="src">src<a class="headerlink" href="#src" title="Permanent link"></a></h5>
+<p>The source path on the file system export that will be mounted.</p>
+<h5 id="type">type<a class="headerlink" href="#type" title="Permanent link"></a></h5>
+<p>The type of mount. For example, nfs3.</p>
+<h5 id="options">options<a class="headerlink" href="#options" title="Permanent link"></a></h5>
+<p>Mount options.</p>
+<h5 id="storagetype">StorageType<a class="headerlink" href="#storagetype" title="Permanent link"></a></h5>
+<p>The type of file system to mount.</p>
+<p>Valid values:</p>
+<ul>
+<li>Efs</li>
+<li>FsxLustre</li>
+<li>FsxOntap</li>
+<li>FsxOpenZfs</li>
+</ul>
+<h5 id="filesystemid">FileSystemId<a class="headerlink" href="#filesystemid" title="Permanent link"></a></h5>
+<p>Specifies the ID of an existing <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxLustreSettings-FileSystemId">FSx for Lustre</a> or <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-EfsSettings-FileSystemId">EFS</a> file system.</p>
+<h5 id="volumeid">VolumeId<a class="headerlink" href="#volumeid" title="Permanent link"></a></h5>
+<p>Specifies the volume ID of an existing <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOntapSettings-VolumeId">FSx for ONTAP</a> or <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOpenZfsSettings-VolumeId">FSx for OpenZFS</a> file system.</p>
+<h4 id="extramountsecuritygroups">ExtraMountSecurityGroups<a class="headerlink" href="#extramountsecuritygroups" title="Permanent link"></a></h4>
+<p>The security groups used by the file systems so that the head and comnpute nodes
+can be configured to connect to them.</p>
+<p>For example:</p>
+<pre><code>storage:
+    ExtraMounts:
+    - dest: &quot;/tools&quot;
+      StorageType: FsxOpenZfs
+      VolumeId: 'fsvol-abcd1234'
+      src: 'fs-efgh5678.fsx.us-east-1.amazonaws.com:/fsx/'
+      type: nfs4
+      options: 'nfsvers=4.1'
+    ExtraMountSecurityGroups:
+        zfs:
+            FsxSG: sg-12345678
+</code></pre>
+<h5 id="filesystemtype">FileSystemType<a class="headerlink" href="#filesystemtype" title="Permanent link"></a></h5>
+<p>Type of file system so that the appropriate ports can be opened.</p>
+<p>Valid values:</p>
+<ul>
+<li>nfs</li>
+<li>zfs</li>
+<li>lustre</li>
+</ul>
+<h3 id="licenses">Licenses<a class="headerlink" href="#licenses" title="Permanent link"></a></h3>
+<p>Configure license counts for the scheduler.</p>
+<p>If the Slurm database is configured then it will be updated with the license counts.
+Otherwise, the license counts will be added to slurm.conf.</p>
+<h4 id="licensename">LicenseName<a class="headerlink" href="#licensename" title="Permanent link"></a></h4>
+<p>The name of the license, for example, <code>VCSCompiler_Net</code> or <code>VCSMXRunTime_Net</code>.
+This is the license name that users specify when submitting a job.
+It doesn't have to match the license name reported by the license server,
+although that probably makes the most sense.</p>
+<h5 id="count">Count<a class="headerlink" href="#count" title="Permanent link"></a></h5>
+<p>The number of licenses available to Slurm to use to schedule jobs.
+Once all of the license are used by running jobs, then any pending jobs will remain pending until a license becomes available.</p>
+<h5 id="server">Server<a class="headerlink" href="#server" title="Permanent link"></a></h5>
+<p>The license server hosting the licenses.</p>
+<p>Not currently used.</p>
+<h5 id="port_1">Port<a class="headerlink" href="#port_1" title="Permanent link"></a></h5>
+<p>The port on the license server used to request licenses.</p>
+<p>Not currently used.</p>
+<h5 id="servertype">ServerType<a class="headerlink" href="#servertype" title="Permanent link"></a></h5>
+<p>The type of license server, such as FlexLM.</p>
+<p>Not currently used.</p>
+<h5 id="statusscript">StatusScript<a class="headerlink" href="#statusscript" title="Permanent link"></a></h5>
+<p>A script that queries the license server and dynamically updates the Slurm database with the actual total number of licenses and the number used.</p>
+<p>Not currently implemented.</p>
+</pre></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="../js/jquery-3.6.0.min.js"></script>
+        <script src="../js/bootstrap.min.js"></script>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js"></script>
+        <script src="../search/main.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>
