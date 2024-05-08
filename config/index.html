@@ -327,7 +327,7 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="configuraton-file-format">Configuraton File Format<a class="headerlink" href="#configuraton-file-format" title="Permanent link"></a></h1>
+<h1 id="configuraton-file-format">Configuraton File Format</h1>
 <p>This project creates a ParallelCluster configuration file that is documented in the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/cluster-configuration-file-v3.html">ParallelCluster User Guide</a>.</p>
 <pre>
 <a href="#termination_protection">termination_protection</a>: bool
@@ -458,73 +458,73 @@
             <a href="#statusscript">StatusScript</a>:
 </pre>
 
-<h2 id="top-level-config">Top Level Config<a class="headerlink" href="#top-level-config" title="Permanent link"></a></h2>
-<h3 id="termination_protection">termination_protection<a class="headerlink" href="#termination_protection" title="Permanent link"></a></h3>
+<h2 id="top-level-config">Top Level Config</h2>
+<h3 id="termination_protection">termination_protection</h3>
 <p>Enable Cloudformation Stack termination protection</p>
 <p>default=True</p>
-<h3 id="stackname">StackName<a class="headerlink" href="#stackname" title="Permanent link"></a></h3>
+<h3 id="stackname">StackName</h3>
 <p>The name of the configuration stack that will configure ParallelCluster and deploy it.</p>
 <p>If you do not specify the ClusterName then it will default to a value based on the StackName.
 If StackName ends in <code>-config</code> then ClusterName will be the StackName with <code>-config</code> stripped off.
 Otherwise it will be the StackName with <code>-cl</code> (for cluster) appended.</p>
 <p>Optional so can be specified on the command-line</p>
 <p>default='slurm-config'</p>
-<h3 id="region">Region<a class="headerlink" href="#region" title="Permanent link"></a></h3>
+<h3 id="region">Region</h3>
 <p>AWS region where the cluster will be deployed.</p>
 <p>Optional so can be specified on the command-line</p>
-<h3 id="sshkeypair">SshKeyPair<a class="headerlink" href="#sshkeypair" title="Permanent link"></a></h3>
+<h3 id="sshkeypair">SshKeyPair</h3>
 <p>Default EC2 key pair that will be used for all cluster instances.</p>
 <p>Optional so can be specified on the command-line</p>
-<h3 id="vpcid">VpcId<a class="headerlink" href="#vpcid" title="Permanent link"></a></h3>
+<h3 id="vpcid">VpcId</h3>
 <p>The ID of the VPC where the cluster will be deployed.</p>
 <p>Optional so can be specified on the command-line</p>
-<h3 id="cidr">CIDR<a class="headerlink" href="#cidr" title="Permanent link"></a></h3>
+<h3 id="cidr">CIDR</h3>
 <p>The CIDR of the VPC.
 This is used in security group rules.</p>
-<h3 id="subnetid">SubnetId<a class="headerlink" href="#subnetid" title="Permanent link"></a></h3>
+<h3 id="subnetid">SubnetId</h3>
 <p>The ID of the VPC subnet where the cluster will be deployed.</p>
 <p>Optional. If not specified then the first private subnet is chosen.
 If no private subnets exist, then the first isolated subnet is chosen.
 If no isolated subnets exist, the the first public subnet is chosen.</p>
 <p>We recommend using a private or isolated subnet.</p>
-<h3 id="errorsnstopicarn">ErrorSnsTopicArn<a class="headerlink" href="#errorsnstopicarn" title="Permanent link"></a></h3>
+<h3 id="errorsnstopicarn">ErrorSnsTopicArn</h3>
 <p>The ARN of an existing SNS topic.
 Errors will be published to the SNS topic.
 You can subscribe to the topic so that you are notified for things like script or lambda errors.</p>
 <p>Optional, but highly recommended</p>
-<h3 id="timezone">TimeZone<a class="headerlink" href="#timezone" title="Permanent link"></a></h3>
+<h3 id="timezone">TimeZone</h3>
 <p>The time zone to use for all EC2 instances in the cluster.</p>
 <p>default='US/Central'</p>
-<h3 id="resenvironmentname">RESEnvironmentName<a class="headerlink" href="#resenvironmentname" title="Permanent link"></a></h3>
+<h3 id="resenvironmentname">RESEnvironmentName</h3>
 <p>If you are deploying the cluster to use from Research and Engineering Studio (RES) virtual desktops, then you
 can specify the environment name so that the virtual desktops automatically get configured to use the cluster.</p>
 <p>The security group of the desktops will be updated with rules that allow them to talk to the cluster and the
 cluster will be configured on the desktop.</p>
 <p>The Slurm binaries will be compiled for the OS of the desktops and and environment modulefile will be created
 so that the users just need to load the cluster modulefile to use the cluster.</p>
-<h2 id="slurm">slurm<a class="headerlink" href="#slurm" title="Permanent link"></a></h2>
+<h2 id="slurm">slurm</h2>
 <p>Slurm configuration parameters.</p>
-<h3 id="parallelclusterconfig">ParallelClusterConfig<a class="headerlink" href="#parallelclusterconfig" title="Permanent link"></a></h3>
+<h3 id="parallelclusterconfig">ParallelClusterConfig</h3>
 <p>ParallelCluster specific configuration parameters.</p>
-<h4 id="version">Version<a class="headerlink" href="#version" title="Permanent link"></a></h4>
+<h4 id="version">Version</h4>
 <p>The ParallelCluster version.</p>
 <p>This is required and cannot be changed after the cluster is created.</p>
 <p>Updating to a new version of ParallelCluster requires either deleting the current cluster or creating a new cluster.</p>
-<h4 id="clusterconfig">ClusterConfig<a class="headerlink" href="#clusterconfig" title="Permanent link"></a></h4>
+<h4 id="clusterconfig">ClusterConfig</h4>
 <p>type: dict</p>
 <p>Additional ParallelCluster configuration settings that will be directly added
 to the configuration without checking.</p>
 <p>This will will be used to create the initial ParallelCluster configuration and other settings in this configuration file will override values in the dict.</p>
 <p>This exists to enable further customization of ParallelCluster beyond what this configuration supports.</p>
-<h4 id="image">Image<a class="headerlink" href="#image" title="Permanent link"></a></h4>
+<h4 id="image">Image</h4>
 <p>The OS and AMI to use for the head node and compute nodes.</p>
-<h5 id="os">OS<a class="headerlink" href="#os" title="Permanent link"></a></h5>
+<h5 id="os">OS</h5>
 <p>See the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-Os">ParallelCluster docs</a> for the supported OS distributions and versions.</p>
-<h5 id="customami">CustomAmi<a class="headerlink" href="#customami" title="Permanent link"></a></h5>
+<h5 id="customami">CustomAmi</h5>
 <p>See the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-CustomAmi">ParallelCluster docs</a> for the custom AMI documentation.</p>
 <p><strong>NOTE</strong>: A CustomAmi must be provided for Rocky8.
 All other distributions have a default AMI that is provided by ParallelCluster.</p>
-<h4 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link"></a></h4>
+<h4 id="architecture">Architecture</h4>
 <p>The CPU architecture to use for the cluster.</p>
 <p>ParallelCluster doesn't support heterogeneous clusters.
 All of the instances must have the same CPU architecture and the same OS.</p>
@@ -535,11 +535,11 @@ All of the instances must have the same CPU architecture and the same OS.</p>
 <li>x86_64</li>
 </ul>
 <p>default: x86_64</p>
-<h4 id="computenodeami">ComputeNodeAmi<a class="headerlink" href="#computenodeami" title="Permanent link"></a></h4>
+<h4 id="computenodeami">ComputeNodeAmi</h4>
 <p>AMI to use for compute nodes.</p>
 <p>All compute nodes will use the same AMI.</p>
 <p>The default AMI is selected by the <a href="#image">Image</a> parameters.</p>
-<h4 id="disablesimultaneousmultithreading">DisableSimultaneousMultithreading<a class="headerlink" href="#disablesimultaneousmultithreading" title="Permanent link"></a></h4>
+<h4 id="disablesimultaneousmultithreading">DisableSimultaneousMultithreading</h4>
 <p>type: bool</p>
 <p>default=True</p>
 <p>Disable SMT on the compute nodes.</p>
@@ -547,12 +547,12 @@ All of the instances must have the same CPU architecture and the same OS.</p>
 <p>Not all instance types can disable multithreading. For a list of instance types that support disabling multithreading, see CPU cores and threads for each CPU core per instance type in the Amazon EC2 User Guide for Linux Instances.</p>
 <p>Update policy: The compute fleet must be stopped for this setting to be changed for an update.</p>
 <p><a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmQueues-ComputeResources-DisableSimultaneousMultithreading">ParallelCluster documentation</a></p>
-<h4 id="enableefa">EnableEfa<a class="headerlink" href="#enableefa" title="Permanent link"></a></h4>
+<h4 id="enableefa">EnableEfa</h4>
 <p>type: bool</p>
 <p>default: False</p>
 <p>Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group.</p>
 <p>See <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster">https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster</a></p>
-<h4 id="database">Database<a class="headerlink" href="#database" title="Permanent link"></a></h4>
+<h4 id="database">Database</h4>
 <p>Optional</p>
 <p>Configure the Slurm database to use with the cluster.</p>
 <p>This is created independently of the cluster so that the same database can be used with multiple clusters.</p>
@@ -560,7 +560,7 @@ All of the instances must have the same CPU architecture and the same OS.</p>
 the name of the stack in <a href="#databasestackname">DatabaseStackName</a>.
 All of the other parameters will be pulled from the stack.</p>
 <p>See the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmSettings-Database">ParallelCluster documentation</a>.</p>
-<h5 id="databasestackname">DatabaseStackName<a class="headerlink" href="#databasestackname" title="Permanent link"></a></h5>
+<h5 id="databasestackname">DatabaseStackName</h5>
 <p>Name of the ParallelCluster CloudFormation stack that created the database.</p>
 <p>The following parameters will be set using the outputs of the stack:</p>
 <ul>
@@ -570,51 +570,51 @@ All of the other parameters will be pulled from the stack.</p>
 <li>AdminPasswordSecretArn</li>
 <li>ClientSecurityGroup</li>
 </ul>
-<h5 id="fqdn">FQDN<a class="headerlink" href="#fqdn" title="Permanent link"></a></h5>
+<h5 id="fqdn">FQDN</h5>
 <p>Used with the Port to set the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-Uri">Uri</a> of the database.</p>
-<h5 id="port">Port<a class="headerlink" href="#port" title="Permanent link"></a></h5>
+<h5 id="port">Port</h5>
 <p>type: int</p>
 <p>Database's port.</p>
-<h5 id="adminusername">AdminUserName<a class="headerlink" href="#adminusername" title="Permanent link"></a></h5>
+<h5 id="adminusername">AdminUserName</h5>
 <p>type: str</p>
 <p>The identity that Slurm uses to connect to the database, write accounting logs, and perform queries. The user must have both read and write permissions on the database.</p>
 <p>Sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-UserName">UserName</a> parameter in ParallelCluster.</p>
-<h5 id="adminpasswordsecretarn">AdminPasswordSecretArn<a class="headerlink" href="#adminpasswordsecretarn" title="Permanent link"></a></h5>
+<h5 id="adminpasswordsecretarn">AdminPasswordSecretArn</h5>
 <p>type: str</p>
 <p>The Amazon Resource Name (ARN) of the AWS Secrets Manager secret that contains the AdminUserName plaintext password.
 This password is used together with AdminUserName and Slurm accounting to authenticate on the database server.</p>
 <p>Sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-PasswordSecretArn">PasswordSecretArn</a> parameter in ParallelCluster.</p>
-<h5 id="clientsecuritygroup">ClientSecurityGroup<a class="headerlink" href="#clientsecuritygroup" title="Permanent link"></a></h5>
+<h5 id="clientsecuritygroup">ClientSecurityGroup</h5>
 <p>Security group that has permissions to connect to the database.</p>
 <p>Required to be attached to the head node that is running slurmdbd so that the port connection to the database is allows.</p>
-<h3 id="clustername">ClusterName<a class="headerlink" href="#clustername" title="Permanent link"></a></h3>
+<h3 id="clustername">ClusterName</h3>
 <p>Name of the ParallelCluster cluster.</p>
 <p>Default: If StackName ends with "-config" then ClusterName is StackName with "-config" stripped off.
 Otherwise add "-cl" to end of StackName.</p>
-<h3 id="mungekeysecret">MungeKeySecret<a class="headerlink" href="#mungekeysecret" title="Permanent link"></a></h3>
+<h3 id="mungekeysecret">MungeKeySecret</h3>
 <p>AWS secret with a base64 encoded munge key to use for the cluster.
 For an existing secret can be the secret name or the ARN.
 If the secret doesn't exist one will be created, but won't be part of the cloudformation stack so that it won't be deleted when the stack is deleted.
 Required if your submitters need to use more than 1 cluster.</p>
-<h3 id="slurmctl">SlurmCtl<a class="headerlink" href="#slurmctl" title="Permanent link"></a></h3>
+<h3 id="slurmctl">SlurmCtl</h3>
 <p>Configure the Slurm head node or controller.</p>
 <p>Required, but can be an empty dict to accept all of the defaults.</p>
-<h4 id="slurmdport">SlurmdPort<a class="headerlink" href="#slurmdport" title="Permanent link"></a></h4>
+<h4 id="slurmdport">SlurmdPort</h4>
 <p>Port used for the slurmd daemon on the compute nodes.</p>
 <p>default=6818</p>
 <p>type: int</p>
-<h4 id="instance_type">instance_type<a class="headerlink" href="#instance_type" title="Permanent link"></a></h4>
+<h4 id="instance_type">instance_type</h4>
 <p>Instance type of the head node.</p>
 <p>Must match the architecture of the cluster.</p>
-<h4 id="volume_size">volume_size<a class="headerlink" href="#volume_size" title="Permanent link"></a></h4>
+<h4 id="volume_size">volume_size</h4>
 <p>The size of the EBS root volume on the head node in GB.</p>
 <p>default=200</p>
 <p>type: int</p>
-<h4 id="cloudwatchperiod">CloudWatchPeriod<a class="headerlink" href="#cloudwatchperiod" title="Permanent link"></a></h4>
+<h4 id="cloudwatchperiod">CloudWatchPeriod</h4>
 <p>The frequency of CloudWatch metrics in seconds.</p>
 <p>default=5</p>
 <p>type: int</p>
-<h4 id="preemptmode">PreemptMode<a class="headerlink" href="#preemptmode" title="Permanent link"></a></h4>
+<h4 id="preemptmode">PreemptMode</h4>
 <p>Set job preemption policy for the cluster.</p>
 <p>Jobs can be set to be preemptible when they are submitted.
 This allows higher priority jobs to preempt a running job when resources are constrained.
@@ -629,7 +629,7 @@ This policy sets what happens to the preempted jobs.</p>
 <li>'SUSPEND'</li>
 </ul>
 <p>default='REQUEUE'</p>
-<h4 id="preempttype">PreemptType<a class="headerlink" href="#preempttype" title="Permanent link"></a></h4>
+<h4 id="preempttype">PreemptType</h4>
 <p><a href="https://slurm.schedmd.com/slurm.conf.html#OPT_PreemptType">Slurm documentation</a></p>
 <p>Valid values:</p>
 <ul>
@@ -638,48 +638,48 @@ This policy sets what happens to the preempted jobs.</p>
 <li>'preempt/qos'</li>
 </ul>
 <p>default='preempt/partition_prio'</p>
-<h4 id="preemptexempttime">PreemptExemptTime<a class="headerlink" href="#preemptexempttime" title="Permanent link"></a></h4>
+<h4 id="preemptexempttime">PreemptExemptTime</h4>
 <p><a href="https://slurm.schedmd.com/slurm.conf.html#OPT_PreemptExemptTime">Slurm documentation</a></p>
 <p>Global option for minimum run time for all jobs before they can be considered for preemption.</p>
 <p>A time of -1 disables the option, equivalent to 0. Acceptable time formats include "minutes", "minutes:seconds", "hours:minutes:seconds", "days-hours", "days-hours:minutes", and "days-hours:minutes:seconds".</p>
 <p>default='0'</p>
 <p>type: str</p>
-<h4 id="slurmconfoverrides">SlurmConfOverrides<a class="headerlink" href="#slurmconfoverrides" title="Permanent link"></a></h4>
+<h4 id="slurmconfoverrides">SlurmConfOverrides</h4>
 <p>File that will be included at end of slurm.conf to override configuration parameters.</p>
 <p>This allows you to customize the slurm configuration arbitrarily.</p>
 <p>This should be used with caution since it can result in errors that make the cluster non-functional.</p>
 <p>type: str</p>
-<h4 id="slurmrestduid">SlurmrestdUid<a class="headerlink" href="#slurmrestduid" title="Permanent link"></a></h4>
+<h4 id="slurmrestduid">SlurmrestdUid</h4>
 <p>User ID for the slurmrestd daemon.</p>
 <p>type: int</p>
 <p>default=901</p>
-<h4 id="slurmrestapiversion">SlurmRestApiVersion<a class="headerlink" href="#slurmrestapiversion" title="Permanent link"></a></h4>
+<h4 id="slurmrestapiversion">SlurmRestApiVersion</h4>
 <p>The REST API version.</p>
 <p>This is automatically set based on the Slurm version being used by the ParallelCluster version.</p>
 <p>type: str</p>
 <p>default: ''0.0.39'</p>
-<h4 id="head-node-additionalsecuritygroups">Head Node AdditionalSecurityGroups<a class="headerlink" href="#head-node-additionalsecuritygroups" title="Permanent link"></a></h4>
+<h4 id="head-node-additionalsecuritygroups">Head Node AdditionalSecurityGroups</h4>
 <p>Additional security groups that will be added to the head node instance.</p>
-<h4 id="head-node-additionaliampolicies">Head Node AdditionalIamPolicies<a class="headerlink" href="#head-node-additionaliampolicies" title="Permanent link"></a></h4>
+<h4 id="head-node-additionaliampolicies">Head Node AdditionalIamPolicies</h4>
 <p>List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the head node instance.</p>
-<h3 id="submittersecuritygroupids">SubmitterSecurityGroupIds<a class="headerlink" href="#submittersecuritygroupids" title="Permanent link"></a></h3>
+<h3 id="submittersecuritygroupids">SubmitterSecurityGroupIds</h3>
 <p>External security groups that should be able to use the cluster.</p>
 <p>Rules will be added to allow it to interact with Slurm.</p>
-<h3 id="submitterinstancetags">SubmitterInstanceTags<a class="headerlink" href="#submitterinstancetags" title="Permanent link"></a></h3>
+<h3 id="submitterinstancetags">SubmitterInstanceTags</h3>
 <p>Tags of instances that can be configured to submit to the cluster.</p>
 <p>When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.</p>
-<h3 id="instanceconfig">InstanceConfig<a class="headerlink" href="#instanceconfig" title="Permanent link"></a></h3>
+<h3 id="instanceconfig">InstanceConfig</h3>
 <p>Configure the instances used by the cluster.</p>
 <p>A partition will be created for each combination of Base OS, Architecture, and Spot.</p>
-<h4 id="usespot">UseSpot<a class="headerlink" href="#usespot" title="Permanent link"></a></h4>
+<h4 id="usespot">UseSpot</h4>
 <p>Configure spot instances.</p>
 <p>type: bool</p>
 <p>default: True</p>
-<h4 id="exclude">Exclude<a class="headerlink" href="#exclude" title="Permanent link"></a></h4>
+<h4 id="exclude">Exclude</h4>
 <p>Instance families and types to exclude.</p>
 <p>Exclude patterns are processed first and take precesdence over any includes.</p>
 <p>Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.</p>
-<h5 id="exclude-instancefamilies">Exclude InstanceFamilies<a class="headerlink" href="#exclude-instancefamilies" title="Permanent link"></a></h5>
+<h5 id="exclude-instancefamilies">Exclude InstanceFamilies</h5>
 <p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
 <p>An empty list is the same as '.*'.</p>
 <p>Default:</p>
@@ -702,7 +702,7 @@ This policy sets what happens to the preempted jobs.</p>
     'x1e',
 ]
 </code></pre>
-<h5 id="exclude-instancetypes">Exclude InstanceTypes<a class="headerlink" href="#exclude-instancetypes" title="Permanent link"></a></h5>
+<h5 id="exclude-instancetypes">Exclude InstanceTypes</h5>
 <p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
 <p>An empty list is the same as '.*'.</p>
 <p>Default:</p>
@@ -711,15 +711,15 @@ This policy sets what happens to the preempted jobs.</p>
     '.*\.metal.*'
 ]
 </code></pre>
-<h4 id="include">Include<a class="headerlink" href="#include" title="Permanent link"></a></h4>
+<h4 id="include">Include</h4>
 <p>Instance families and types to include.</p>
 <p>Exclude patterns are processed first and take precesdence over any includes.</p>
 <p>Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.</p>
-<h5 id="maxsizeonly">MaxSizeOnly<a class="headerlink" href="#maxsizeonly" title="Permanent link"></a></h5>
+<h5 id="maxsizeonly">MaxSizeOnly</h5>
 <p>type: bool</p>
 <p>default: False</p>
 <p>If MaxSizeOnly is True then only the largest instance type in a family will be included unless specific instance types are included.</p>
-<h5 id="include-instancefamilies">Include InstanceFamilies<a class="headerlink" href="#include-instancefamilies" title="Permanent link"></a></h5>
+<h5 id="include-instancefamilies">Include InstanceFamilies</h5>
 <p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
 <p>An empty list is the same as '.*'.</p>
 <p>Default:</p>
@@ -765,7 +765,7 @@ This policy sets what happens to the preempted jobs.</p>
     #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
 ]
 </code></pre>
-<h5 id="include-instancetypes">Include InstanceTypes<a class="headerlink" href="#include-instancetypes" title="Permanent link"></a></h5>
+<h5 id="include-instancetypes">Include InstanceTypes</h5>
 <p>Regular expressions with implicit '^' and '$' at the begining and end.</p>
 <p>An empty list is the same as '.*'.</p>
 <p>Default:</p>
@@ -776,63 +776,63 @@ This policy sets what happens to the preempted jobs.</p>
     #'c5d\.(12|24).*',        # Intel Xeon Platinum 8275L 3.6 GHz
 ]
 </code></pre>
-<h4 id="nodecounts">NodeCounts<a class="headerlink" href="#nodecounts" title="Permanent link"></a></h4>
+<h4 id="nodecounts">NodeCounts</h4>
 <p>Configure the number of compute nodes of each instance type.</p>
-<h5 id="defaultmincount">DefaultMinCount<a class="headerlink" href="#defaultmincount" title="Permanent link"></a></h5>
+<h5 id="defaultmincount">DefaultMinCount</h5>
 <p>type: int</p>
 <p>default: 0</p>
 <p>Minimum number of compute nodes to keep running in a compute resource.
 If the number is greater than zero then static nodes will be created.</p>
-<h5 id="defaultmaxcount">DefaultMaxCount<a class="headerlink" href="#defaultmaxcount" title="Permanent link"></a></h5>
+<h5 id="defaultmaxcount">DefaultMaxCount</h5>
 <p>type: int</p>
 <p>The maximum number of compute nodes to create in a compute resource.</p>
-<h5 id="computeresourcecounts">ComputeResourceCounts<a class="headerlink" href="#computeresourcecounts" title="Permanent link"></a></h5>
+<h5 id="computeresourcecounts">ComputeResourceCounts</h5>
 <p>Define compute node counts per compute resource.</p>
 <p>These counts will override the defaults set by <a href="#defaultmincount">DefaultMinCount</a> and <a href="#defaultmaxcount">DefaultMaxCount</a>.</p>
-<h6 id="computeresourcename">ComputeResourceName<a class="headerlink" href="#computeresourcename" title="Permanent link"></a></h6>
+<h6 id="computeresourcename">ComputeResourceName</h6>
 <p>Name of the ParallelCluster compute resource. Can be found using <code>sinfo</code>.</p>
-<h6 id="compute-resource-mincount"># Compute Resource MinCount<a class="headerlink" href="#compute-resource-mincount" title="Permanent link"></a></h6>
+<h6 id="compute-resource-mincount"># Compute Resource MinCount</h6>
 <p>type: int</p>
 <p>default: 0</p>
-<h6 id="compute-resource-maxcount"># Compute Resource MaxCount<a class="headerlink" href="#compute-resource-maxcount" title="Permanent link"></a></h6>
+<h6 id="compute-resource-maxcount"># Compute Resource MaxCount</h6>
 <p>type: int</p>
-<h4 id="compute-node-additionalsecuritygroups">Compute Node AdditionalSecurityGroups<a class="headerlink" href="#compute-node-additionalsecuritygroups" title="Permanent link"></a></h4>
+<h4 id="compute-node-additionalsecuritygroups">Compute Node AdditionalSecurityGroups</h4>
 <p>Additional security groups that will be added to the compute node instances.</p>
-<h4 id="compute-node-additionaliampolicies">Compute Node AdditionalIamPolicies<a class="headerlink" href="#compute-node-additionaliampolicies" title="Permanent link"></a></h4>
+<h4 id="compute-node-additionaliampolicies">Compute Node AdditionalIamPolicies</h4>
 <p>List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the compute node instances.</p>
-<h4 id="onpremcomputenodes">OnPremComputeNodes<a class="headerlink" href="#onpremcomputenodes" title="Permanent link"></a></h4>
+<h4 id="onpremcomputenodes">OnPremComputeNodes</h4>
 <p>Define on-premises compute nodes that will be managed by the ParallelCluster head node.</p>
 <p>The compute nodes must be accessible from the head node over the network and any firewalls must allow all of the Slurm ports between the head node and compute nodes.</p>
 <p>ParallelCluster will be configured to allow the neccessary network traffic and
 the on-premises firewall can be configured to match the ParallelCluster seccurity groups.</p>
-<h5 id="configfile">ConfigFile<a class="headerlink" href="#configfile" title="Permanent link"></a></h5>
+<h5 id="configfile">ConfigFile</h5>
 <p>Configuration file with the on-premises compute nodes defined in Slurm NodeName format as described in the <a href="https://slurm.schedmd.com/slurm.conf.html#OPT_NodeName">Slurm slurm.conf documentation</a>.</p>
 <p>The file will be included in the ParallelCluster slurm.conf so it can technically include any Slurm configuration updates including custom partition definitions.</p>
 <p><strong>NOTE</strong>: The syntax of the file isn't checked and syntax errors can result in the slurmctld daemon failing on the head node.</p>
-<h5 id="on-premises-cidr">On-Premises CIDR<a class="headerlink" href="#on-premises-cidr" title="Permanent link"></a></h5>
+<h5 id="on-premises-cidr">On-Premises CIDR</h5>
 <p>The CIDR that contains the on-premises compute nodes.</p>
 <p>This is to allow egress from the head node to the on-premises nodes.</p>
-<h5 id="partition">Partition<a class="headerlink" href="#partition" title="Permanent link"></a></h5>
+<h5 id="partition">Partition</h5>
 <p>A partition that will contain all of the on-premises nodes.</p>
-<h3 id="slurmuid">SlurmUid<a class="headerlink" href="#slurmuid" title="Permanent link"></a></h3>
+<h3 id="slurmuid">SlurmUid</h3>
 <p>type: int</p>
 <p>default: 900</p>
 <p>The user id of the slurm user.</p>
-<h3 id="storage">storage<a class="headerlink" href="#storage" title="Permanent link"></a></h3>
-<h4 id="extramounts">ExtraMounts<a class="headerlink" href="#extramounts" title="Permanent link"></a></h4>
+<h3 id="storage">storage</h3>
+<h4 id="extramounts">ExtraMounts</h4>
 <p>Additional mounts for compute nodes.</p>
 <p>This can be used so the compute nodes have the same file structure as the remote desktops.</p>
 <p>This is used to configure <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html">ParallelCluster SharedStorage</a>.</p>
-<h5 id="dest">dest<a class="headerlink" href="#dest" title="Permanent link"></a></h5>
+<h5 id="dest">dest</h5>
 <p>The directory where the file system will be mounted.</p>
 <p>This sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-MountDir">MountDir</a>.</p>
-<h5 id="src">src<a class="headerlink" href="#src" title="Permanent link"></a></h5>
+<h5 id="src">src</h5>
 <p>The source path on the file system export that will be mounted.</p>
-<h5 id="type">type<a class="headerlink" href="#type" title="Permanent link"></a></h5>
+<h5 id="type">type</h5>
 <p>The type of mount. For example, nfs3.</p>
-<h5 id="options">options<a class="headerlink" href="#options" title="Permanent link"></a></h5>
+<h5 id="options">options</h5>
 <p>Mount options.</p>
-<h5 id="storagetype">StorageType<a class="headerlink" href="#storagetype" title="Permanent link"></a></h5>
+<h5 id="storagetype">StorageType</h5>
 <p>The type of file system to mount.</p>
 <p>Valid values:</p>
 <ul>
@@ -841,11 +841,11 @@ the on-premises firewall can be configured to match the ParallelCluster seccurit
 <li>FsxOntap</li>
 <li>FsxOpenZfs</li>
 </ul>
-<h5 id="filesystemid">FileSystemId<a class="headerlink" href="#filesystemid" title="Permanent link"></a></h5>
+<h5 id="filesystemid">FileSystemId</h5>
 <p>Specifies the ID of an existing <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxLustreSettings-FileSystemId">FSx for Lustre</a> or <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-EfsSettings-FileSystemId">EFS</a> file system.</p>
-<h5 id="volumeid">VolumeId<a class="headerlink" href="#volumeid" title="Permanent link"></a></h5>
+<h5 id="volumeid">VolumeId</h5>
 <p>Specifies the volume ID of an existing <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOntapSettings-VolumeId">FSx for ONTAP</a> or <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOpenZfsSettings-VolumeId">FSx for OpenZFS</a> file system.</p>
-<h4 id="extramountsecuritygroups">ExtraMountSecurityGroups<a class="headerlink" href="#extramountsecuritygroups" title="Permanent link"></a></h4>
+<h4 id="extramountsecuritygroups">ExtraMountSecurityGroups</h4>
 <p>The security groups used by the file systems so that the head and comnpute nodes
 can be configured to connect to them.</p>
 <p>For example:</p>
@@ -861,7 +861,7 @@ can be configured to connect to them.</p>
         zfs:
             FsxSG: sg-12345678
 </code></pre>
-<h5 id="filesystemtype">FileSystemType<a class="headerlink" href="#filesystemtype" title="Permanent link"></a></h5>
+<h5 id="filesystemtype">FileSystemType</h5>
 <p>Type of file system so that the appropriate ports can be opened.</p>
 <p>Valid values:</p>
 <ul>
@@ -869,28 +869,28 @@ can be configured to connect to them.</p>
 <li>zfs</li>
 <li>lustre</li>
 </ul>
-<h3 id="licenses">Licenses<a class="headerlink" href="#licenses" title="Permanent link"></a></h3>
+<h3 id="licenses">Licenses</h3>
 <p>Configure license counts for the scheduler.</p>
 <p>If the Slurm database is configured then it will be updated with the license counts.
 Otherwise, the license counts will be added to slurm.conf.</p>
-<h4 id="licensename">LicenseName<a class="headerlink" href="#licensename" title="Permanent link"></a></h4>
+<h4 id="licensename">LicenseName</h4>
 <p>The name of the license, for example, <code>VCSCompiler_Net</code> or <code>VCSMXRunTime_Net</code>.
 This is the license name that users specify when submitting a job.
 It doesn't have to match the license name reported by the license server,
 although that probably makes the most sense.</p>
-<h5 id="count">Count<a class="headerlink" href="#count" title="Permanent link"></a></h5>
+<h5 id="count">Count</h5>
 <p>The number of licenses available to Slurm to use to schedule jobs.
 Once all of the license are used by running jobs, then any pending jobs will remain pending until a license becomes available.</p>
-<h5 id="server">Server<a class="headerlink" href="#server" title="Permanent link"></a></h5>
+<h5 id="server">Server</h5>
 <p>The license server hosting the licenses.</p>
 <p>Not currently used.</p>
-<h5 id="port_1">Port<a class="headerlink" href="#port_1" title="Permanent link"></a></h5>
+<h5 id="port_1">Port</h5>
 <p>The port on the license server used to request licenses.</p>
 <p>Not currently used.</p>
-<h5 id="servertype">ServerType<a class="headerlink" href="#servertype" title="Permanent link"></a></h5>
+<h5 id="servertype">ServerType</h5>
 <p>The type of license server, such as FlexLM.</p>
 <p>Not currently used.</p>
-<h5 id="statusscript">StatusScript<a class="headerlink" href="#statusscript" title="Permanent link"></a></h5>
+<h5 id="statusscript">StatusScript</h5>
 <p>A script that queries the license server and dynamically updates the Slurm database with the actual total number of licenses and the number used.</p>
 <p>Not currently implemented.</p>
 </pre></div>

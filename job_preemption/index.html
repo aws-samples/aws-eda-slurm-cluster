@@ -123,7 +123,7 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="job-preemption">Job Preemption<a class="headerlink" href="#job-preemption" title="Permanent link"></a></h1>
+<h1 id="job-preemption">Job Preemption</h1>
 <p>The cluster is set up with an interactive partition that has a higher priority than all other partitions.
 All other partitions are configured to allow jobs to be preempted by the interactive queue.
 When an interactive job is pending because of compute resources then it can preempt another job and use the resources.
@@ -132,7 +132,7 @@ The preempted job will be requeued so that it will rerun when resources become a
 The more likely reason for a job to pend is if it requires a license and all available licenses are already being used.
 However, it appears that Slurm doesn't support preemption based on licenses availability so if the reason a job is pending is
 because of licenses then it will not preempt jobs in a lower priority queue even if doing so would free up a license.</p>
-<h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link"></a></h2>
+<h2 id="documentation">Documentation</h2>
 <p><a href="https://slurm.schedmd.com/preempt.html">https://slurm.schedmd.com/preempt.html</a></p></div>
             </div>
         </div>

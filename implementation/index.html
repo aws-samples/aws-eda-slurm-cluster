@@ -129,15 +129,15 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="implementation-details-legacy">Implementation Details (legacy)<a class="headerlink" href="#implementation-details-legacy" title="Permanent link"></a></h1>
-<h2 id="slurm-infrastructure">Slurm Infrastructure<a class="headerlink" href="#slurm-infrastructure" title="Permanent link"></a></h2>
+<h1 id="implementation-details-legacy">Implementation Details (legacy)</h1>
+<h2 id="slurm-infrastructure">Slurm Infrastructure</h2>
 <p>All hosts in the cluster must share a uniform user and group namespace.</p>
 <p>The munged service must be running before starting any slurm daemons.</p>
-<h2 id="directory-structure">Directory Structure<a class="headerlink" href="#directory-structure" title="Permanent link"></a></h2>
+<h2 id="directory-structure">Directory Structure</h2>
 <p>All of the configuration files, scripts, and logs can be found under the following directory.</p>
 <pre><code>/opt/slurm/{{ClusterName}}
 </code></pre>
-<h2 id="cloudwatch-metrics">CloudWatch Metrics<a class="headerlink" href="#cloudwatch-metrics" title="Permanent link"></a></h2>
+<h2 id="cloudwatch-metrics">CloudWatch Metrics</h2>
 <p>CloudWatch metrics are published by the following sources, but the code is all in <code>SlurmPlugin.py</code>.</p>
 <ul>
 <li>Slurm power saving scripts<ul>
@@ -157,7 +157,7 @@
 </ul>
 </li>
 </ul>
-<h2 id="down-node-handling">Down Node Handling<a class="headerlink" href="#down-node-handling" title="Permanent link"></a></h2>
+<h2 id="down-node-handling">Down Node Handling</h2>
 <p>If a node has a problem running jobs then Slurm can mark it DOWN.
 This includes if the resume script cannot start an instance for any reason include insufficient EC2 capacity.
 This can create 2 issues. First, if the compute node is running then it is wasting EC2 costs.
@@ -168,7 +168,7 @@ This is done by <code>/opt/slurm/{{ClusterName}}/bin/slurm_down_nodes_clean.sh</
 <p><code>/etc/systemd/system/slurm_down_nodes_clean.service</code></p>
 <p>This service is run at boot and once a day as defined in</p>
 <p><code>/etc/systemd/system/slurm_down_nodes_clean.timer</code></p>
-<h2 id="insufficient-capacity-exception-ice-handling">Insufficient Capacity Exception (ICE) Handling<a class="headerlink" href="#insufficient-capacity-exception-ice-handling" title="Permanent link"></a></h2>
+<h2 id="insufficient-capacity-exception-ice-handling">Insufficient Capacity Exception (ICE) Handling</h2>
 <p>When Slurm schedules a powered down node it calls the ResumeScript defined in <code>slurm.conf</code>.
 This is in <code>/opt/slurm/{{ClusterName}}/bin/slurm_ec2_resume.py</code>.
 The script will attempt to start an EC2 instance and if it receives and InsufficientCapacityException (ICE) then the node will be marked down and Slurm will requeue the job.

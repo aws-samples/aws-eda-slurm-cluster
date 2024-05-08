@@ -139,23 +139,23 @@
 </div></div>
                     <div class="col-md-9" role="main">
 
-<h1 id="on-premises-integration">On-Premises Integration<a class="headerlink" href="#on-premises-integration" title="Permanent link"></a></h1>
+<h1 id="on-premises-integration">On-Premises Integration</h1>
 <p>The Slurm cluster can also be configured to manage on-premises compute nodes.
 The user must configure the on-premises compute nodes and then give the configuration information.</p>
-<h2 id="network-requirements">Network Requirements<a class="headerlink" href="#network-requirements" title="Permanent link"></a></h2>
+<h2 id="network-requirements">Network Requirements</h2>
 <p>The on-prem network must have a CIDR range that doesn't overlap the Slurm cluster's VPC and the two networks
 need to be connected using VPN or AWS Direct Connect.
 The on-prem firewall must allow ingress and egress from the VPC.
 The ports are used to connect to the file systems, slurm controllers, and allow traffic between virtual desktops and compute nodes.</p>
-<h2 id="dns-requirements">DNS Requirements<a class="headerlink" href="#dns-requirements" title="Permanent link"></a></h2>
+<h2 id="dns-requirements">DNS Requirements</h2>
 <p>Local network DNS must have an entry for the slurm controller or have a forwarding rule to the AWS provided DNS in the Slurm VPC.</p>
-<h2 id="file-system-requirements">File System Requirements<a class="headerlink" href="#file-system-requirements" title="Permanent link"></a></h2>
+<h2 id="file-system-requirements">File System Requirements</h2>
 <p>All of the compute nodes in the cluster, including the on-prem nodes, must have file system mounts that replicate the same directory structure.
 This can involve mounting filesystems across VPN or Direct Connect or synchronizing file systems using tools like rsync or NetApp FlexCache or SnapMirror.
 Performance will dictate the architecture of the file system.</p>
 <p>The onprem compute nodes must mount the Slurm controller's NFS export so that they have access to the Slurm binaries and configuration file.
 They must then be configured to run slurmd so that they can be managed by Slurm.</p>
-<h2 id="slurm-configuration-of-on-premises-compute-nodes">Slurm Configuration of On-Premises Compute Nodes<a class="headerlink" href="#slurm-configuration-of-on-premises-compute-nodes" title="Permanent link"></a></h2>
+<h2 id="slurm-configuration-of-on-premises-compute-nodes">Slurm Configuration of On-Premises Compute Nodes</h2>
 <p>The slurm cluster's configuration file allows the configuration of on-premises compute nodes.
 The Slurm cluster will not provision any of the on-prem nodes, network, or firewall, but it will configure
 the cluster's resources to be used by the on-prem nodes.
@@ -205,7 +205,7 @@ onprem-c7-x86-t3-2xl-[0-9]
 SuspendExcParts=onprem
 
 </code></pre>
-<h2 id="simulating-an-on-premises-network-using-aws">Simulating an On-Premises Network Using AWS<a class="headerlink" href="#simulating-an-on-premises-network-using-aws" title="Permanent link"></a></h2>
+<h2 id="simulating-an-on-premises-network-using-aws">Simulating an On-Premises Network Using AWS</h2>
 <p>Create a new VPC with public and private subnets and NAT gateways.
 To simulate the latency between an AWS region and on-prem you can create the VPC in a different region in your account.
 The CIDR must not overlap with the Slurm VPC.</p>
