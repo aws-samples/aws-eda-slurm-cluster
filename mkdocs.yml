@@ -5,6 +5,7 @@ nav:
   - 'index.md'
   - 'deployment-prerequisites.md'
   - 'deploy-parallel-cluster.md'
+  - 'config.md'
   - 'res_integration.md'
   - 'soca_integration.md'
   - 'custom-amis.md'
