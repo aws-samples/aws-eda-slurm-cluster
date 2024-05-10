@@ -85,7 +85,7 @@
       - python3-pip
 
 - name: Install packages required by python packages
-  when: (rhel8 or rhel8clone) and Architecture == 'arm64'
+  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and Architecture == 'arm64'
   tags:
     - python
     - packages
@@ -97,7 +97,7 @@
       - platform-python-devel
 
 - name: Install cython
-  when: (rhel8 or rhel8clone) and Architecture == 'arm64'
+  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and Architecture == 'arm64'
   pip:
     executable: /usr/bin/pip3
     state: present
@@ -108,7 +108,7 @@
 #   * RHEL 8, arm64
 #   * Rocky 8, arm64
 - name: Install numpy
-  when: (rhel8 or rhel8clone) and Architecture == 'arm64'
+  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and Architecture == 'arm64'
   tags:
     - python
     - packages
@@ -228,7 +228,7 @@
       - libcrypt
 
 - name: Install perl-Switch on non-RedHat
-  when: not rhel and not rhel8clone
+  when: not rhel and not (rhel8clone or rhel9clone)
   tags:
     - perl-switch
     - packages
@@ -252,7 +252,7 @@
 #       - perl-Switch
 
 - name: Install non-RedHat packages
-  when: not rhel and not rhel8clone
+  when: not rhel and not (rhel8clone or rhel9clone)
   tags:
     - packages
   yum:
@@ -415,7 +415,7 @@
       - ksh
 
 - name: Install gpaste
-  when: not(rhel8 or rhel8clone)
+  when: not(rhel8 or rhel8clone or rhel9 or rhel9clone)
   tags:
     - eda_packages
     - packages
@@ -525,7 +525,7 @@
       - ncurses-libs.i686
 
 - name: Install EDA packages 3
-  when: not(rhel8 or rhel8clone)
+  when: not(rhel8 or rhel8clone or rhel9 or rhel9clone)
   tags:
     - eda_packages
     - packages
@@ -629,7 +629,7 @@
       - tigervnc
 
 - name: Install compat-db47
-  when: not(distribution == 'Amazon' and Architecture == 'arm64') and not(rhel8 or rhel8clone)
+  when: not(distribution == 'Amazon' and Architecture == 'arm64') and not(rhel8 or rhel8clone or rhel9 or rhel9clone)
   tags:
     - packages
     - eda_packages

@@ -11,10 +11,11 @@ The intention is to completely automate the deployment of ParallelCluster and se
 |-----------|-------------|------
 | VpcId     | VPC id for the RES cluster | vpc-xxxxxx
 | SubnetId  | Subnet in the RES VPC. | subnet-xxxxx
-| SubmitterSecurityGroupIds | The security group names and ids used by RES VDIs. The name will be something like *EnvironmentName*-vdc-dcv-host-security-group | *EnvironmentName*-*VDISG*: sg-xxxxxxxx
 | SubmitterInstanceTags | The tag of VDI instances. | 'res:EnvironmentName': *EnvironmentName*'
 | ExtraMounts | The mount parameters for the /home directory. This is required for access to the home directory. |
 | ExtraMountSecurityGroups | Security groups that give access to the ExtraMounts. These will be added to compute nodes so they can access the file systems.
+
+You must also create security groups as described in [Security Groups for Login Nodes](deployment-prerequisites.md#security-groups-for-login-nodes) and specify the SlurmHeadNodeSG in the `slurm/SlurmCtl/AdditionalSecurityGroups` parameter and the SlurmComputeNodeSG in the `slurm/InstanceConfig/AdditionalSecurityGroups` parameter.
 
 When you specify **RESEnvironmentName**, a lambda function will run SSM commands to create a cron job on a RES domain joined instance to update the users_groups.json file every hour. Another lambda function will also automatically configure all running VDI hosts to use the cluster.
 
@@ -51,11 +52,15 @@ slurm:
     Database:
       DatabaseStackName: pcluster-slurm-db-res
 
-  SlurmCtl: {}
+  SlurmCtl:
+    AdditionalSecurityGroups:
+    - sg-12345678 # SlurmHeadNodeSG
 
   # Configure typical EDA instance types
   # A partition will be created for each combination of Base OS, Architecture, and Spot
   InstanceConfig:
+    AdditionalSecurityGroups:
+    - sg-23456789 # SlurmComputeNodeSG
     UseSpot: true
     NodeCounts:
       DefaultMaxCount: 10

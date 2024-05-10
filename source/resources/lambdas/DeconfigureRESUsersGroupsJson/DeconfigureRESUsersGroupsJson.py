@@ -101,6 +101,7 @@ mount_dest=/opt/slurm/{cluster_name}
 
 # Make sure that the cluster is still mounted and mount is accessible.
 # If the cluster has already been deleted then the mount will be hung and we have to do manual cleanup.
+# Another failure mechanism is if the cluster didn't deploy in which case the mount may not even exist.
 if mount | grep " $mount_dest "; then
     echo "$mount_dest is mounted."
     if ! timeout 1s ls $mount_dest; then
@@ -135,6 +136,8 @@ fi
 if timeout 1s ls $mount_dest; then
     sudo rmdir $mount_dest
 fi
+
+pass
         """
         logger.info(f"Submitting SSM command")
         send_command_response = ssm_client.send_command(
@@ -153,6 +156,7 @@ fi
         MAX_WAIT_TIME = 5 * 60
         DELAY = 10
         MAX_ATTEMPTS = int(MAX_WAIT_TIME / DELAY)
+        logger.info(f"Waiting {MAX_WAIT_TIME} s for command {command_id} to complete.")
         waiter = ssm_client.get_waiter('command_executed')
         waiter.wait(
             CommandId=command_id,

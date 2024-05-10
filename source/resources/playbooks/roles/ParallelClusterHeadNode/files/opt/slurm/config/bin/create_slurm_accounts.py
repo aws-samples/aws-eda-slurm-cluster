@@ -119,6 +119,8 @@ class SlurmAccountManager:
                 logger.info(f"    Creating account {account} with fairshare={fairshare}, parent={parent}")
                 try:
                     subprocess.check_output(cmd, encoding='UTF-8') # nosec
+                    if not parent:
+                        parent = 'root'
                     self.slurm_user_account_dict['accounts'][account] = {
                         'parent_name': parent,
                         'users': [],
@@ -141,6 +143,7 @@ class SlurmAccountManager:
                     number_of_changes += 1
 
         # After all projects have been created, make sure that the parent's are correct
+        self.slurm_user_account_dict = self.get_slurm_user_account_dict()
         for account in sorted(self.accounts.keys()):
             logger.debug(f"Checking account {account}'s parent")
             account_info = self.accounts[account]

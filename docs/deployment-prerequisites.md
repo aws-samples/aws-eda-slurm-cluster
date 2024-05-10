@@ -99,6 +99,76 @@ The version that has been tested is in the CDK_VERSION variable in the install s
 
 The install script will try to install the prerequisites if they aren't already installed.
 
+## Security Groups for Login Nodes
+
+If you want to allow instances like remote desktops to use the cluster directly, you must define
+three security groups that allow connections between the instance, the Slurm head node, and the Slurm compute nodes.
+We call the instance that is connecting to the Slurm cluster a login node or a submitter instance.
+
+I'll call the three security groups the following names, but they can be whatever you want.
+
+* SlurmSubmitterSG
+* SlurmHeadNodeSG
+* SlurmComputeNodeSG
+
+### Slurm Submitter Security Group
+
+The SlurmSubmitterSG will be attached to your login nodes, such as your virtual desktops.
+
+It needs at least the following inbound rules:
+
+| Type | Port range | Source | Description
+|------|------------|--------|------------
+| TCP  | 1024-65535 | SlurmHeadNodeSG    | SlurmHeadNode ephemeral
+| TCP  | 1024-65535 | SlurmComputeNodeSG | SlurmComputeNode ephemeral
+| TCP  | 6000-7024  | SlurmComputeNodeSG | SlurmComputeNode X11
+
+It needs the following outbound rules.
+
+| Type | Port range | Destination | Description
+|------|------------|-------------|------------
+| TCP  | 2049       | SlurmHeadNodeSG    | SlurmHeadNode NFS
+| TCP  | 6818       | SlurmComputeNodeSG | SlurmComputeNode slurmd
+| TCP  | 6819       | SlurmHeadNodeSG    | SlurmHeadNode slurmdbd
+| TCP  | 6820-6829  | SlurmHeadNodeSG    | SlurmHeadNode slurmctld
+| TCP  | 6830       | SlurmHeadNodeSG    | SlurmHeadNode slurmrestd
+
+### Slurm Head Node Security Group
+
+The SlurmHeadNodeSG will be specified in your configuration file for the slurm/SlurmCtl/AdditionalSecurityGroups parameter.
+
+It needs at least the following inbound rules:
+
+| Type | Port range | Source | Description
+|------|------------|--------|------------
+| TCP  | 2049       | SlurmSubmitterSG    | SlurmSubmitter NFS
+| TCP  | 6819       | SlurmSubmitterSG    | SlurmSubmitter slurmdbd
+| TCP  | 6820-6829  | SlurmSubmitterSG    | SlurmSubmitter slurmctld
+| TCP  | 6830       | SlurmSubmitterSG    | SlurmSubmitter slurmrestd
+
+It needs the following outbound rules.
+
+| Type | Port range | Destination | Description
+|------|------------|-------------|------------
+| TCP  | 1024-65535 | SlurmSubmitterSG    | SlurmSubmitter ephemeral
+
+### Slurm Compute Node Security Group
+
+The SlurmComputeNodeSG will be specified in your configuration file for the slurm/InstanceConfig/AdditionalSecurityGroups parameter.
+
+It needs at least the following inbound rules:
+
+| Type | Port range | Source | Description
+|------|------------|--------|------------
+| TCP  | 6818       | SlurmSubmitterSG    | SlurmSubmitter slurmd
+
+It needs the following outbound rules.
+
+| Type | Port range | Destination | Description
+|------|------------|-------------|------------
+| TCP  | 1024-65535 | SlurmSubmitterSG    | SlurmSubmitter ephemeral
+| TCP  | 6000-7024  | SlurmSubmitterSG    | SlurmSubmitter X11
+
 ## Create Configuration File
 
 Before you deploy a cluster you need to create a configuration file.
@@ -108,6 +178,7 @@ Ideally you should version control this file so you can keep track of changes.
 
 The schema for the config file along with its default values can be found in [source/cdk/config_schema.py](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L230-L445).
 The schema is defined in python, but the actual config file should be in yaml format.
+See [Configuration File Format](config.md) for documentation on all of the parameters.
 
 The following are key parameters that you will need to update.
 If you do not have the required parameters in your config file then the installer script will fail unless you specify the `--prompt` option.
@@ -120,7 +191,6 @@ You should save your selections in the config file.
 | [Region](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L368-L369) | Region where VPC is located | | `$AWS_DEFAULT_REGION`
 | [VpcId](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L372-L373)  | The vpc where the cluster will be deployed. |  vpc-* | None
 | [SshKeyPair](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L370-L371) | EC2 Keypair to use for instances | | None
-| [slurm/SubmitterSecurityGroupIds](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L480-L485) | Existing security groups that can submit to the cluster. For SOCA this is the ComputeNodeSG* resource. | sg-* | None
 | [ErrorSnsTopicArn](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L379-L380) | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
 | [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543) | Configure instance types that the cluster can use and number of nodes. | | See [default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml)
 
@@ -137,7 +207,9 @@ all nodes must have the same architecture and Base OS.
 | CentOS 7       | x86_64
 | RedHat 7       | x86_64
 | RedHat 8       | x86_64, arm64
+| RedHat 9       | x86_64, arm64
 | Rocky 8        | x86_64, arm64
+| Rocky 9        | x86_64, arm64
 
 You can exclude instances types by family or specific instance type.
 By default the InstanceConfig excludes older generation instance families.

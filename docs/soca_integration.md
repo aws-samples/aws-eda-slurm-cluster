@@ -11,7 +11,8 @@ Set the following parameters in your config file.
 | Parameter | Description | Value
 |-----------|-------------|------
 | VpcId | VPC id for the SOCA cluster | vpc-xxxxxx
-| SubmitterSecurityGroupIds | The ComputeNode security group name and id | *cluster-id*-*ComputeNodeSG*: sg-xxxxxxxx
+| slurm/SlurmCtl/AdditionalSecurityGroups | Security group ids that give desktop instances access to the head node and that give the head node access to VPC resources such as file systems.
+| slurm/InstanceConfig/AdditionalSecurityGroups | Security group ids that give desktop instances access to the compute nodes and that give compute nodes access to VPC resources such as file systems.
 | ExtraMounts | Add the mount parameters for the /apps and /data directories. This is required for access to the home directory. |
 
 Deploy your slurm cluster.
