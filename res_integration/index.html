@@ -146,16 +146,6 @@ The intention is to completely automate the deployment of ParallelCluster and se
 <td>subnet-xxxxx</td>
 </tr>
 <tr>
-<td>slurm/SlurmCtl/AdditionalSecurityGroups</td>
-<td>Security group ids that give desktop instances access to the head node and that give the head node access to VPC resources such as file systems.</td>
-<td></td>
-</tr>
-<tr>
-<td>slurm/InstanceConfig/AdditionalSecurityGroups</td>
-<td>Security group ids that give desktop instances access to the compute nodes and that give compute nodes access to VPC resources such as file systems.</td>
-<td></td>
-</tr>
-<tr>
 <td>SubmitterInstanceTags</td>
 <td>The tag of VDI instances.</td>
 <td>'res:EnvironmentName': <em>EnvironmentName</em>'</td>
@@ -172,6 +162,7 @@ The intention is to completely automate the deployment of ParallelCluster and se
 </tr>
 </tbody>
 </table>
+<p>You must also create security groups as described in <a href="../deployment-prerequisites/#security-groups-for-login-nodes">Security Groups for Login Nodes</a> and specify the SlurmHeadNodeSG in the <code>slurm/SlurmCtl/AdditionalSecurityGroups</code> parameter and the SlurmComputeNodeSG in the <code>slurm/InstanceConfig/AdditionalSecurityGroups</code> parameter.</p>
 <p>When you specify <strong>RESEnvironmentName</strong>, a lambda function will run SSM commands to create a cron job on a RES domain joined instance to update the users_groups.json file every hour. Another lambda function will also automatically configure all running VDI hosts to use the cluster.</p>
 <p>The following example shows the configuration parameters for a RES with the EnvironmentName=res-eda.</p>
 <pre><code>---
@@ -204,11 +195,15 @@ slurm:
     Database:
       DatabaseStackName: pcluster-slurm-db-res
 
-  SlurmCtl: {}
+  SlurmCtl:
+    AdditionalSecurityGroups:
+    - sg-12345678 # SlurmHeadNodeSG
 
   # Configure typical EDA instance types
   # A partition will be created for each combination of Base OS, Architecture, and Spot
   InstanceConfig:
+    AdditionalSecurityGroups:
+    - sg-23456789 # SlurmComputeNodeSG
     UseSpot: true
     NodeCounts:
       DefaultMaxCount: 10
