@@ -61,6 +61,20 @@ logger.setLevel(logging.INFO)
 # 3.7.1:
 #     * Fix pmix CVE
 #     * Use Slurm 23.02.5
+# 3.8.0:
+#     * Add support for Rocky Linux 8
+#     * Add support for user-provided /home directory for the cluster
+#     * Add support for MungeKeySecretArn to permit user-provided Munge key.
+#     * Add head node alarms
+#     * Add support for il-central-1 region
+#     * Upgrade Slurm from 23.02.6 to 23.02.7
+# 3.9.0:
+#     * Add support for RHEL9
+#     * Add support for Rocky9
+#     * Upgrade Slurm from 23.02.7 to 23.11.4
+#     * Upgrade Pmix from 4.2.6 to 4.2.9.
+# 3.9.1:
+#     * Bug fixes
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
 # Update source/resources/default_config.yml with latest version when this is updated.
 PARALLEL_CLUSTER_VERSIONS = [
@@ -70,6 +84,8 @@ PARALLEL_CLUSTER_VERSIONS = [
     '3.7.1',
     '3.7.2',
     '3.8.0',
+    '3.9.0',
+    '3.9.1',
 ]
 PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/sources
@@ -80,6 +96,8 @@ PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.7.1':   '0.5.15', # confirmed
     '3.7.2':   '0.5.15', # confirmed
     '3.8.0':   '0.5.15', # confirmed
+    '3.9.0':   '0.5.15', # confirmed
+    '3.9.1':   '0.5.15', # confirmed
 }
 PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/pyenv/versions
@@ -89,6 +107,8 @@ PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     '3.7.1':   '3.9.16', # confirmed
     '3.7.2':   '3.9.16', # confirmed
     '3.8.0':   '3.9.17', # confirmed
+    '3.9.0':   '3.9.17', # confirmed
+    '3.9.1':   '3.9.17', # confirmed
 }
 PARALLEL_CLUSTER_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -97,7 +117,9 @@ PARALLEL_CLUSTER_SLURM_VERSIONS = {
     '3.7.0':   '23.02.4', # confirmed
     '3.7.1':   '23.02.5', # confirmed
     '3.7.2':   '23.02.6', # confirmed
-    '3.8.0':   '23.02.6', # confirmed
+    '3.8.0':   '23.02.7', # confirmed
+    '3.9.0':   '23.11.4', # confirmed
+    '3.9.1':   '23.11.4', # confirmed
 }
 PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -107,6 +129,8 @@ PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     '3.7.1':   '23-02-5-1', # confirmed
     '3.7.2':   '23-02-6-1', # confirmed
     '3.8.0':   '23-02-6-1', # confirmed
+    '3.9.0':   '23-11-4-1', # confirmed
+    '3.9.1':   '23-11-4-1', # confirmed
 }
 SLURM_REST_API_VERSIONS = {
     '23-02-2-1': '0.0.39',
@@ -114,18 +138,26 @@ SLURM_REST_API_VERSIONS = {
     '23-02-4-1': '0.0.39',
     '23-02-5-1': '0.0.39',
     '23-02-6-1': '0.0.39',
+    '23-02-7-1': '0.0.39',
+    '23-11-4-1': '0.0.39',
 }
 PARALLEL_CLUSTER_ALLOWED_OSES = [
     'alinux2',
     'centos7',
     'rhel8',
+    'rhel9',
     'rocky8',
+    'rocky9',
     'ubuntu2004',
     'ubuntu2204'
     ]
 
 def get_parallel_cluster_version(config):
-    return config['slurm']['ParallelClusterConfig']['Version']
+    parallel_cluster_version = config['slurm']['ParallelClusterConfig']['Version']
+    if parallel_cluster_version not in PARALLEL_CLUSTER_VERSIONS:
+        logger.error(f"Unsupported ParallelCluster version: {parallel_cluster_version}\nSupported versions are:\n{json.dumps(PARALLEL_CLUSTER_VERSIONS, indent=4)}")
+        raise KeyError(parallel_cluster_version)
+    return parallel_cluster_version
 
 def get_PARALLEL_CLUSTER_MUNGE_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
@@ -485,13 +517,6 @@ def get_config_schema(config):
                 Optional('Imds', default={'Secured': True}): {
                     Optional('Secured', default=True): bool
                 }
-            },
-            #
-            # SubmitterSecurityGroupIds:
-            #     External security groups that should be able to use the cluster
-            #     Rules will be added to allow it to interact with Slurm.
-            Optional('SubmitterSecurityGroupIds', default={}): {
-                Optional(str): And(str, lambda s: re.match(r'sg-', s))
             },
             # SubmitterInstanceTags:
             #    Tags of instances that can be configured to submit to the cluster.

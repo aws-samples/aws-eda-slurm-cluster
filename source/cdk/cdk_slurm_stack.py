@@ -231,17 +231,6 @@ class CdkSlurmStack(Stack):
                 logger.error(f"Must set --{command_line_switch} from the command line or {config_key} in the config files")
                 exit(1)
 
-        config_key = 'SubmitterSecurityGroupIds'
-        context_key = config_key
-        submitterSecurityGroupIds_b64_string = self.node.try_get_context(context_key)
-        if submitterSecurityGroupIds_b64_string:
-            submitterSecurityGroupIds = json.loads(base64.b64decode(submitterSecurityGroupIds_b64_string).decode('utf-8'))
-            if config_key not in self.config['slurm']:
-                logger.info(f"slurm/{config_key:20} set from command line: {submitterSecurityGroupIds}")
-            else:
-                logger.info(f"slurm/{config_key:20} in config file overridden on command line from {self.config['slurm'][config_key]} to {submitterSecurityGroupIds}")
-            self.config['slurm'][config_key] = submitterSecurityGroupIds
-
     def check_config(self):
         '''
         Check config, set defaults, and sanity check the configuration.
@@ -425,6 +414,9 @@ class CdkSlurmStack(Stack):
         '''
         res_environment_name = self.config['RESEnvironmentName']
         logger.info(f"Updating configuration for RES environment: {res_environment_name}")
+
+        self.config['slurm']['SubmitterInstanceTags'] = {'res:EnvironmentName': [res_environment_name]}
+
         cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
         res_stack_name = None
         stack_statuses = {}
@@ -481,13 +473,6 @@ class CdkSlurmStack(Stack):
             self.config['SubnetId'] = subnet_ids[0]
             logger.info(f"    SubnetId: {self.config['SubnetId']}")
 
-        submitter_security_group_ids = []
-        if 'SubmitterSecurityGroupIds' not in self.config['slurm']:
-            self.config['slurm']['SubmitterSecurityGroupIds'] = {}
-        else:
-            for security_group_name, security_group_ids in self.config['slurm']['SubmitterSecurityGroupIds'].items():
-                submitter_security_group_ids.append(security_group_ids)
-
         # Get RES VDI Security Group
         res_vdc_stack_name = f"{res_stack_name}-vdc"
         if res_vdc_stack_name not in stack_statuses:
@@ -508,11 +493,6 @@ class CdkSlurmStack(Stack):
         if not res_dcv_security_group_id:
             logger.error(f"RES VDI security group not found.")
             exit(1)
-        if res_dcv_security_group_id not in submitter_security_group_ids:
-            res_dcv_security_group_name = f"{res_environment_name}-dcv-sg"
-            logger.info(f"    SubmitterSecurityGroupIds['{res_dcv_security_group_name}'] = '{res_dcv_security_group_id}'")
-            self.config['slurm']['SubmitterSecurityGroupIds'][res_dcv_security_group_name] = res_dcv_security_group_id
-            submitter_security_group_ids.append(res_dcv_security_group_id)
 
         # Get cluster manager Security Group
         logger.debug(f"Searching for cluster manager security group id")
@@ -535,11 +515,6 @@ class CdkSlurmStack(Stack):
         if not res_cluster_manager_security_group_id:
             logger.error(f"RES cluster manager security group not found.")
             exit(1)
-        if res_cluster_manager_security_group_id not in submitter_security_group_ids:
-            res_cluster_manager_security_group_name = f"{res_environment_name}-cluster-manager-sg"
-            logger.info(f"    SubmitterSecurityGroupIds['{res_cluster_manager_security_group_name}'] = '{res_cluster_manager_security_group_id}'")
-            self.config['slurm']['SubmitterSecurityGroupIds'][res_cluster_manager_security_group_name] = res_cluster_manager_security_group_id
-            submitter_security_group_ids.append(res_cluster_manager_security_group_id)
 
         # Get vdc controller Security Group
         logger.debug(f"Searching for VDC controller security group id")
@@ -564,11 +539,6 @@ class CdkSlurmStack(Stack):
         if not res_vdc_controller_security_group_id:
             logger.error(f"RES VDC controller security group not found.")
             exit(1)
-        if res_vdc_controller_security_group_id not in submitter_security_group_ids:
-            res_vdc_controller_security_group_name = f"{res_environment_name}-vdc-controller-sg"
-            logger.info(f"    SubmitterSecurityGroupIds['{res_vdc_controller_security_group_name}'] = '{res_vdc_controller_security_group_id}'")
-            self.config['slurm']['SubmitterSecurityGroupIds'][res_vdc_controller_security_group_name] = res_vdc_controller_security_group_id
-            submitter_security_group_ids.append(res_vdc_controller_security_group_id)
 
         # Configure the /home mount from RES if /home not already configured
         home_mount_found = False
@@ -1025,7 +995,7 @@ class CdkSlurmStack(Stack):
             ],
             compatible_runtimes = [
                 aws_lambda.Runtime.PYTHON_3_9,
-                aws_lambda.Runtime.PYTHON_3_10,
+                # aws_lambda.Runtime.PYTHON_3_10, # Doesn't work: No module named 'rpds.rpds'
                 # aws_lambda.Runtime.PYTHON_3_11, # Doesn't work: No module named 'rpds.rpds'
             ],
         )
@@ -1694,7 +1664,7 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-CallSlurmRestApiLambda",
             description="Example showing how to call Slurm REST API",
             memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_8,
+            runtime=aws_lambda.Runtime.PYTHON_3_9,
             architecture=aws_lambda.Architecture.ARM_64,
             timeout=Duration.minutes(1),
             log_retention=logs.RetentionDays.INFINITE,
@@ -1842,14 +1812,6 @@ class CdkSlurmStack(Stack):
         Tags.of(self.slurm_submitter_sg).add("Name", self.slurm_submitter_sg_name)
         self.suppress_cfn_nag(self.slurm_submitter_sg, 'W29', 'Egress port range used to block all egress')
         self.submitter_security_groups[self.slurm_submitter_sg_name] = self.slurm_submitter_sg
-        for slurm_submitter_sg_name, slurm_submitter_sg_id in self.config['slurm']['SubmitterSecurityGroupIds'].items():
-            (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(slurm_submitter_sg_id)
-            self.submitter_security_groups[slurm_submitter_sg_name] = ec2.SecurityGroup.from_security_group_id(
-                self, f"{slurm_submitter_sg_name}",
-                security_group_id = slurm_submitter_sg_id,
-                allow_all_outbound = allow_all_outbound,
-                allow_all_ipv6_outbound = allow_all_ipv6_outbound
-            )
 
         self.slurm_rest_api_lambda_sg = ec2.SecurityGroup(self, "SlurmRestLambdaSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmRestApiLambda to SlurmCtl Security Group")
         self.slurm_rest_api_lambda_sg_name = f"{self.stack_name}-SlurmRestApiLambdaSG"

@@ -76,8 +76,6 @@ This project creates a ParallelCluster configuration file that is documented in 
         - str
         <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Imds">Imds</a>:
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Imds-Secured">Secured</a>: bool
-    <a href="#submittersecuritygroupids">SubmitterSecurityGroupIds</a>:
-        SecurityGroupName: SecurityGroupId
     <a href="#submitterinstancetags">SubmitterInstanceTags</a>: str
         TagName:
         - TagValues
@@ -249,7 +247,7 @@ See the [ParallelCluster docs](https://docs.aws.amazon.com/parallelcluster/lates
 
 See the [ParallelCluster docs](https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-CustomAmi) for the custom AMI documentation.
 
-**NOTE**: A CustomAmi must be provided for Rocky8.
+**NOTE**: A CustomAmi must be provided for Rocky8 or Rocky9.
 All other distributions have a default AMI that is provided by ParallelCluster.
 
 #### Architecture
@@ -490,12 +488,6 @@ Additional security groups that will be added to the head node instance.
 #### Head Node AdditionalIamPolicies
 
 List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the head node instance.
-
-### SubmitterSecurityGroupIds
-
-External security groups that should be able to use the cluster.
-
-Rules will be added to allow it to interact with Slurm.
 
 ### SubmitterInstanceTags
 

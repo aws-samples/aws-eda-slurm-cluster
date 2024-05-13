@@ -77,11 +77,10 @@ class SlurmInstaller():
         parser.add_argument("--profile", "-p", type=str, help="AWS CLI profile to use.")
         parser.add_argument("--region", "--Region", "-r", type=str, help="AWS region where you want to deploy your SOCA environment.")
         parser.add_argument("--SshKeyPair", "-ssh", type=str, help="SSH key to use")
-        parser.add_argument("--RESEnvironmentName", type=str, default=None, help="Research and Engineering Studio (RES) environment to build the cluster in. Will automatically set VpcId, SubnetId, and SubmitterSecurityGroupIds.")
+        parser.add_argument("--RESEnvironmentName", type=str, default=None, help="Research and Engineering Studio (RES) environment to build the cluster in. Will automatically set VpcId and SubnetId.")
         parser.add_argument("--VpcId", type=str, help="Id of VPC to use")
         parser.add_argument("--SubnetId", type=str, help="SubnetId to use")
         parser.add_argument("--ErrorSnsTopicArn", type=str, default='', help="SNS topic for error notifications.")
-        parser.add_argument("--SubmitterSecurityGroupIds", type=str, default=None, help="External security groups that should be able to use the cluster.")
         parser.add_argument("--debug", action='store_const', const=True, default=False, help="Enable CDK debug mode")
         parser.add_argument("--cdk-cmd", type=str, choices=["deploy", "create", "update", "diff", "ls", "list", "synth", "synthesize", "destroy", "bootstrap"], default="synth")
         args = parser.parse_args()
@@ -296,41 +295,6 @@ class SlurmInstaller():
                         arg_index = cmdline_args.index(f'--{config_key}')
                         del cmdline_args[arg_index]
                         del cmdline_args[arg_index]
-
-        # Optional
-        config_key = 'SubmitterSecurityGroupIds'
-        if config_key not in self.config and not args.SubmitterSecurityGroupIds and not args.prompt:
-            pass
-        else:
-            if args.SubmitterSecurityGroupIds:
-                arg_json_value = args.SubmitterSecurityGroupIds
-                arg_SubmitterSecurityGroupIds = json.loads(args.SubmitterSecurityGroupIds)
-            else:
-                arg_json_value = ''
-                arg_SubmitterSecurityGroupIds = None
-            try:
-                checked_value = resource_finder.get_submitter_security_groups(self.config['VpcId'], config_key, self.config.get(config_key, None), arg_SubmitterSecurityGroupIds, args.prompt)
-            except ValueError as e:
-                logger.error(e)
-                sys.exit(1)
-            if checked_value:
-                checked_value_json = json.dumps(checked_value)
-                if args.prompt:
-                    if args.SubmitterSecurityGroupIds:
-                        if arg_json_value != checked_value_json:
-                            for arg_index, arg_name in enumerate(cmdline_args):
-                                if arg_name == f'--{config_key}':
-                                    cmdline_args[arg_index + 1] = f"'{checked_value_json}'"
-                    else:
-                        prompt_args += [f'--{config_key}', f"'{checked_value_json}'"]
-                self.config[config_key] = checked_value
-                self.install_parameters[config_key] = base64.b64encode(checked_value_json.encode('utf-8')).decode('utf-8')
-                logger.info(f"{config_key:30}: {self.config[config_key]}")
-            else:
-                while f'--{config_key}' in cmdline_args:
-                    arg_index = cmdline_args.index(f'--{config_key}')
-                    del cmdline_args[arg_index]
-                    del cmdline_args[arg_index]
 
         self.install_parameters['config_file'] = args.config_file
 

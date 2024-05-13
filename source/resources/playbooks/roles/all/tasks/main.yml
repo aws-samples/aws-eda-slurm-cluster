@@ -22,10 +22,12 @@
       rhel:         {{ rhel }}
       rhel7:        {{ rhel7 }}
       rhel8:        {{ rhel8 }}
+      rhel9:        {{ rhel9 }}
       rocky:        {{ rocky }}
       rocky8:       {{ rocky8 }}
       rhelclone:    {{ rhelclone }}
       rhel8clone:   {{ rhel8clone }}
+      rhel9clone:   {{ rhel9clone }}
       centos7_5_to_6: {{ centos7_5_to_6 }}
       centos7_5_to_9: {{ centos7_5_to_9 }}
       centos7_7_to_9: {{ centos7_7_to_9 }}
@@ -73,14 +75,14 @@
 
 # Required for the selinux module
 - name: Install libselinux-python
-  when: not(rhel8 or rhel8clone)
+  when: not(rhel8 or rhel8clone or rhel9 or rhel9clone)
   yum:
     state: present
     name:
       - libselinux-python
 
 - name: Install python3-libselinux
-  when: rhel8 or rhel8clone
+  when: rhel8 or rhel8clone or rhel9 or rhel9clone
   yum:
     state: present
     name:
@@ -88,7 +90,7 @@
 
 # Selinux breaks ssh
 - name: Set Selinux mode to disabled
-  when: not(rhel8 or rhel8clone)
+  when: not(rhel8 or rhel8clone or rhel9 or rhel9clone)
   selinux:
     state: disabled
 
@@ -96,7 +98,7 @@
 # Failed to import the required Python library (libselinux-python)
 # Can't figure out how to resolve
 - name: Set Selinux mode to disabled
-  when: rhel8 or rhel8clone
+  when: rhel8 or rhel8clone or rhel9 or rhel9clone
   shell:
     cmd: |
       set -ex

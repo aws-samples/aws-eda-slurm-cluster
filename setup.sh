@@ -41,7 +41,16 @@ fi
 echo "Using python $python_version"
 
 # Check nodejs version
+# https://nodejs.org/en/about/previous-releases
 required_nodejs_version=16.20.2
+# required_nodejs_version=18.20.2
+# On Amazon Linux 2 and nodejs 18.20.2 I get the following errors:
+#     node: /lib64/libm.so.6: version `GLIBC_2.27' not found (required by node)
+#     node: /lib64/libc.so.6: version `GLIBC_2.28' not found (required by node)
+# required_nodejs_version=20.13.1
+# On Amazon Linux 2 and nodejs 20.13.1 I get the following errors:
+#     node: /lib64/libm.so.6: version `GLIBC_2.27' not found (required by node)
+#     node: /lib64/libc.so.6: version `GLIBC_2.28' not found (required by node)
 export JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION=1
 if ! which node &> /dev/null; then
     echo -e "\nnode not found in your path."
@@ -88,7 +97,7 @@ fi
 echo "Using nodejs version $nodejs_version"
 
 # Create a local installation of cdk
-CDK_VERSION=2.91.0 # If you change the CDK version here, make sure to also change it in source/requirements.txt
+CDK_VERSION=2.111.0 # When you change the CDK version here, make sure to also change it in source/requirements.txt
 if ! cdk --version &> /dev/null; then
     echo "CDK not installed. Installing global version of cdk@$CDK_VERSION."
     if ! npm install -g aws-cdk@$CDK_VERSION; then
