@@ -146,9 +146,14 @@ The intention is to completely automate the deployment of ParallelCluster and se
 <td>subnet-xxxxx</td>
 </tr>
 <tr>
-<td>SubmitterSecurityGroupIds</td>
-<td>The security group names and ids used by RES VDIs. The name will be something like <em>EnvironmentName</em>-vdc-dcv-host-security-group</td>
-<td><em>EnvironmentName</em>-<em>VDISG</em>: sg-xxxxxxxx</td>
+<td>slurm/SlurmCtl/AdditionalSecurityGroups</td>
+<td>Security group ids that give desktop instances access to the head node and that give the head node access to VPC resources such as file systems.</td>
+<td></td>
+</tr>
+<tr>
+<td>slurm/InstanceConfig/AdditionalSecurityGroups</td>
+<td>Security group ids that give desktop instances access to the compute nodes and that give compute nodes access to VPC resources such as file systems.</td>
+<td></td>
 </tr>
 <tr>
 <td>SubmitterInstanceTags</td>

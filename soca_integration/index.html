@@ -140,9 +140,14 @@ Unless you are already a SOCA user, it is highly recommended that you use RES, w
 <td>vpc-xxxxxx</td>
 </tr>
 <tr>
-<td>SubmitterSecurityGroupIds</td>
-<td>The ComputeNode security group name and id</td>
-<td><em>cluster-id</em>-<em>ComputeNodeSG</em>: sg-xxxxxxxx</td>
+<td>slurm/SlurmCtl/AdditionalSecurityGroups</td>
+<td>Security group ids that give desktop instances access to the head node and that give the head node access to VPC resources such as file systems.</td>
+<td></td>
+</tr>
+<tr>
+<td>slurm/InstanceConfig/AdditionalSecurityGroups</td>
+<td>Security group ids that give desktop instances access to the compute nodes and that give compute nodes access to VPC resources such as file systems.</td>
+<td></td>
 </tr>
 <tr>
 <td>ExtraMounts</td>
