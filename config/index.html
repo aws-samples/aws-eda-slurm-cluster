@@ -254,10 +254,6 @@
             </li>
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#submittersecuritygroupids" class="nav-link">SubmitterSecurityGroupIds</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
             <li class="nav-item" data-level="3"><a href="#submitterinstancetags" class="nav-link">SubmitterInstanceTags</a>
               <ul class="nav flex-column">
               </ul>
@@ -403,8 +399,6 @@
         - str
         <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Imds">Imds</a>:
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Imds-Secured">Secured</a>: bool
-    <a href="#submittersecuritygroupids">SubmitterSecurityGroupIds</a>:
-        SecurityGroupName: SecurityGroupId
     <a href="#submitterinstancetags">SubmitterInstanceTags</a>: str
         TagName:
         - TagValues
@@ -662,9 +656,6 @@ This policy sets what happens to the preempted jobs.</p>
 <p>Additional security groups that will be added to the head node instance.</p>
 <h4 id="head-node-additionaliampolicies">Head Node AdditionalIamPolicies</h4>
 <p>List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the head node instance.</p>
-<h3 id="submittersecuritygroupids">SubmitterSecurityGroupIds</h3>
-<p>External security groups that should be able to use the cluster.</p>
-<p>Rules will be added to allow it to interact with Slurm.</p>
 <h3 id="submitterinstancetags">SubmitterInstanceTags</h3>
 <p>Tags of instances that can be configured to submit to the cluster.</p>
 <p>When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.</p>
