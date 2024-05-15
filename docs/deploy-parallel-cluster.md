@@ -44,6 +44,8 @@ The first is the configuration stack and the second is the cluster.
 
 ## Create users_groups.json
 
+**NOTE**: If you are using RES and specify RESEnvironmentName in your configuration, these steps will automatically be done for you.
+
 Before you can use the cluster you must configure the Linux users and groups for the head and compute nodes.
 One way to do that would be to join the cluster to your domain.
 But joining each compute node to a domain effectively creates a distributed denial of service (DDOS) attack on the demain controller
@@ -59,14 +61,14 @@ The outputs of the configuration stack have the commands required.
 
 | Config Stack Output                     | Description
 |-----------------------------------------|------------------
-| Command01SubmitterMountHeadNode         | Mounts the Slurm cluster's shared file system, adds it to /etc/fstab.
-| Command02CreateUsersGroupsJsonConfigure | Create /opt/slurm/{{ClusterName}}/config/users_groups.json and create a cron job to refresh it hourly.
+| Command01_MountHeadNodeNfs              | Mounts the Slurm cluster's shared file system at /opt/slurm/{{ClusterName}}. This provides access to the configuration script used in the next step.
+| Command02_CreateUsersGroupsJsonConfigure | Create /opt/slurm/{{ClusterName}}/config/users_groups.json and create a cron job to refresh it hourly. Update /etc/fstab with the mount in the previous step.
 
 Before deleting the cluster you can undo the configuration by running the commands in the following outputs.
 
 | Config Stack Output                       | Description
 |-------------------------------------------|------------------
-| command10CreateUsersGroupsJsonDeconfigure | Removes the crontab that refreshes users_groups.json.
+| command10_CreateUsersGroupsJsonDeconfigure | Removes the crontab that refreshes users_groups.json.
 
 Now the cluster is ready to be used by sshing into the head node or a login node, if you configured one.
 
@@ -74,6 +76,8 @@ If you configured extra file systems for the cluster that contain the users' hom
 in with their own ssh keys.
 
 ## Configure submission hosts to use the cluster
+
+**NOTE**: If you are using RES and specify RESEnvironmentName in your configuration, these steps will automatically be done for you on all running DCV desktops.
 
 ParallelCluster was built assuming that users would ssh into the head node or login nodes to execute Slurm commands.
 This can be undesirable for a number of reasons.
@@ -90,13 +94,18 @@ Run them in the following order:
 
 | Config Stack Output                     | Description
 |-----------------------------------------|------------------
-| Command01SubmitterMountHeadNode         | Mounts the Slurm cluster's shared file system, adds it to /etc/fstab.
-| Command03SubmitterConfigure             | Configure the submission host so it can directly access the Slurm cluster.
+| Command01_MountHeadNodeNfs              | Mounts the Slurm cluster's shared file system at /opt/slurm/{{ClusterName}}. This provides access to the configuration script used in the next step.
+| Command03_SubmitterConfigure            | Configure the submission host so it can directly access the Slurm cluster.  Update /etc/fstab with the mount in the previous step.
 
 The first command simply mounts the head node's NFS file system so you have access to the Slurm commands and configuration.
 
 The second command runs an ansible playbook that configures the submission host so that it can run the Slurm commands for the cluster.
+It will also compile the Slurm binaries for the OS distribution and CPU architecture of your host.
 It also configures the modulefile that sets up the environment to use the slurm cluster.
+
+**NOTE**: When the new modulefile is created, you need to refresh your shell environment before the modulefile
+can be used.
+You can do this by opening a new shell or by sourcing your .profile: `source ~/.profile`.
 
 The clusters have been configured so that a submission host can use more than one cluster by simply changing the modulefile that is loaded.
 
@@ -126,8 +135,18 @@ Then update your aws-eda-slurm-cluster stack by running the install script again
 
 Run the following command in a shell to configure your environment to use your slurm cluster.
 
+**NOTE**: When the new modulefile is created, you need to refresh your shell environment before the modulefile
+can be used.
+You can do this by opening a new shell or by sourcing your profile: `source ~/.bash_profile`.
+
 ```
 module load {{ClusterName}}
+```
+
+If you want to get a list of all of the clusters that are available execute the following command.
+
+```
+module avail
 ```
 
 To submit a job run the following command.

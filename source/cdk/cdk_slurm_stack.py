@@ -3002,7 +3002,7 @@ class CdkSlurmStack(Stack):
         )
         region = self.cluster_region
         cluster_name = self.config['slurm']['ClusterName']
-        CfnOutput(self, "Command01_SubmitterMountHeadNode",
+        CfnOutput(self, "Command01_MountHeadNodeNfs",
             value = f"head_ip=head_node.{self.config['slurm']['ClusterName']}.pcluster && sudo mkdir -p /opt/slurm/{cluster_name} && sudo mount $head_ip:/opt/slurm /opt/slurm/{cluster_name}"
         )
         CfnOutput(self, "Command02_CreateUsersGroupsJsonConfigure",
