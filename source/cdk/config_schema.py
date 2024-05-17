@@ -181,6 +181,15 @@ def get_slurm_rest_api_version(config):
 
 # Feature support
 
+def MAX_NUMBER_OF_QUEUES(parallel_cluster_version):
+    return 50
+
+def MAX_NUMBER_OF_COMPUTE_RESOURCES(parallel_cluster_version):
+    return 50
+
+def MAX_NUMBER_OF_COMPUTE_RESOURCES_PER_QUEUE(parallel_cluster_version):
+    return 50
+
 # Version 3.7.0:
 PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES_VERSION = parse_version('3.7.0')
 def PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES(parallel_cluster_version):
@@ -193,6 +202,10 @@ def PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE(parallel_clus
 PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE_VERSION = parse_version('3.7.0')
 def PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE(parallel_cluster_version):
     return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_INSTANCE_TYPES_PER_COMPUTE_RESOURCE_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_NODE_WEIGHTS_VERSION = parse_version('3.7.0')
+def PARALLEL_CLUSTER_SUPPORTS_NODE_WEIGHTS(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_NODE_WEIGHTS_VERSION
 
 # Version 3.8.0
 
@@ -297,6 +310,7 @@ default_eda_instance_families = [
 
     'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
 
+    'u',
     #'u-6tb1',            # Intel Xeon Scalable (Skylake) 6 TB
     #'u-9tb1',            # Intel Xeon Scalable (Skylake) 9 TB
     #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
@@ -371,7 +385,80 @@ default_excluded_instance_families = [
 
 default_excluded_instance_types = [
     '.+\.(micro|nano)', # Not enough memory
-    '.*\.metal.*'
+    '.*\.metal.*',
+
+    # Reduce the number of selected instance types to 25.
+    # Exclude larger core counts for each memory size
+    # 2 GB:
+    'c7a.medium',
+    'c7g.medium',
+    # 4 GB: m7a.medium, m7g.medium
+    'c7a.large',
+    'c7g.large',
+    # 8 GB: r7a.medium, r7g.medium
+    'm5zn.large',
+    'm7a.large',
+    'm7g.large',
+    'c7a.xlarge',
+    'c7g.xlarge',
+    # 16 GB: r7a.large, x2gd.medium, r7g.large
+    'r7iz.large',
+    'm5zn.xlarge',
+    'm7a.xlarge',
+    'm7g.xlarge',
+    'c7a.2xlarge',
+    'c7g.2xlarge',
+    # 32 GB: r7a.xlarge, x2gd.large, r7g.xlarge
+    'r7iz.xlarge',
+    'm5zn.2xlarge',
+    'm7a.2xlarge',
+    'm7g.2xlarge',
+    'c7a.4xlarge',
+    'c7g.4xlarge',
+    # 64 GB: r7a.2xlarge, x2gd.xlarge, r7g.2xlarge
+    'r7iz.2xlarge',
+    'm7a.4xlarge',
+    'm7g.4xlarge',
+    'c7a.8xlarge',
+    'c7g.8xlarge',
+    # 96 GB:
+    'm5zn.6xlarge',
+    'c7a.12xlarge',
+    'c7g.12xlarge',
+    # 128 GB: x2iedn.xlarge, r7iz.4xlarge, x2gd.2xlarge, r7g.4xlarge
+    'r7a.4xlarge',
+    'm7a.8xlarge',
+    'm7g.8xlarge',
+    'c7a.16xlarge',
+    'c7g.8xlarge',
+    # 192 GB: m5zn.12xlarge, m7a.12xlarge, m7g.12xlarge
+    'c7a.24xlarge',
+    # 256 GB: x2iedn.2xlarge, x2iezn.2xlarge, x2gd.4xlarge, r7g.8xlarge
+    'r7iz.8xlarge',
+    'r7a.8xlarge',
+    'm7a.16xlarge',
+    'm7g.16xlarge',
+    'c7a.32xlarge',
+    # 384 GB: 'r7iz.12xlarge', r7g.12xlarge
+    'r7a.12xlarge',
+    'm7a.24xlarge',
+    'c7a.48xlarge',
+    # 512 GB: x2iedn.4xlarge, x2iezn.4xlarge, x2gd.8xlarge, r7g.16xlarge
+    'r7iz.16xlarge',
+    'r7a.16xlarge',
+    'm7a.32xlarge',
+    # 768 GB: r7a.24xlarge, x2gd.12xlarge
+    'x2iezn.6xlarge',
+    'm7a.48xlarge',
+    # 1024 GB: x2iedn.8xlarge, x2iezn.8xlarge, x2gd.16xlarge
+    'r7iz.32xlarge',
+    'r7a.32xlarge',
+    # 1536 GB: x2iezn.12xlarge, x2idn.24xlarge
+    'r7a.48xlarge',
+    # 2048 GB: x2iedn.16xlarge
+    'x2idn.32xlarge',
+    # 3072 GB: 'x2iedn.24xlarge',
+    # 4096 GB: x2iedn.32xlarge
 ]
 
 architectures = [

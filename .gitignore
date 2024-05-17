@@ -1,7 +1,10 @@
 
+
 .mkdocs_venv/
 _site
 site/
 .vscode/
 source/resources/parallel-cluster/config/build-files/*/*/parallelcluster-*.yml
+security_scan/bandit-env
+security_scan/bandit.log
 security_scan/cfn_nag.log

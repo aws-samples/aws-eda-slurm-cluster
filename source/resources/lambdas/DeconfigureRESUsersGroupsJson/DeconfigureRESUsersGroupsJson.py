@@ -137,7 +137,7 @@ if timeout 1s ls $mount_dest; then
     sudo rmdir $mount_dest
 fi
 
-pass
+true
         """
         logger.info(f"Submitting SSM command")
         send_command_response = ssm_client.send_command(
