@@ -173,7 +173,7 @@ The intention is to completely automate the deployment of ParallelCluster and se
 # Command line values override values in the config file.
 #====================================================================
 
-StackName: res-eda-pc-3-8-0-rhel8-x86-config
+StackName: res-eda-pc-3-9-1-rhel8-x86-config
 
 Region: &lt;region&gt;
 SshKeyPair: &lt;key-name&gt;
@@ -185,10 +185,10 @@ ErrorSnsTopicArn: &lt;topic-arn&gt;
 TimeZone: 'US/Central'
 
 slurm:
-  ClusterName: res-eda-pc-3-8-0-rhel8-x86
+  ClusterName: res-eda-pc-3-9-1-rhel8-x86
 
   ParallelClusterConfig:
-    Version: '3.8.0'
+    Version: '3.9.1'
     Image:
       Os: 'rhel8'
     Architecture: 'x86_64'
