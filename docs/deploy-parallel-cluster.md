@@ -4,7 +4,7 @@ A ParallelCluster configuration will be generated and used to create a ParallelC
 The first supported ParallelCluster version is 3.6.0.
 Version 3.7.0 is the recommended minimum version because it supports compute node weighting that is proportional to instance type
 cost so that the least expensive instance types that meet job requirements are used.
-The current latest version is 3.8.0.
+The current latest version is 3.9.1.
 
 ## Prerequisites
 

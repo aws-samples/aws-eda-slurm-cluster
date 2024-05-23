@@ -1,8 +1,8 @@
 
-.PHONY: help local-docs test clean
+.PHONY: help local-docs security_scan test clean
 
 help:
-	@echo "Usage: make [ help | local-docs | github-docs | clean ]"
+	@echo "Usage: make [ help | local-docs | github-docs | security_scan | test | clean ]"
 
 .mkdocs_venv/bin/activate:
 	rm -rf .mkdocs_venv

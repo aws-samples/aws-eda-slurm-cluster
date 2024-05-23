@@ -1390,6 +1390,7 @@ class CdkSlurmStack(Stack):
                     resources=[self.munge_key_secret_arn]
                     )
                 )
+        self.suppress_cfn_nag(self.create_parallel_cluster_lambda.role, 'F4', 'IAM policy from ParallelCluster team')
 
         createHeadNodeARecordAsset = s3_assets.Asset(self, "CreateHeadNodeARecordAsset", path="resources/lambdas/CreateHeadNodeARecord")
         self.create_head_node_a_record_lambda = aws_lambda.Function(
@@ -1816,7 +1817,7 @@ class CdkSlurmStack(Stack):
         self.slurm_rest_api_lambda_sg = ec2.SecurityGroup(self, "SlurmRestLambdaSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmRestApiLambda to SlurmCtl Security Group")
         self.slurm_rest_api_lambda_sg_name = f"{self.stack_name}-SlurmRestApiLambdaSG"
         Tags.of(self.slurm_rest_api_lambda_sg).add("Name", self.slurm_rest_api_lambda_sg_name)
-        self.slurm_rest_api_lambda_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description=f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - TLS")
+        self.slurm_rest_api_lambda_sg.add_egress_rule(self.slurmctl_sg, ec2.Port.tcp(443), description=f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - TLS")
 
         # Security Group Rules
 
@@ -2443,7 +2444,35 @@ class CdkSlurmStack(Stack):
         else:
             compute_node_ami = None
 
-        # Create list of instance types by number of cores and amount of memory
+        MAX_NUMBER_OF_QUEUES = config_schema.MAX_NUMBER_OF_QUEUES(self.PARALLEL_CLUSTER_VERSION)
+        MAX_NUMBER_OF_COMPUTE_RESOURCES = config_schema.MAX_NUMBER_OF_COMPUTE_RESOURCES(self.PARALLEL_CLUSTER_VERSION)
+        MAX_NUMBER_OF_COMPUTE_RESOURCES_PER_QUEUE = config_schema.MAX_NUMBER_OF_COMPUTE_RESOURCES_PER_QUEUE(self.PARALLEL_CLUSTER_VERSION)
+
+        # Create queueus and compute resources.
+        # We are limited to MAX_NUMBER_OF_QUEUES queues and MAX_NUMBER_OF_COMPUTE_RESOURCES compute resources.
+        # First analyze the selected instance types to make sure that these limits aren't exceeded.
+        # The fundamental limit is the limit on the number of compute resources.
+        # Each compute resource maps to a NodeName and I want instance type to be selected using a constraint.
+        # This means that each compute resource can only contain a single instance type.
+        # This limits the number of instance type to MAX_NUMBER_OF_COMPUTE_RESOURCES or MAX_NUMBER_OF_COMPUTE_RESOURCES/2 if you configure spot instances.
+        #
+        # We could possible support more instance types by putting instance types with the same amount of cores and memory into the same compute resource.
+        # The problem with doing this is that you can wind up with very different instance types in the same compute node.
+        # For example, you could wind up with with an m5zn and r7a.medium or x2iedn.2xlarge and x2iezn.2xlarge.
+        #
+        # Create 1 compute resource for each instance type and 1 queue for each compute resource.
+        #
+        # If the user configures too many instance types, then flag an error and print out the configured instance
+        # types and suggest instance types to exclude.
+
+        purchase_options = ['ONDEMAND']
+        if self.config['slurm']['InstanceConfig']['UseSpot']:
+            purchase_options.append('SPOT')
+            MAX_NUMBER_OF_INSTANCE_TYPES = int(MAX_NUMBER_OF_COMPUTE_RESOURCES / 2)
+        else:
+            MAX_NUMBER_OF_INSTANCE_TYPES = MAX_NUMBER_OF_COMPUTE_RESOURCES
+
+            # Create list of instance types by number of cores and amount of memory
         instance_types_by_core_memory = {}
         # Create list of instance types by amount of memory and number of cores
         instance_types_by_memory_core = {}
@@ -2481,259 +2510,77 @@ class CdkSlurmStack(Stack):
             for cores in sorted(instance_types_by_memory_core[mem_gb]):
                 logger.info(f"            {len(instance_types_by_memory_core[mem_gb][cores])} instance type with {cores:3} core(s): {instance_types_by_memory_core[mem_gb][cores]}")
 
-        purchase_options = ['ONDEMAND']
-        if self.config['slurm']['InstanceConfig']['UseSpot']:
-            purchase_options.append('SPOT')
+        if len(self.instance_types) > MAX_NUMBER_OF_INSTANCE_TYPES:
+            logger.error(f"Too many instance types configured: {len(self.instance_types)}. Max is {MAX_NUMBER_OF_INSTANCE_TYPES}")
+
+
+            logger.error(f"Too many instance types configured: {len(self.instance_types)}. Max is {MAX_NUMBER_OF_INSTANCE_TYPES}. Consider selecting 1 instance type per memory size. Either reduce the number of included instance families and types or exclude instance families and types.")
+            exit(1)
+
 
         nodesets = {}
         number_of_queues = 0
         number_of_compute_resources = 0
         for purchase_option in purchase_options:
             nodesets[purchase_option] = []
-        if config_schema.PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE(self.PARALLEL_CLUSTER_VERSION) and config_schema.PARALLEL_CLUSTER_SUPPORTS_MULTIPLE_COMPUTE_RESOURCES_PER_QUEUE(self.PARALLEL_CLUSTER_VERSION):
-            # Creating a queue for each memory size
-            # In each queue, create a CR for each permutation of memory and core count
-            for mem_gb in sorted(instance_types_by_memory_core.keys()):
-                for purchase_option in purchase_options:
-                    if purchase_option == 'ONDEMAND':
-                        queue_name_prefix = "od"
-                        allocation_strategy = 'lowest-price'
-                    else:
-                        queue_name_prefix = "sp"
-                        allocation_strategy = 'capacity-optimized'
-                    queue_name = f"{queue_name_prefix}-{mem_gb}-gb"
-                    if number_of_queues >= MAX_NUMBER_OF_QUEUES:
-                        logger.warning(f"Skipping {queue_name} queue because MAX_NUMBER_OF_QUEUES=={MAX_NUMBER_OF_QUEUES}")
-                        continue
-                    if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
-                        logger.warning(f"Skipping {queue_name} queue because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES}")
-                        continue
-                    logger.info(f"Configuring {queue_name} queue:")
-                    nodeset = f"{queue_name}_nodes"
-                    nodesets[purchase_option].append(nodeset)
-                    parallel_cluster_queue = {
-                        'Name': queue_name,
-                        'AllocationStrategy': allocation_strategy,
-                        'CapacityType': purchase_option,
-                        'ComputeResources': [],
-                        'ComputeSettings': {
-                            'LocalStorage': {
-                                'RootVolume': {
-                                    'VolumeType': 'gp3'
-                                }
-                            }
-                        },
-                        'CustomActions': {
-                            'OnNodeStart': {
-                                'Sequence': [
-                                    {
-                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_start.sh'],
-                                        'Args': []
-                                    }
-                                ]
-                            },
-                            'OnNodeConfigured': {
-                                'Sequence': [
-                                    {
-                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_configured.sh'],
-                                        'Args': []
-                                    }
-                                ]
-                            },
-                        },
-                        'Iam': {
-                            'AdditionalIamPolicies': [
-                                {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
-                                {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
-                                {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'}
-                            ]
-                        },
-                        'Networking': {
-                            'SubnetIds': [self.config['SubnetId']],
-                            'AdditionalSecurityGroups': ['{{SlurmNodeSecurityGroupId}}'],
-                            'PlacementGroup': {}
-                        },
-                    }
-                    if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
-                        parallel_cluster_queue['Image'] = {
-                            'CustomAmi': self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
-                        }
-                    if 'AdditionalSecurityGroups' in self.config['slurm']['InstanceConfig']:
-                        for security_group_id in self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups']:
-                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(security_group_id)
-                    if 'AdditionalIamPolicies' in self.config['slurm']['InstanceConfig']:
-                        for iam_policy_arn in self.config['slurm']['InstanceConfig']['AdditionalIamPolicies']:
-                            parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
-                    number_of_queues += 1
 
-                    # Give the compute node access to extra mounts
-                    for fs_type in self.extra_mount_security_groups.keys():
-                        for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
+        # Create 1 queue and compute resource for each instance type and purchase option.
+        for purchase_option in purchase_options:
+            for instance_type in self.instance_types:
+                efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
+                if purchase_option == 'ONDEMAND':
+                    queue_name_prefix = "od"
+                    allocation_strategy = 'lowest-price'
+                    price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['OnDemand']
+                else:
+                    queue_name_prefix = "sp"
+                    allocation_strategy = 'capacity-optimized'
+                    price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot']['max']
+                queue_name = f"{queue_name_prefix}-{instance_type}"
+                queue_name = queue_name.replace('.', '-')
+                logger.info(f"Configuring {queue_name} queue:")
+                if number_of_queues >= MAX_NUMBER_OF_QUEUES:
+                    logger.error(f"Can't create {queue_name} queue because MAX_NUMBER_OF_QUEUES=={MAX_NUMBER_OF_QUEUES} and have {number_of_queues} queues.")
+                    exit(1)
+                nodeset = f"{queue_name}_nodes"
+                nodesets[purchase_option].append(nodeset)
+                parallel_cluster_queue = self.create_queue_config(queue_name, allocation_strategy, purchase_option)
+                number_of_queues += 1
 
-                    for num_cores in sorted(instance_types_by_memory_core[mem_gb].keys()):
-                        compute_resource_name = f"{queue_name_prefix}-{mem_gb}gb-{num_cores}-cores"
-                        instance_types = sorted(instance_types_by_memory_core[mem_gb][num_cores])
-                        # If we do multiple CRs per queue then we hit the CR limit without being able to create queues for all memory sizes.
-                        # Select the instance types with the lowest core count for higher memory/core ratio and lower cost.
-                        if len(parallel_cluster_queue['ComputeResources']):
-                            logger.info(f"    Skipping {compute_resource_name:18} compute resource: {instance_types} to reduce number of CRs.")
-                            continue
-                        if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
-                            logger.warning(f" Skipping {compute_resource_name:18} compute resource: {instance_types} because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES}")
-                            continue
-                        logger.info(f"    Adding   {compute_resource_name:18} compute resource: {instance_types}")
-                        if compute_resource_name in self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts']:
-                            min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MinCount']
-                            max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MaxCount']
-                        else:
-                            min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMinCount']
-                            max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMaxCount']
-                        compute_resource = {
-                            'Name': compute_resource_name,
-                            'MinCount': min_count,
-                            'MaxCount': max_count,
-                            'DisableSimultaneousMultithreading': self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading'],
-                            'Instances': [],
-                            'Efa': {'Enabled': False},
-                        }
-                        efa_supported = self.config['slurm']['ParallelClusterConfig']['EnableEfa']
-                        min_price = sys.maxsize
-                        max_price = 0
-                        total_price = 0
-                        for instance_type in sorted(instance_types):
-                            efa_supported = efa_supported and self.plugin.get_EfaSupported(self.cluster_region, instance_type)
-                            if purchase_option == 'ONDEMAND':
-                                price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['OnDemand']
-                            else:
-                                price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot']['max']
-                            min_price = min(min_price, price)
-                            max_price = max(max_price, price)
-                            total_price += price
-                            compute_resource['Instances'].append(
-                                {
-                                    'InstanceType': instance_type
-                                }
-                            )
-                        average_price = total_price / len(instance_types)
-                        compute_resource['Efa']['Enabled'] = efa_supported
-                        if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0'):
-                            compute_resource['StaticNodePriority'] = int(average_price *  1000)
-                            compute_resource['DynamicNodePriority'] = int(average_price * 10000)
-                        compute_resource['Networking'] = {
-                            'PlacementGroup': {
-                                'Enabled': efa_supported
-                            }
-                        }
-                        parallel_cluster_queue['ComputeResources'].append(compute_resource)
-                        number_of_compute_resources += 1
-                    self.parallel_cluster_config['Scheduling']['SlurmQueues'].append(parallel_cluster_queue)
-        else:
-            # ParallelCluster has a restriction where a queue can have only 1 instance type with memory based scheduling
-            # So, for now creating a queue for each instance type and purchase option
-            for purchase_option in purchase_options:
-                for instance_type in self.instance_types:
-                    efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
-                    if purchase_option == 'ONDEMAND':
-                        queue_name_prefix = "od"
-                        allocation_strategy = 'lowest-price'
-                        price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['OnDemand']
-                    else:
-                        queue_name_prefix = "sp"
-                        allocation_strategy = 'capacity-optimized'
-                        price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot']['max']
-                    queue_name = f"{queue_name_prefix}-{instance_type}"
-                    queue_name = queue_name.replace('.', '-')
-                    nodeset = f"{queue_name}_nodes"
-                    nodesets[purchase_option].append(nodeset)
-                    parallel_cluster_queue = {
-                        'Name': queue_name,
-                        'AllocationStrategy': allocation_strategy,
-                        'CapacityType': purchase_option,
-                        'ComputeResources': [],
-                        'ComputeSettings': {
-                            'LocalStorage': {
-                                'RootVolume': {
-                                    'VolumeType': 'gp3'
-                                }
-                            }
-                        },
-                        'CustomActions': {
-                            'OnNodeStart': {
-                                'Sequence': [
-                                    {
-                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_start.sh'],
-                                        'Args': []
-                                    }
-                                ]
-                            },
-                            'OnNodeConfigured': {
-                                'Sequence': [
-                                    {
-                                        'Script': self.custom_action_s3_urls['config/bin/on_compute_node_configured.sh'],
-                                        'Args': []
-                                    }
-                                ]
-                            },
-                        },
-                        'Iam': {
-                            'AdditionalIamPolicies': [
-                                {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
-                                {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
-                                {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'}
-                            ]
-                        },
-                        'Networking': {
-                            'SubnetIds': [self.config['SubnetId']],
-                            'AdditionalSecurityGroups': ['{{SlurmNodeSecurityGroupId}}'],
-                        },
-                    }
-                    if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
-                        parallel_cluster_queue['Image'] = {
-                            'CustomAmi': self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
-                        }
-                    if 'AdditionalSecurityGroups' in self.config['slurm']['InstanceConfig']:
-                        for security_group_id in self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups']:
-                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(security_group_id)
-                    if 'AdditionalIamPolicies' in self.config['slurm']['InstanceConfig']:
-                        for iam_policy_arn in self.config['slurm']['InstanceConfig']['AdditionalIamPolicies']:
-                            parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
-
-                    # Give the compute node access to extra mounts
-                    for fs_type in self.extra_mount_security_groups.keys():
-                        for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                            parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
-
-                    compute_resource_name = f"{queue_name_prefix}-{instance_type}-cr1".replace('.', '-')
-                    if compute_resource_name in self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts']:
-                        min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MinCount']
-                        max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MaxCount']
-                    else:
-                        min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMinCount']
-                        max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMaxCount']
-                    compute_resource = {
-                        'Name': compute_resource_name,
-                        'MinCount': min_count,
-                        'MaxCount': max_count,
-                        'DisableSimultaneousMultithreading': self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading'],
-                        'Instances': [],
-                        'Efa': {'Enabled': efa_supported},
-                        'Networking': {
-                            'PlacementGroup': {
-                                'Enabled': efa_supported
-                            }
+                compute_resource_name = f"{queue_name_prefix}-{instance_type}".replace('.', '-')
+                if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
+                    logger.error(f"Can't create {compute_resource_name} compute resource because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES} and have {number_of_compute_resources} compute resources")
+                    exit(1)
+                logger.info(f"    Adding   {compute_resource_name:18} compute resource")
+                if compute_resource_name in self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts']:
+                    min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MinCount']
+                    max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['ComputeResourceCounts'][compute_resource_name]['MaxCount']
+                else:
+                    min_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMinCount']
+                    max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMaxCount']
+                compute_resource = {
+                    'Name': compute_resource_name,
+                    'MinCount': min_count,
+                    'MaxCount': max_count,
+                    'DisableSimultaneousMultithreading': self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading'],
+                    'Instances': [],
+                    'Efa': {'Enabled': efa_supported},
+                    'Networking': {
+                        'PlacementGroup': {
+                            'Enabled': efa_supported
                         }
                     }
-                    compute_resource['Instances'].append(
-                        {
-                            'InstanceType': instance_type
-                        }
-                    )
-                    if self.PARALLEL_CLUSTER_VERSION >= parse_version('3.7.0'):
-                        compute_resource['StaticNodePriority'] = int(price *  1000)
-                        compute_resource['DynamicNodePriority'] = int(price * 10000)
-                    parallel_cluster_queue['ComputeResources'].append(compute_resource)
-                    self.parallel_cluster_config['Scheduling']['SlurmQueues'].append(parallel_cluster_queue)
+                }
+                compute_resource['Instances'].append(
+                    {
+                        'InstanceType': instance_type
+                    }
+                )
+                if config_schema.PARALLEL_CLUSTER_SUPPORTS_NODE_WEIGHTS(self.PARALLEL_CLUSTER_VERSION):
+                    compute_resource['StaticNodePriority'] = int(price *  1000)
+                    compute_resource['DynamicNodePriority'] = int(price * 10000)
+                parallel_cluster_queue['ComputeResources'].append(compute_resource)
+                self.parallel_cluster_config['Scheduling']['SlurmQueues'].append(parallel_cluster_queue)
 
         logger.info(f"Created {number_of_queues} queues with {number_of_compute_resources} compute resources")
 
@@ -3017,3 +2864,65 @@ class CdkSlurmStack(Stack):
         CfnOutput(self, "command11_SubmitterDeconfigure",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh && sudo umount /opt/slurm/{cluster_name}"
         )
+
+    def create_queue_config(self, queue_name, allocation_strategy, purchase_option):
+        parallel_cluster_queue = {
+            'Name': queue_name,
+            'AllocationStrategy': allocation_strategy,
+            'CapacityType': purchase_option,
+            'ComputeResources': [],
+            'ComputeSettings': {
+                'LocalStorage': {
+                    'RootVolume': {
+                        'VolumeType': 'gp3'
+                    }
+                }
+            },
+            'CustomActions': {
+                'OnNodeStart': {
+                    'Sequence': [
+                        {
+                            'Script': self.custom_action_s3_urls['config/bin/on_compute_node_start.sh'],
+                            'Args': []
+                        }
+                    ]
+                },
+                'OnNodeConfigured': {
+                    'Sequence': [
+                        {
+                            'Script': self.custom_action_s3_urls['config/bin/on_compute_node_configured.sh'],
+                            'Args': []
+                        }
+                    ]
+                },
+            },
+            'Iam': {
+                'AdditionalIamPolicies': [
+                    {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
+                    {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
+                    {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'}
+                ]
+            },
+            'Networking': {
+                'SubnetIds': [self.config['SubnetId']],
+                'AdditionalSecurityGroups': ['{{SlurmNodeSecurityGroupId}}'],
+                'PlacementGroup': {}
+            },
+        }
+        if 'ComputeNodeAmi' in self.config['slurm']['ParallelClusterConfig']:
+            parallel_cluster_queue['Image'] = {
+                'CustomAmi': self.config['slurm']['ParallelClusterConfig']['ComputeNodeAmi']
+            }
+        if 'AdditionalSecurityGroups' in self.config['slurm']['InstanceConfig']:
+            for security_group_id in self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups']:
+                parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(security_group_id)
+        if 'AdditionalIamPolicies' in self.config['slurm']['InstanceConfig']:
+            for iam_policy_arn in self.config['slurm']['InstanceConfig']['AdditionalIamPolicies']:
+                parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
+
+        # Give the compute node access to extra mounts
+        for fs_type in self.extra_mount_security_groups.keys():
+            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
+                parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
+
+        return parallel_cluster_queue

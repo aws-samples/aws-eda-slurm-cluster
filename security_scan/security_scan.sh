@@ -5,9 +5,9 @@
 scriptdir=$(dirname $(readlink -f $0))
 
 cd $scriptdir/..
-./install.sh --config-file ~/slurm/res-eda/res-eda-pc-3-7-2-centos7-x86-config.yml --cdk-cmd synth
+./install.sh --config-file ~/slurm/res-eda/res-eda-pc-3-9-1-rhel8-x86-config.yml --cdk-cmd synth
 
-cfn_nag_scan --input-path $scriptdir/../source/cdk.out/res-eda-pc-3-7-2-centos7-x86-config.template.json --deny-list-path $scriptdir/cfn_nag-deny-list.yml --fail-on-warnings &> $scriptdir/cfn_nag.log
+cfn_nag_scan --input-path $scriptdir/../source/cdk.out/res-eda-pc-3-9-1-rhel8-x86-config.template.json --deny-list-path $scriptdir/cfn_nag-deny-list.yml --fail-on-warnings &> $scriptdir/cfn_nag.log
 
 cd $scriptdir
 if [ ! -e $scriptdir/bandit-env ]; then

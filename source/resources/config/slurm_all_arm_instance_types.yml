@@ -37,7 +37,7 @@ StackName: slurm-all-arm-config
 
 slurm:
   ParallelClusterConfig:
-    Version: 3.8.0
+    Version: 3.9.1
     Architecture: arm64
     # @TODO: Update DatabaseStackName with stack name you deployed ParallelCluster database into. See: https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3
     # Database:

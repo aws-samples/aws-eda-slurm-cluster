@@ -30,7 +30,7 @@ The following example shows the configuration parameters for a RES with the Envi
 # Command line values override values in the config file.
 #====================================================================
 
-StackName: res-eda-pc-3-8-0-rhel8-x86-config
+StackName: res-eda-pc-3-9-1-rhel8-x86-config
 
 Region: <region>
 SshKeyPair: <key-name>
@@ -42,10 +42,10 @@ ErrorSnsTopicArn: <topic-arn>
 TimeZone: 'US/Central'
 
 slurm:
-  ClusterName: res-eda-pc-3-8-0-rhel8-x86
+  ClusterName: res-eda-pc-3-9-1-rhel8-x86
 
   ParallelClusterConfig:
-    Version: '3.8.0'
+    Version: '3.9.1'
     Image:
       Os: 'rhel8'
     Architecture: 'x86_64'
