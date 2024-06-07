@@ -4,29 +4,29 @@
 - name: Show vars used in this playbook
   debug:
     msg: |
-      ClusterName:                {{ ClusterName }}
-      Region:                     {{ Region }}
-      SlurmConfigDir:             {{ SlurmConfigDir }}
+      cluster_name:               {{ cluster_name }}
+      region:                     {{ region }}
+      slurm_config_dir:           {{ slurm_config_dir }}
 
-- name: Add /opt/slurm/{{ ClusterName }} to /etc/fstab
+- name: Add /opt/slurm/{{ cluster_name }} to /etc/fstab
   mount:
-    path: /opt/slurm/{{ ClusterName }}
-    src:  "head_node.{{ ClusterName }}.pcluster:/opt/slurm"
+    path: /opt/slurm/{{ cluster_name }}
+    src:  "head_node.{{ cluster_name }}.pcluster:/opt/slurm"
     fstype: nfs
     backup: true
     state: present # Should already be mounted
 
-- name: Create {{ SlurmConfigDir }}/users_groups.json
+- name: Create {{ slurm_config_dir }}/users_groups.json
   shell: |
     set -ex
 
-    {{ SlurmConfigDir }}/bin/create_or_update_users_groups_json.sh
+    {{ slurm_config_dir }}/bin/create_or_update_users_groups_json.sh
   args:
-    creates: '{{ SlurmConfigDir }}/users_groups.json'
+    creates: '{{ slurm_config_dir }}/users_groups.json'
 
-- name: Create cron to refresh {{ SlurmConfigDir }}/users_groups.json every hour
+- name: Create cron to refresh {{ slurm_config_dir }}/users_groups.json every hour
   template:
-    dest: /etc/cron.d/slurm_{{ ClusterName }}_update_users_groups_json
+    dest: /etc/cron.d/slurm_{{ cluster_name }}_update_users_groups_json
     src:   etc/cron.d/slurm_update_users_groups_json
     owner: root
     group: root

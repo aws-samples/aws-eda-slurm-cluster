@@ -4,7 +4,7 @@
 - name: Print vars
   debug:
     msg: |
-      ExtraMounts: {{ ExtraMounts }}
+      extra_mounts: {{ extra_mounts }}
 
 - name: Install nfs-utils
   yum:
@@ -12,13 +12,13 @@
     name:
       - nfs-utils
 
-- name: Mount ExtraMounts
-  when: ExtraMounts|length > 0
-  loop: "{{ ExtraMounts }}"
+- name: Mount extra_mounts
+  when: extra_mounts|length > 0
+  loop: "{{ extra_mounts }}"
   mount:
     backup: yes
-    fstype: "{{item.type}}"
-    opts: "{{item.options}}"
-    path: "{{item.dest}}"
-    src: "{{item.src}}"
+    fstype: "{{ item.type }}"
+    opts: "{{ item.options }}"
+    path: "{{ item.dest }}"
+    src: "{{ item.src }}"
     state: mounted

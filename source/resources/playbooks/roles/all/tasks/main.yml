@@ -6,28 +6,28 @@
 - name: Show vars set in inventories/groupvars/all
   debug:
     msg: |
-      ansible_architecture: {{ ansible_architecture }}
-      Architecture: {{ Architecture }}
-      distribution: {{ distribution }}
+      ansible_architecture:       {{ ansible_architecture }}
+      architecture:               {{ architecture }}
+      distribution:               {{ distribution }}
       distribution_major_version: {{ distribution_major_version }}
-      distribution_version: {{ distribution_version }}
-      kernel: {{ kernel }}
-      memtotal_mb: {{ memtotal_mb }}
+      distribution_version:       {{ distribution_version }}
+      kernel:                     {{ kernel }}
+      memtotal_mb:                {{ memtotal_mb }}
 
-      amazonlinux2: {{ amazonlinux2 }}
-      alma:         {{ alma }}
-      alma8:        {{ alma8 }}
-      centos:       {{ centos }}
-      centos7:      {{ centos7 }}
-      rhel:         {{ rhel }}
-      rhel7:        {{ rhel7 }}
-      rhel8:        {{ rhel8 }}
-      rhel9:        {{ rhel9 }}
-      rocky:        {{ rocky }}
-      rocky8:       {{ rocky8 }}
-      rhelclone:    {{ rhelclone }}
-      rhel8clone:   {{ rhel8clone }}
-      rhel9clone:   {{ rhel9clone }}
+      amazonlinux2:   {{ amazonlinux2 }}
+      alma:           {{ alma }}
+      alma8:          {{ alma8 }}
+      centos:         {{ centos }}
+      centos7:        {{ centos7 }}
+      rhel:           {{ rhel }}
+      rhel7:          {{ rhel7 }}
+      rhel8:          {{ rhel8 }}
+      rhel9:          {{ rhel9 }}
+      rocky:          {{ rocky }}
+      rocky8:         {{ rocky8 }}
+      rhelclone:      {{ rhelclone }}
+      rhel8clone:     {{ rhel8clone }}
+      rhel9clone:     {{ rhel9clone }}
       centos7_5_to_6: {{ centos7_5_to_6 }}
       centos7_5_to_9: {{ centos7_5_to_9 }}
       centos7_7_to_9: {{ centos7_7_to_9 }}
@@ -35,24 +35,25 @@
       ansible_ssh_user:        {{ ansible_ssh_user }}
       ansible_ssh_common_args: {{ ansible_ssh_common_args }}
 
-      SlurmBaseDir:       {{ SlurmBaseDir }}
-      SlurmSbinDir:       {{ SlurmSbinDir }}
-      SlurmBinDir:        {{ SlurmBinDir }}
-      SlurmScriptsDir:    {{ SlurmScriptsDir }}
-      SlurmRoot:          {{ SlurmRoot }}
-      ModulefilesBaseDir: {{ ModulefilesBaseDir }}
-      SupportedDistributions: {{ SupportedDistributions }}
+      slurm_base_dir:          {{ slurm_base_dir }}
+      slurm_sbin_dir:          {{ slurm_sbin_dir }}
+      slurm_bin_dir:           {{ slurm_bin_dir }}
+      slurm_scripts_dir:       {{ slurm_scripts_dir }}
+      slurm_root:              {{ slurm_root }}
+      modulefiles_base_dir:    {{ modulefiles_base_dir }}
+      supported_distributions: {{ supported_distributions }}
 
-      Cluster Specific Vars
-      SlurmConfigDir:     {{ SlurmConfigDir }}
-      SlurmEtcDir:        {{ SlurmEtcDir }}
-      SlurmLogsDir:       {{ SlurmLogsDir }}
-      SlurmSpoolDir:      {{ SlurmSpoolDir }}
-      SlurmConf:          {{ SlurmConf }}
+      Cluster Specific Vars:
+      cluster_name          {{ cluster_name }}
+      slurm_config_dir:     {{ slurm_config_dir }}
+      slurm_etc_dir:        {{ slurm_etc_dir }}
+      slurm_logs_dir:       {{ slurm_logs_dir }}
+      slurm_spool_dir:      {{ slurm_spool_dir }}
+      slurm_conf:           {{ slurm_conf }}
 
 - name: Set timezone
   timezone:
-    name: "{{ TimeZone }}"
+    name: "{{ time_zone }}"
 
 # CentOS pip 19.3.1 is broken. Developers recommend using "python3 -m pip" but the ansible
 # pip task breaks when you use an executable with spaces.

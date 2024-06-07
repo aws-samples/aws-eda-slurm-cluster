@@ -3,27 +3,27 @@
 - name: Show vars used in this playbook
   debug:
     msg: |
-      ClusterName:                {{ ClusterName }}
+      cluster_name:                {{ cluster_name }}
 
 - name: Remove modulefile configuration
   file:
-    dest: /etc/profile.d/slurm_{{ ClusterName }}_modulefiles.sh
+    dest: /etc/profile.d/slurm_{{ cluster_name }}_modulefiles.sh
     state: absent
 
-- name: Unmount /opt/slurm/{{ ClusterName }}
+- name: Unmount /opt/slurm/{{ cluster_name }}
   shell: |
     set -ex
 
     # Handle case where cluster was already deleted so the mountpoint is hung
-    if ! timeout 1s /opt/slurm/{{ ClusterName }}; then
+    if ! timeout 1s /opt/slurm/{{ cluster_name }}; then
         echo "Mount point is hung. Source has already been deleted."
-        umount -lf /opt/slurm/{{ ClusterName }}
+        umount -lf /opt/slurm/{{ cluster_name }}
     fi
-    if ! mountpoint /opt/slurm/{{ ClusterName }}; then
-        echo "/opt/slurm/{{ ClusterName }} already unmounted."
+    if ! mountpoint /opt/slurm/{{ cluster_name }}; then
+        echo "/opt/slurm/{{ cluster_name }} already unmounted."
         exit 0
     fi
-    umount /opt/slurm/{{ ClusterName }} || lsof /opt/slurm/{{ ClusterName }}
+    umount /opt/slurm/{{ cluster_name }} || lsof /opt/slurm/{{ cluster_name }}
   register: umount_results
 
 - name: Show umount results
@@ -31,9 +31,9 @@
     msg: |
       umount_results: {{ umount_results }}
 
-- name: Remove /opt/slurm/{{ ClusterName }} from /etc/fstab
+- name: Remove /opt/slurm/{{ cluster_name }} from /etc/fstab
   mount:
-    path: /opt/slurm/{{ ClusterName }}
+    path: /opt/slurm/{{ cluster_name }}
     backup: true
     fstype: nfs
     state: absent

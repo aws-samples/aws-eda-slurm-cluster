@@ -14,19 +14,19 @@
     name:
       - pyyaml
 
-- name: Create {{ SlurmConfigDir }}/bin/create_slurm_accounts.py
-  when: PrimaryController|bool
+- name: Create {{ slurm_config_dir }}/bin/create_slurm_accounts.py
+  when: primary_controller|bool
   copy:
-    dest: "{{ SlurmConfigDir }}/bin/create_slurm_accounts.py"
+    dest: "{{ slurm_config_dir }}/bin/create_slurm_accounts.py"
     src:  opt/slurm/config/bin/create_slurm_accounts.py
     owner: root
     group: root
     mode: 0755
 
-- name: Create {{ SlurmConfigDir }}/accounts.yml
-  when: PrimaryController|bool
+- name: Create {{ slurm_config_dir }}/accounts.yml
+  when: primary_controller|bool
   copy:
-    dest: "{{ SlurmConfigDir }}/accounts.yml"
+    dest: "{{ slurm_config_dir }}/accounts.yml"
     src:  opt/slurm/config/accounts.yml.example
     owner: root
     group: root
@@ -36,7 +36,7 @@
 
 # create_slurm_accounts.py writes a logfile to /var/logs/slurm
 - name: Create /var/log/slurm
-  when: PrimaryController|bool
+  when: primary_controller|bool
   file:
     path: "/var/log/slurm"
     state: directory
@@ -44,18 +44,18 @@
     group: root
     mode: 0755
 
-- name: Run {{ SlurmConfigDir }}/bin/create_slurm_accounts.py to make sure it works
+- name: Run {{ slurm_config_dir }}/bin/create_slurm_accounts.py to make sure it works
   # This uses sacctmcr so must do this after slurmctld and slurmdbd are working.
-  when: PrimaryController|bool and AccountingStorageHost and Licenses
+  when: primary_controller|bool and accounting_storage_host and licenses
   shell:
     cmd: |
       set -ex
 
-      export SLURM_ROOT={{ SlurmRoot }}
-      {{ SlurmConfigDir }}/bin/create_slurm_accounts.py --accounts {{ SlurmConfigDir }}/accounts.yml --users {{ SlurmConfigDir }}/users_groups.json --default-account unassigned -d
+      export SLURM_ROOT={{ slurm_root }}
+      {{ slurm_config_dir }}/bin/create_slurm_accounts.py --accounts {{ slurm_config_dir }}/accounts.yml --users {{ slurm_config_dir }}/users_groups.json --default-account unassigned -d
 
 - name: Create /etc/cron.d/slurm_accounts
-  when: PrimaryController|bool
+  when: primary_controller|bool
   template:
     src:   etc/cron.d/slurm_accounts
     dest: /etc/cron.d/slurm_accounts

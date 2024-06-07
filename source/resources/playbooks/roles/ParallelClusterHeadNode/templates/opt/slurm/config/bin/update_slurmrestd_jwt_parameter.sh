@@ -20,6 +20,6 @@ exec 1> >(logger -s -t update_slurmrestd_jwt_parameter) 2>&1
 userid=$1
 parameter_name=$2
 
-. <({{SlurmBinDir}}/scontrol token)
+. <({{ slurm_bin_dir }}/scontrol token)
 # SLURM_JWT set by scontrol token command
-aws ssm put-parameter --region {{Region}} --name $parameter_name --type String --value "$SLURM_JWT" --overwrite
+aws ssm put-parameter --region {{ region }} --name $parameter_name --type String --value "$SLURM_JWT" --overwrite

@@ -8,3 +8,6 @@ source/resources/parallel-cluster/config/build-files/*/*/parallelcluster-*.yml
 security_scan/bandit-env
 security_scan/bandit.log
 security_scan/cfn_nag.log
+security_scan/ScoutSuite
+
+__pycache__

@@ -46,12 +46,12 @@
       rm -rf /usr/local/aws-cli
       rm -f awscliv2.zip
       rm -rf aws
-      if [[ {{ Architecture }} == 'x86_64' ]]; then
+      if [[ {{ architecture }} == 'x86_64' ]]; then
         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-      elif [[ {{ Architecture }} == 'arm64' ]]; then
+      elif [[ {{ architecture }} == 'arm64' ]]; then
         curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
       else
-        echo "error: Unsupported {{ Architecture }} architecture"
+        echo "error: Unsupported {{ architecture }} architecture"
         exit 1
       fi
       unzip awscliv2.zip
@@ -85,7 +85,7 @@
       - python3-pip
 
 - name: Install packages required by python packages
-  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and Architecture == 'arm64'
+  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and architecture == 'arm64'
   tags:
     - python
     - packages
@@ -97,7 +97,7 @@
       - platform-python-devel
 
 - name: Install cython
-  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and Architecture == 'arm64'
+  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and architecture == 'arm64'
   pip:
     executable: /usr/bin/pip3
     state: present
@@ -108,7 +108,7 @@
 #   * RHEL 8, arm64
 #   * Rocky 8, arm64
 - name: Install numpy
-  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and Architecture == 'arm64'
+  when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and architecture == 'arm64'
   tags:
     - python
     - packages
@@ -160,7 +160,7 @@
 #      - compat-libstdc++-33.x86_64
 #    state: removed
 - name: Install compat-libstdc++-33 on Amazon Linux
-  when: distribution == 'Amazon' and Architecture == 'x86_64'
+  when: distribution == 'Amazon' and architecture == 'x86_64'
   tags:
     - libstdc++
     - packages
@@ -171,7 +171,7 @@
       - http://mirror.centos.org/centos/7/os/x86_64/Packages/compat-libstdc++-33-3.2.3-72.el7.x86_64.rpm
       - http://mirror.centos.org/centos/7/os/x86_64/Packages/compat-libstdc++-33-3.2.3-72.el7.i686.rpm
 - name: Install compat-libstdc++-33 on CentOS
-  when: centos7 and Architecture == 'x86_64'
+  when: centos7 and architecture == 'x86_64'
   tags:
     - libstdc++
     - packages
@@ -206,7 +206,7 @@
 
 # libcrypt doesn't exist on CentOS, but the libs are aleady installed in the base image.
 - name: Install libcrypt on Amazon Linux
-  when: distribution == 'Amazon' and Architecture == 'x86_64'
+  when: distribution == 'Amazon' and architecture == 'x86_64'
   tags:
     - libcrypt
     - packages
@@ -217,7 +217,7 @@
       - libcrypt.x86_64
       - libcrypt.i686
 - name: Install libcrypt on Amazon Linux
-  when: distribution == 'Amazon' and Architecture == 'arm64'
+  when: distribution == 'Amazon' and architecture == 'arm64'
   tags:
     - libcrypt
     - packages
@@ -302,7 +302,7 @@
     - packages
   shell: echo "/lib/elfutils  exists"
 - name: Update elfutils-libelf.x86_64 to latest
-  when: Architecture == 'x86_64' and distribution != 'RedHat' and not result.stat.exists
+  when: architecture == 'x86_64' and distribution != 'RedHat' and not result.stat.exists
   tags:
     - elfutils
     - packages
@@ -311,7 +311,7 @@
     name:
       - elfutils-libelf.x86_64
 - name: Install elfutils-libelf
-  when: distribution != 'RedHat' and Architecture == 'x86_64'
+  when: distribution != 'RedHat' and architecture == 'x86_64'
   tags:
     - elfutils
     - packages
@@ -322,7 +322,7 @@
       - elfutils-libelf.x86_64
       - elfutils-libelf.i686
 - name: Install elfutils-libelf
-  when: Architecture == 'arm64'
+  when: architecture == 'arm64'
   tags:
     - elfutils
     - packages
@@ -372,7 +372,7 @@
 # Split the packages into groups to ease debug if an install fails.
 
 - name: Install glibc
-  when: Architecture == 'x86_64'
+  when: architecture == 'x86_64'
   tags:
     - eda_packages
     - packages
@@ -429,7 +429,7 @@
 # Update libstdc++.x86_64 to latest if libstdc++.i686 is not installed
 # Otherwise you can get a multilib conflict between the 2.
 - name: Check if libstdc++.i686 installed
-  when: Architecture == 'x86_64'
+  when: architecture == 'x86_64'
   tags:
     - libstdc++
     - packages
@@ -440,7 +440,7 @@
 #  shell: echo "libstdc++.so.6 exists"
 #  when: result.stat.exists
 - name: Update libstdc++.x86_64 to latest
-  when: Architecture == 'x86_64' and not result.stat.exists
+  when: architecture == 'x86_64' and not result.stat.exists
   tags:
     - libstdc++
     - packages
@@ -449,7 +449,7 @@
     name:
       - libstdc++.x86_64
 - name: Install libstdc++
-  when: Architecture == 'x86_64'
+  when: architecture == 'x86_64'
   tags:
     - libstdc++
     - packages
@@ -459,7 +459,7 @@
       - libstdc++.x86_64
       - libstdc++.i686
 - name: Install libstdc++
-  when: Architecture == 'arm64'
+  when: architecture == 'arm64'
   tags:
     - libstdc++
     - packages
@@ -469,7 +469,7 @@
       - libstdc++
 
 - name: Install EDA packages 2
-  when: Architecture == 'x86_64'
+  when: architecture == 'x86_64'
   tags:
     - eda_packages
     - packages
@@ -513,7 +513,7 @@
       - libXScrnSaver
 
 - name: Install ncurses-libs
-  when: Architecture == 'x86_64'
+  when: architecture == 'x86_64'
   tags:
     - eda_packages
     - packages
@@ -629,7 +629,7 @@
       - tigervnc
 
 - name: Install compat-db47
-  when: not(distribution == 'Amazon' and Architecture == 'arm64') and not(rhel8 or rhel8clone or rhel9 or rhel9clone)
+  when: not(distribution == 'Amazon' and architecture == 'arm64') and not(rhel8 or rhel8clone or rhel9 or rhel9clone)
   tags:
     - packages
     - eda_packages
@@ -698,14 +698,14 @@
     nodejs_version: '16.13.2'
 
 - name: Set nodejs download URL
-  when: Architecture == 'x86_64'
+  when: architecture == 'x86_64'
   set_fact:
     nodejs_url: "https://nodejs.org/dist/v{{ nodejs_version }}/node-v{{ nodejs_version }}-linux-x64.tar.xz"
     nodejs_tarball: "node-v{{ nodejs_version }}-linux-x64.tar.xz"
     nodejs_dir: "/opt/node-v{{ nodejs_version }}-linux-x64"
 
 - name: Set nodejs download URL
-  when: Architecture == 'arm64'
+  when: architecture == 'arm64'
   set_fact:
     nodejs_url: "https://nodejs.org/dist/v{{ nodejs_version }}/node-v{{ nodejs_version }}-linux-arm64.tar.xz"
     nodejs_tarball: "node-v{{ nodejs_version }}-linux-arm64.tar.xz"

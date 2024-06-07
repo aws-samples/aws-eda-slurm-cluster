@@ -3,56 +3,55 @@
 - name: Show vars used in this playbook
   debug:
     msg: |
-      AccountingStorageHost:      {{ AccountingStorageHost }}
-      ClusterName:                {{ ClusterName }}
-      Licenses:                   {{ Licenses }}
-      PrimaryController:          {{ PrimaryController }}
-      SlurmBinDir:                {{ SlurmBinDir }}
-      PrimaryController:          {{ PrimaryController }}
+      accounting_storage_host:    {{ accounting_storage_host }}
+      cluster_name:               {{ cluster_name }}
+      licenses:                   {{ licenses }}
+      primary_controller:         {{ primary_controller }}
+      slurm_bin_dir:              {{ slurm_bin_dir }}
 
 - name: Configure remote licenses
   # This uses sacctmcr so must do this after slurmctld and slurmd are working.
-  when: PrimaryController|bool and AccountingStorageHost and Licenses
+  when: primary_controller|bool and accounting_storage_host and licenses
   shell:
     cmd: |
       set -ex
       # Add or update configured licenses
       declare -A licenses
-      {% for lic in Licenses -%}
+      {% for lic in licenses -%}
       license='{{ lic }}'
       # Using '@' for the port separator instead of ':' because sbatch doesn't work if ':' is in the server name.
-      server='{% if 'Server' in Licenses[lic] %}{{ Licenses[lic].Server }}{% if 'Port' in Licenses[lic] %}@{{ Licenses[lic].Port }}{% endif %}{% else %}slurmdb{% endif %}'
-      count='{{ Licenses[lic].Count }}'
+      server='{% if 'Server' in licenses[lic] %}{{ licenses[lic].Server }}{% if 'Port' in licenses[lic] %}@{{ licenses[lic].Port }}{% endif %}{% else %}slurmdb{% endif %}'
+      count='{{ licenses[lic].Count }}'
       licenses["$license@$server"]="$count"
       # Check to see if license has already been created
-      slurm_license=$({{ SlurmBinDir }}/sacctmgr -i show resource $license --parsable2 --noheader)
+      slurm_license=$({{ slurm_bin_dir }}/sacctmgr -i show resource $license --parsable2 --noheader)
       if [ -z $slurm_license ]; then
           echo "$license license not in slurmdbd so add it"
-          {{ SlurmBinDir }}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in Licenses[lic] %} servertype={{ Licenses[lic].ServerType }}{% endif %} count={{ Licenses[lic].Count }} cluster={{ ClusterName }} percentallowed=100
+          {{ slurm_bin_dir }}/sacctmgr -i add resource type=License name=$license server=$server{% if 'ServerType' in licenses[lic] %} servertype={{ licenses[lic].ServerType }}{% endif %} count={{ licenses[lic].Count }} cluster={{ cluster_name }} percentallowed=100
       else
           echo "$license already in slurmdbd so check count and percent allowed."
-          slurmdb_count=$({{ SlurmBinDir }}/sacctmgr -i show resource $license --parsable2 --noheader | cut -d '|' -f 4)
+          slurmdb_count=$({{ slurm_bin_dir }}/sacctmgr -i show resource $license --parsable2 --noheader | cut -d '|' -f 4)
           echo "slurmdb count=$slurmdb_count"
           if [[ $count != $slurmdb_count ]]; then
               echo "Update $license count from $slurmdb_count to $count"
-              {{ SlurmBinDir }}/sacctmgr -i modify resource name=$license server=$server set count=$count
+              {{ slurm_bin_dir }}/sacctmgr -i modify resource name=$license server=$server set count=$count
           fi
 
-          slurmdb_percent_allowed=$({{ SlurmBinDir }}/sacctmgr -i show resource $license --parsable2 --noheader | cut -d '|' -f 6)
+          slurmdb_percent_allowed=$({{ slurm_bin_dir }}/sacctmgr -i show resource $license --parsable2 --noheader | cut -d '|' -f 6)
           if [[ "100" != $slurmdb_percent_allowed ]]; then
-              {{ SlurmBinDir }}/sacctmgr -i modify resource name=$license server=$server cluster={{ ClusterName }} set percentallowed=100
+              {{ slurm_bin_dir }}/sacctmgr -i modify resource name=$license server=$server cluster={{ cluster_name }} set percentallowed=100
           fi
       fi
       {% endfor -%}
 
       # Remove deleted licenses
-      configured_licenses_and_servers=( $({{ SlurmBinDir }}/sacctmgr --noheader --parsable2 show resource Clusters={{ ClusterName }} format=name,server) )
+      configured_licenses_and_servers=( $({{ slurm_bin_dir }}/sacctmgr --noheader --parsable2 show resource Clusters={{ cluster_name }} format=name,server) )
       echo ${configured_licenses_and_servers[@]}
       for configured_license_and_server in ${configured_licenses_and_servers[@]}; do
           configured_license=$(echo $configured_license_and_server | cut -d '|' -f 1)
           configured_server=$(echo $configured_license_and_server | cut -d '|' -f 2)
           if [ -z ${licenses["$configured_license@$configured_server"]} ]; then
-              {{ SlurmBinDir }}/sacctmgr -i delete resource name=$configured_license server=$configured_server
+              {{ slurm_bin_dir }}/sacctmgr -i delete resource name=$configured_license server=$configured_server
           fi
       done
 

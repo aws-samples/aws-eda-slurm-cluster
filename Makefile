@@ -22,6 +22,9 @@ security_scan:
 test:
 	pytest -x -v tests
 
+ansible-lint:
+	source setup.sh; pip install ansible ansible-lint; ansible-lint --nocolor source/resources/playbooks
+
 clean:
 	git clean -d -f -x
 	# -d: Recurse into directories

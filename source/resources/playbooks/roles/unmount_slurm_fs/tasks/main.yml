@@ -4,25 +4,25 @@
 - name: Print vars
   debug:
     msg: |
-      FileSystemDns:       {{FileSystemDns}}
-      FileSystemMountPath: {{FileSystemMountPath}}
-      FileSystemMountSrc:  {{FileSystemMountSrc}}
-      FileSystemOptions:   {{FileSystemOptions}}
-      FileSystemPort:      {{FileSystemPort}}
-      FileSystemType:      {{FileSystemType}}
+      file_system_dns:        {{ file_system_dns }}
+      file_system_mount_path: {{ file_system_mount_path }}
+      file_system_mount_src:  {{ file_system_mount_src }}
+      file_system_options:    {{ file_system_options }}
+      file_system_port:       {{ file_system_port }}
+      file_system_type:       {{ file_system_type }}
 
 - name: Unmount SLURM file system
   mount:
-    fstype: "{{FileSystemType}}"
-    path: "{{FileSystemMountPath}}"
+    fstype: "{{ file_system_type }}"
+    path: "{{ file_system_mount_path }}"
     state: absent
 
 # For some reason the ansible module is leaving the file system mounted
 - name: Unmount SLURM file system
   shell: |
-    umount -f {{FileSystemMountPath}}
+    umount -f {{ file_system_mount_path }}
 
-- name: Remove {{FileSystemMountPath}}
+- name: Remove {{ file_system_mount_path }}
   file:
     state: absent
-    path: "{{FileSystemMountPath}}"
+    path: "{{ file_system_mount_path }}"

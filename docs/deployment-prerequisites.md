@@ -362,9 +362,9 @@ then jobs will stay pending in the queue until a job completes and frees up a li
 Combined with the fairshare algorithm, this can prevent users from monopolizing licenses and preventing others from
 being able to run their jobs.
 
-Licenses are configured using the [slurm/Licenses](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L569-L577) configuration variable.
+Licenses are configured using the [slurm/Licenses](../config#licenses) configuration variable.
 If you are using the Slurm database then these will be configured in the database.
-Otherwises they will be configured in **/opt/slurm/{{ClusterName}}/etc/slurm_licenses.conf**.
+Otherwise they will be configured in **/opt/slurm/{{ClusterName}}/etc/pcluster/custom_slurm_settings_include_file_slurm.conf**.
 
 The example configuration shows how the number of licenses can be configured.
 In this example, the cluster will manage 800 vcs licenses and 1 ansys license.
