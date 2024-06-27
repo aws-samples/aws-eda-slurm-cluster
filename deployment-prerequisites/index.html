@@ -665,9 +665,9 @@ It will keep track of how many running jobs are using a license and when no more
 then jobs will stay pending in the queue until a job completes and frees up a license.
 Combined with the fairshare algorithm, this can prevent users from monopolizing licenses and preventing others from
 being able to run their jobs.</p>
-<p>Licenses are configured using the <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L569-L577">slurm/Licenses</a> configuration variable.
+<p>Licenses are configured using the <a href="../config#licenses">slurm/Licenses</a> configuration variable.
 If you are using the Slurm database then these will be configured in the database.
-Otherwises they will be configured in <strong>/opt/slurm/{{ClusterName}}/etc/slurm_licenses.conf</strong>.</p>
+Otherwise they will be configured in <strong>/opt/slurm/{{ClusterName}}/etc/pcluster/custom_slurm_settings_include_file_slurm.conf</strong>.</p>
 <p>The example configuration shows how the number of licenses can be configured.
 In this example, the cluster will manage 800 vcs licenses and 1 ansys license.
 Users must request a license using the <strong>-L</strong> or <strong>--licenses</strong> options.</p>
