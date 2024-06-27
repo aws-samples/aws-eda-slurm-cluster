@@ -14,14 +14,16 @@
 - name: Set lustre_client_installed
   set_fact:
     lustre_client_installed: "{{ lustre_client['stdout_lines'][0] == 'installed' }}"
-- debug:
+
+- name: Show variables
+  debug:
     msg: |
       lustre_client_installed: {{ lustre_client_installed }}
-      amazonlinux2: {{ amazonlinux2 }}
-      centos7_5_to_6: {{ centos7_5_to_6 }}
-      centos7_5_to_9: {{ centos7_5_to_9 }}
-      centos7_7_to_9: {{ centos7_7_to_9 }}
-      kernel: {{ kernel }}
+      amazonlinux2:            {{ amazonlinux2 }}
+      centos7_5_to_6:          {{ centos7_5_to_6 }}
+      centos7_5_to_9:          {{ centos7_5_to_9 }}
+      centos7_7_to_9:          {{ centos7_7_to_9 }}
+      kernel:                  {{ kernel }}
 
 - name: Install lustre client on Amazon Linux 2
   when: not lustre_client_installed and amazonlinux2

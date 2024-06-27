@@ -3,5 +3,5 @@
 # Remove the crontab
 - name: Remove /etc/cron.d/slurm_users_groups_json
   file:
-    dest: /etc/cron.d/slurm_{{ ClusterName }}_create_users_groups_json
+    dest: /etc/cron.d/slurm_{{ cluster_name }}_create_users_groups_json
     state: absent

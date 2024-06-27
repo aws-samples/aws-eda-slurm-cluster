@@ -1,4 +1,4 @@
 MAILTO=''
-SLURM_ROOT={{SlurmRoot}}
-PATH="{{SlurmConfigDir}}/bin:{{SlurmBinDir}}:/sbin:/bin:/usr/sbin:/usr/bin"
-*/30 * * * * root {{SlurmConfigDir}}/bin/create_slurm_accounts.py --accounts {{SlurmConfigDir}}/accounts.yml --users {{SlurmConfigDir}}/users_groups.json --default-account unassigned
+SLURM_ROOT={{ slurm_root }}
+PATH="{{ slurm_config_dir }}/bin:{{ slurm_bin_dir }}:/sbin:/bin:/usr/sbin:/usr/bin"
+*/30 * * * * root {{ slurm_config_dir }}/bin/create_slurm_accounts.py --accounts {{ slurm_config_dir }}/accounts.yml --users {{ slurm_config_dir }}/users_groups.json --default-account unassigned

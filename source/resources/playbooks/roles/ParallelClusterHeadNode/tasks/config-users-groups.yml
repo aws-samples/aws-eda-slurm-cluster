@@ -1,7 +1,7 @@
 ---
 
 - name: Create/Update Users
-  when: PrimaryController|bool
+  when: primary_controller|bool
   template:
     src:   etc/cron.d/slurm_users_groups
     dest: /etc/cron.d/slurm_users_groups
@@ -14,4 +14,4 @@
   shell: |
     set -ex
 
-    {{ SlurmConfigDir }}/bin//create_users_groups.py -i {{ SlurmConfigDir }}/users_groups.json
+    {{ slurm_config_dir }}/bin//create_users_groups.py -i {{ slurm_config_dir }}/users_groups.json

@@ -3,15 +3,15 @@
 - name: Show vars used in this playbook
   debug:
     msg: |
-      ClusterName:                {{ ClusterName }}
+      cluster_name:               {{ cluster_name }}
       distribution:               {{ distribution }}
-      Region:                     {{ Region }}
-      SlurmBaseDir:               {{ SlurmBaseDir }}
+      region:                     {{ region }}
+      slurm_base_dir:             {{ slurm_base_dir }}
 
-- name: Add /opt/slurm/{{ ClusterName }} to /etc/fstab
+- name: Add /opt/slurm/{{ cluster_name }} to /etc/fstab
   mount:
-    path: /opt/slurm/{{ ClusterName }}
-    src: "head_node.{{ ClusterName }}.pcluster:/opt/slurm"
+    path: /opt/slurm/{{ cluster_name }}
+    src: "head_node.{{ cluster_name }}.pcluster:/opt/slurm"
     fstype: nfs
     backup: true
     state: present # Should already be mounted
@@ -53,7 +53,7 @@
     state: present
     create_home: no
 
-- name: Build munge version used by ParallelCluster ({{ ParallelClusterMungeVersion }})
+- name: Build munge version used by ParallelCluster ({{ parallel_cluster_munge_version }})
   args:
     creates: /usr/sbin/munged
   shell: |
@@ -62,14 +62,14 @@
     cd /usr/local/src
     mkdir -p munge
     cd munge
-    rm -f munge-{{ ParallelClusterMungeVersion }}.tar.xz
-    rm -f munge-{{ ParallelClusterMungeVersion }}.tar
-    rm -rf munge-{{ ParallelClusterMungeVersion }}
-    wget https://github.com/dun/munge/releases/download/munge-{{ ParallelClusterMungeVersion }}/munge-{{ ParallelClusterMungeVersion }}.tar.xz
-    xz -d munge-{{ ParallelClusterMungeVersion }}.tar.xz
-    tar -xf munge-{{ ParallelClusterMungeVersion }}.tar
-    rm -f munge-{{ ParallelClusterMungeVersion }}.tar
-    cd munge-{{ ParallelClusterMungeVersion }}
+    rm -f munge-{{ parallel_cluster_munge_version }}.tar.xz
+    rm -f munge-{{ parallel_cluster_munge_version }}.tar
+    rm -rf munge-{{ parallel_cluster_munge_version }}
+    wget https://github.com/dun/munge/releases/download/munge-{{ parallel_cluster_munge_version }}/munge-{{ parallel_cluster_munge_version }}.tar.xz
+    xz -d munge-{{ parallel_cluster_munge_version }}.tar.xz
+    tar -xf munge-{{ parallel_cluster_munge_version }}.tar
+    rm -f munge-{{ parallel_cluster_munge_version }}.tar
+    cd munge-{{ parallel_cluster_munge_version }}
     ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib64 &> configure.log
     make
     make install &> make_install.log
@@ -91,10 +91,10 @@
     mode: 0700
     state: directory
 
-- name: Copy {{ SlurmConfigDir }}/munge.key to /etc/munge/munge.key
+- name: Copy {{ slurm_config_dir }}/munge.key to /etc/munge/munge.key
   copy:
     dest: /etc/munge/munge.key
-    src: "{{ SlurmConfigDir }}/munge.key"
+    src: "{{ slurm_config_dir }}/munge.key"
     remote_src: true
     force: true   # Has to be true or won't be copied when they are different.
     backup: true
@@ -119,7 +119,7 @@
 
 - name: Configure modules
   template:
-    dest: /etc/profile.d/slurm_{{ ClusterName }}_modulefiles.sh
+    dest: /etc/profile.d/slurm_{{ cluster_name }}_modulefiles.sh
     src:   etc/profile.d/slurm_modulefiles.sh
     owner: root
     group: root

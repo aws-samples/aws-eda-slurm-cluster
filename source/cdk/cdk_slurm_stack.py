@@ -1998,46 +1998,47 @@ class CdkSlurmStack(Stack):
         # The keys are the environment and ansible variable names.
         cluster_name = self.config['slurm']['ClusterName']
         if instance_role.startswith('ParallelCluster'):
+            # Ansible template variables should be lowercase alphanumeric and underscores so use snake case instead of camel case.
             instance_template_vars = {
                 "AWS_DEFAULT_REGION": self.cluster_region,
-                "ClusterName": cluster_name,
-                "Region": self.cluster_region,
-                "TimeZone": self.config['TimeZone'],
+                "cluster_name": cluster_name,
+                "region": self.cluster_region,
+                "time_zone": self.config['TimeZone'],
             }
-            instance_template_vars['DefaultPartition'] = 'batch'
-            instance_template_vars['FileSystemMountPath'] = '/opt/slurm'
-            instance_template_vars['ParallelClusterVersion'] = self.config['slurm']['ParallelClusterConfig']['Version']
-            instance_template_vars['SlurmBaseDir'] = '/opt/slurm'
+            instance_template_vars['default_partition'] = 'batch'
+            instance_template_vars['file_system_mount_path'] = '/opt/slurm'
+            instance_template_vars['parallel_cluster_version'] = self.config['slurm']['ParallelClusterConfig']['Version']
+            instance_template_vars['slurm_base_dir'] = '/opt/slurm'
 
         if instance_role == 'ParallelClusterHeadNode':
-            instance_template_vars['PCSlurmVersion'] =  get_PC_SLURM_VERSION(self.config)
+            instance_template_vars['pc_slurm_version'] =  get_PC_SLURM_VERSION(self.config)
             if 'Database' in self.config['slurm']['ParallelClusterConfig']:
-                instance_template_vars['AccountingStorageHost'] = 'pcvluster-head-node'
+                instance_template_vars['accounting_storage_host'] = 'pcvluster-head-node'
             else:
-                instance_template_vars['AccountingStorageHost'] = ''
-            instance_template_vars['Licenses'] = self.config['Licenses']
-            instance_template_vars['ParallelClusterMungeVersion'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
-            instance_template_vars['ParallelClusterPythonVersion'] = get_PARALLEL_CLUSTER_PYTHON_VERSION(self.config)
-            instance_template_vars['PrimaryController'] = True
-            instance_template_vars['SlurmctldPort'] = self.slurmctld_port
-            instance_template_vars['SlurmctldPortMin'] = self.slurmctld_port_min
-            instance_template_vars['SlurmctldPortMax'] = self.slurmctld_port_max
-            instance_template_vars['SlurmrestdJwtForRootParameter'] = self.jwt_token_for_root_ssm_parameter_name
-            instance_template_vars['SlurmrestdJwtForSlurmrestdParameter'] = self.jwt_token_for_slurmrestd_ssm_parameter_name
-            instance_template_vars['SlurmrestdPort'] = self.slurmrestd_port
-            instance_template_vars['SlurmrestdSocketDir'] = '/opt/slurm/com'
-            instance_template_vars['SlurmrestdSocket'] = f"{instance_template_vars['SlurmrestdSocketDir']}/slurmrestd.socket"
-            instance_template_vars['SlurmrestdUid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
+                instance_template_vars['accounting_storage_host'] = ''
+            instance_template_vars['licenses'] = self.config['Licenses']
+            instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
+            instance_template_vars['parallel_cluster_python_version'] = get_PARALLEL_CLUSTER_PYTHON_VERSION(self.config)
+            instance_template_vars['primary_controller'] = True
+            instance_template_vars['slurmctld_port'] = self.slurmctld_port
+            instance_template_vars['slurmctld_port_min'] = self.slurmctld_port_min
+            instance_template_vars['slurmctld_port_max'] = self.slurmctld_port_max
+            instance_template_vars['slurmrestd_jwt_for_root_parameter'] = self.jwt_token_for_root_ssm_parameter_name
+            instance_template_vars['slurmrestd_jwt_for_slurmrestd_parameter'] = self.jwt_token_for_slurmrestd_ssm_parameter_name
+            instance_template_vars['slurmrestd_port'] = self.slurmrestd_port
+            instance_template_vars['slurmrestd_socket_dir'] = '/opt/slurm/com'
+            instance_template_vars['slurmrestd_socket'] = f"{instance_template_vars['slurmrestd_socket_dir']}/slurmrestd.socket"
+            instance_template_vars['slurmrestd_uid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
         elif instance_role == 'ParallelClusterSubmitter':
-            instance_template_vars['SlurmVersion']                = get_SLURM_VERSION(self.config)
-            instance_template_vars['ParallelClusterMungeVersion'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
-            instance_template_vars['SlurmrestdPort']        = self.slurmrestd_port
-            instance_template_vars['FileSystemMountPath']   = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['SlurmBaseDir']          = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['SubmitterSlurmBaseDir'] = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['SlurmConfigDir']        = f'/opt/slurm/{cluster_name}/config'
-            instance_template_vars['SlurmEtcDir']           = f'/opt/slurm/{cluster_name}/etc'
-            instance_template_vars['ModulefilesBaseDir']    = f'/opt/slurm/{cluster_name}/config/modules/modulefiles'
+            instance_template_vars['slurm_version']                = get_SLURM_VERSION(self.config)
+            instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
+            instance_template_vars['slurmrestd_port']        = self.slurmrestd_port
+            instance_template_vars['file_system_mount_path']   = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['slurm_base_dir']          = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['submitter_slurm_base_dir'] = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['slurm_config_dir']        = f'/opt/slurm/{cluster_name}/config'
+            instance_template_vars['slurm_etc_dir']           = f'/opt/slurm/{cluster_name}/etc'
+            instance_template_vars['modulefiles_base_dir']    = f'/opt/slurm/{cluster_name}/config/modules/modulefiles'
 
         elif instance_role == 'ParallelClusterComputeNode':
             pass

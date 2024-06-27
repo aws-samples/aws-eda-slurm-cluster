@@ -75,6 +75,11 @@ logger.setLevel(logging.INFO)
 #     * Upgrade Pmix from 4.2.6 to 4.2.9.
 # 3.9.1:
 #     * Bug fixes
+# 3.9.2:
+#     * Upgrade Slurm to 23.11.7 (from 23.11.4).
+# 3.9.3:
+#     * Add support for FSx Lustre as a shared storage type in us-iso-east-1.
+#     * Bug fixes
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
 # Update source/resources/default_config.yml with latest version when this is updated.
 PARALLEL_CLUSTER_VERSIONS = [
@@ -86,6 +91,8 @@ PARALLEL_CLUSTER_VERSIONS = [
     '3.8.0',
     '3.9.0',
     '3.9.1',
+    '3.9.2',
+    '3.9.3',
 ]
 PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/sources
@@ -98,6 +105,8 @@ PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.8.0':   '0.5.15', # confirmed
     '3.9.0':   '0.5.15', # confirmed
     '3.9.1':   '0.5.15', # confirmed
+    '3.9.2':   '0.5.15', # confirmed
+    '3.9.3':   '0.5.15', # confirmed
 }
 PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/pyenv/versions
@@ -109,6 +118,8 @@ PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     '3.8.0':   '3.9.17', # confirmed
     '3.9.0':   '3.9.17', # confirmed
     '3.9.1':   '3.9.17', # confirmed
+    '3.9.2':   '3.9.17', # confirmed
+    '3.9.3':   '3.9.17', # confirmed
 }
 PARALLEL_CLUSTER_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -120,6 +131,8 @@ PARALLEL_CLUSTER_SLURM_VERSIONS = {
     '3.8.0':   '23.02.7', # confirmed
     '3.9.0':   '23.11.4', # confirmed
     '3.9.1':   '23.11.4', # confirmed
+    '3.9.2':   '23.11.7', # confirmed
+    '3.9.3':   '23.11.7', # confirmed
 }
 PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -131,6 +144,8 @@ PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     '3.8.0':   '23-02-6-1', # confirmed
     '3.9.0':   '23-11-4-1', # confirmed
     '3.9.1':   '23-11-4-1', # confirmed
+    '3.9.2':   '23-11-7-1', # confirmed
+    '3.9.3':   '23-11-7-1', # confirmed
 }
 SLURM_REST_API_VERSIONS = {
     '23-02-2-1': '0.0.39',
@@ -140,6 +155,7 @@ SLURM_REST_API_VERSIONS = {
     '23-02-6-1': '0.0.39',
     '23-02-7-1': '0.0.39',
     '23-11-4-1': '0.0.39',
+    '23-11-7-1': '0.0.39',
 }
 PARALLEL_CLUSTER_ALLOWED_OSES = [
     'alinux2',
