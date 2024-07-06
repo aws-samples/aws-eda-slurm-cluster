@@ -18,6 +18,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 '''
 Update the head node when the config assets hash changes.
+
+Some asset changes may cause a cluster update while others like a playbook will not.
+First check to make sure that the cluster ins't already being updated.
+If it is already being updated then don't need to do anything.
 '''
 import boto3
 import cfnresponse
@@ -68,6 +72,21 @@ def lambda_handler(event, context):
             return
         if requestType == 'Create':
             logger.info(f"Nothing to do for Create")
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
+            return
+
+        # First check if the cluster is already being updated and return if it is.
+        cfn_client = boto3.client("cloudformation", region_name=cluster_region)
+        try:
+            stack_info = cfn_client.describe_stacks(StackName=cluster_name)['Stacks'][0]
+        except Exception as e:
+            logger.info(f"ParallelCluster stack {cluster_name} doesn't exist.\n{e}")
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
+            return
+        stack_status = stack_info['StackStatus']
+        logger.info(f"ParallelCluster stack {cluster_name} in {stack_status} state.")
+        if stack_status in ['CREATE_IN_PROGRESS', 'UPDATE_IN_PROGRESS', 'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS']:
+            logger.warning(f"ParallelCluster stack {cluster_name} update already initiated.")
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
             return
 

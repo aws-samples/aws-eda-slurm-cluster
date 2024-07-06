@@ -99,6 +99,78 @@ The version that has been tested is in the CDK_VERSION variable in the install s
 
 The install script will try to install the prerequisites if they aren't already installed.
 
+## Create ParallelCluster UI (optional but recommended)
+
+It is highly recommended to create a ParallelCluster UI to manage your ParallelCluster clusters.
+A different UI is required for each version of ParallelCluster that you are using.
+The versions are list in the [ParallelCluster Release Notes](https://docs.aws.amazon.com/parallelcluster/latest/ug/document_history.html).
+The minimum required version is 3.6.0 which adds support for RHEL 8 and increases the number of allows queues and compute resources.
+The suggested version is at least 3.7.0 because it adds configurable compute node weights which we use to prioritize the selection of
+compute nodes by their cost.
+
+The instructions are in the [ParallelCluster User Guide](https://docs.aws.amazon.com/parallelcluster/latest/ug/install-pcui-v3.html).
+
+## Create Munge Key
+
+Munge is a package that Slurm uses to secure communication between servers.
+The munge service uses a preshared key that must be the same on all of the servers in the Slurm cluster.
+If you want to be able to use multiple clusters from your submission hosts, such as virtual desktops, then all of the clusters must be using the same munge key.
+This is done by creating a munge key and storing it in secrets manager.
+The secret is then passed as a parameter to ParallelCluster so that it can use it when configuring munge on all of the cluster instances.
+
+To create the munge key and store it in AWS Secrets Manager, run the following commands.
+
+```
+aws secretsmanager create-secret --name SlurmMungeKey --secret-string "$(dd if=/dev/random bs=1024 count=1 | base64 -w 0)"
+```
+
+Save the ARN of the secret for when you create the Slurmdbd instance and for when you create the configuration file.
+
+See the [Slurm documentation for authentication](https://slurm.schedmd.com/authentication.html) for more information.
+
+See the [ParallelCluster documentation for MungeKeySecretArn](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-MungeKeySecretArn).
+
+See the [MungeKeySecret configuration parameter](../config#mungekeysecret).
+
+## Create ParallelCluster Slurm Database
+
+The Slurm Database is required for configuring Slurm accounts, users, groups, and fair share scheduling.
+It you need these and other features then you will need to create a ParallelCluster Slurm Database.
+You do not need to create a new database for each cluster; multiple clusters can share the same database.
+Follow the directions in this [ParallelCluster tutorial to configure slurm accounting](https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3).
+
+## Create Slurmdbd Instance
+
+**Note**: Before ParallelCluster 3.10.0, the slurmdbd daemon that connects to the data was created on each cluster's head node.
+The recommended Slurm architecture is to have a shared slurmdbd daemon that is used by all of the clusters.
+Starting in version 3.10.0, ParallelCluster supports specifying an external slurmdbd instance when you create a cluster and provide a cloud formation template to create it.
+
+Follow the directions in this [ParallelCluster tutorial to configure slurmdbd](https://docs.aws.amazon.com/parallelcluster/latest/ug/external-slurmdb-accounting.html#external-slurmdb-accounting-step1).
+This requires that you have already created the slurm database.
+
+Here are some notes on the required parameters and how to fill them out.
+
+| Parameter    | Description
+|--------------|------------
+| AmiId        | You can get this using the ParallelCluster UI. Click on Images and sort on Operating system. Confirm that the version is at least 3.10.0. Select the AMI for alinux2023 and the arm64 architecture.
+| CustomCookbookUrl | Leave blank
+| DBMSClientSG | Get this from the DatabaseClientSecurityGroup output of the database stack.
+| DBMSDatabaseName | This is an arbitrary name. It must be alphanumeric. I use slurmaccounting
+| DBMSPasswordSecretArn | Get this from the DatabaseSecretArn output of the database stack
+| DBMSUri               | Get this from the DatabaseHost output of the database stack. Note that if you copy and paste the link you should delete the https:// prefix and the trailing '/'.
+| DBMSUsername          | Get this from the DatabaseAdminUser output of the database stack.
+| EnableSlurmdbdSystemService | Set to true. Note the warning. If the database already exists and was created with an older version of slurm then the database will be upgraded. This may break clusters using an older slurm version that are still using the cluster. Set to false if you don't want this to happen.
+| InstanceType          | Choose an instance type that is compatible with the AMI. For example, m7g.large.
+| KeyName               | Use an existing EC2 key pair.
+| MungeKeySecretArn     | ARN of an existing munge key secret. See [Create Munge Key](#create-munge-key).
+| PrivateIp             | Choose an available IP in the subnet.
+| PrivatePrefix         | CIDR of the instance's subnet.
+| SlurmdbdPort          | 6819
+| SubnetId              | Preferably the same subnet where the clusters will be deployed.
+| VPCId                 | The VPC of the subnet.
+
+The stack name will be used in the slurm/ParallelClusterConfig/[SlurmdbdStackName](../config#slurmdbdstackname) configuration parameter.
+
 ## Security Groups for Login Nodes
 
 If you want to allow instances like remote desktops to use the cluster directly, you must define
@@ -111,25 +183,30 @@ I'll call the three security groups the following names, but they can be whateve
 * SlurmHeadNodeSG
 * SlurmComputeNodeSG
 
+First create these security groups without any security group rules.
+The reason for this is that the security group rules reference the other security groups so the groups must all exist before any of the rules can be created.
+After you have created the security groups then create the rules as described below.
+
 ### Slurm Submitter Security Group
 
 The SlurmSubmitterSG will be attached to your login nodes, such as your virtual desktops.
 
 It needs at least the following inbound rules:
 
-| Type | Port range | Source | Description
-|------|------------|--------|------------
-| TCP  | 1024-65535 | SlurmHeadNodeSG    | SlurmHeadNode ephemeral
-| TCP  | 1024-65535 | SlurmComputeNodeSG | SlurmComputeNode ephemeral
-| TCP  | 6000-7024  | SlurmComputeNodeSG | SlurmComputeNode X11
+| Type | Port range | Source             | Description | Details
+|------|------------|--------------------|------------ |--------
+| TCP  | 1024-65535 | SlurmHeadNodeSG    | SlurmHeadNode ephemeral    | Head node can use ephemeral ports to connect to the submitter
+| TCP  | 1024-65535 | SlurmComputeNodeSG | SlurmComputeNode ephemeral | Compute node will connect to submitter using ephemeral ports to manage interactive shells
+| TCP  | 6000-7024  | SlurmComputeNodeSG | SlurmComputeNode X11       | Compute node can send X11 traffic to submitter for GUI applications
 
 It needs the following outbound rules.
 
-| Type | Port range | Destination | Description
-|------|------------|-------------|------------
-| TCP  | 2049       | SlurmHeadNodeSG    | SlurmHeadNode NFS
-| TCP  | 6818       | SlurmComputeNodeSG | SlurmComputeNode slurmd
-| TCP  | 6819       | SlurmHeadNodeSG    | SlurmHeadNode slurmdbd
+| Type | Port range | Destination        | Description | Details
+|------|------------|--------------------|-------------|--------
+| TCP  | 2049       | SlurmHeadNodeSG    | SlurmHeadNode NFS       | Mount the slurm NFS file system with binaries and config
+| TCP  | 6818       | SlurmComputeNodeSG | SlurmComputeNode slurmd | Connect to compute node for interactive jobs
+| TCP  | 6819       | SlurmHeadNodeSG    | SlurmHeadNode slurmdbd  | Connect to slurmdbd (accounting database) daemon on head node for versions before 3.10.0.
+| TCP  | 6819       | SlurmdbdSG         | Slurmdbd                | Connect to external Slurmdbd instance. For versions starting in 3.10.0.
 | TCP  | 6820-6829  | SlurmHeadNodeSG    | SlurmHeadNode slurmctld
 | TCP  | 6830       | SlurmHeadNodeSG    | SlurmHeadNode slurmrestd
 
@@ -142,7 +219,7 @@ It needs at least the following inbound rules:
 | Type | Port range | Source | Description
 |------|------------|--------|------------
 | TCP  | 2049       | SlurmSubmitterSG    | SlurmSubmitter NFS
-| TCP  | 6819       | SlurmSubmitterSG    | SlurmSubmitter slurmdbd
+| TCP  | 6819       | SlurmSubmitterSG    | SlurmSubmitter slurmdbd. If not using external Slurmdbd.
 | TCP  | 6820-6829  | SlurmSubmitterSG    | SlurmSubmitter slurmctld
 | TCP  | 6830       | SlurmSubmitterSG    | SlurmSubmitter slurmrestd
 
@@ -151,6 +228,18 @@ It needs the following outbound rules.
 | Type | Port range | Destination | Description
 |------|------------|-------------|------------
 | TCP  | 1024-65535 | SlurmSubmitterSG    | SlurmSubmitter ephemeral
+
+### External Slurmdbd Security Group
+
+**Note**: ParallelCluster 3.10.0 added support for an external Slurmdbd instance.
+
+The submitter must be able to directly access the Slurmdbd instance on port 6819 when running commands like `sacctmgr`.
+You must edit the inbound rules of the Slurmdbd instances security group to allow the access.
+Add the following inbound rule.
+
+| Type | Port range | Source | Description
+|------|------------|--------|------------
+| TCP  | 6819       | SlurmSubmitterSG    | SlurmSubmitter slurmdbd
 
 ### Slurm Compute Node Security Group
 

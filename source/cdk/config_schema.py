@@ -80,6 +80,13 @@ logger.setLevel(logging.INFO)
 # 3.9.3:
 #     * Add support for FSx Lustre as a shared storage type in us-iso-east-1.
 #     * Bug fixes
+# 3.10.0:
+#     * Add new configuration section Scheduling/SlurmSettings/ExternalSlurmdbd to connect the cluster to an external Slurmdbd
+#     * CentOS 7 is no longer supported.
+#     * Upgrade munge to version 0.5.16 (from 0.5.15).
+#     * Upgrade Python to 3.9.19 (from 3.9.17).
+# 3.10.1:
+#     * Build fix for China regions
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
 # Update source/resources/default_config.yml with latest version when this is updated.
 PARALLEL_CLUSTER_VERSIONS = [
@@ -93,6 +100,8 @@ PARALLEL_CLUSTER_VERSIONS = [
     '3.9.1',
     '3.9.2',
     '3.9.3',
+    '3.10.0',
+    '3.10.1',
 ]
 PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/sources
@@ -107,6 +116,8 @@ PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.9.1':   '0.5.15', # confirmed
     '3.9.2':   '0.5.15', # confirmed
     '3.9.3':   '0.5.15', # confirmed
+    '3.10.0':  '0.5.16', # confirmed
+    '3.10.1':  '0.5.16', # confirmed
 }
 PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/pyenv/versions
@@ -120,6 +131,8 @@ PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     '3.9.1':   '3.9.17', # confirmed
     '3.9.2':   '3.9.17', # confirmed
     '3.9.3':   '3.9.17', # confirmed
+    '3.10.0':  '3.9.19', # confirmed
+    '3.10.1':  '3.9.19', # confirmed
 }
 PARALLEL_CLUSTER_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -133,6 +146,8 @@ PARALLEL_CLUSTER_SLURM_VERSIONS = {
     '3.9.1':   '23.11.4', # confirmed
     '3.9.2':   '23.11.7', # confirmed
     '3.9.3':   '23.11.7', # confirmed
+    '3.10.0':  '23.11.7', # confirmed
+    '3.10.1':  '23.11.7', # confirmed
 }
 PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -146,6 +161,8 @@ PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     '3.9.1':   '23-11-4-1', # confirmed
     '3.9.2':   '23-11-7-1', # confirmed
     '3.9.3':   '23-11-7-1', # confirmed
+    '3.10.0':  '23-11-7-1', # confirmed
+    '3.10.1':  '23-11-7-1', # confirmed
 }
 SLURM_REST_API_VERSIONS = {
     '23-02-2-1': '0.0.39',
@@ -157,16 +174,6 @@ SLURM_REST_API_VERSIONS = {
     '23-11-4-1': '0.0.39',
     '23-11-7-1': '0.0.39',
 }
-PARALLEL_CLUSTER_ALLOWED_OSES = [
-    'alinux2',
-    'centos7',
-    'rhel8',
-    'rhel9',
-    'rocky8',
-    'rocky9',
-    'ubuntu2004',
-    'ubuntu2204'
-    ]
 
 def get_parallel_cluster_version(config):
     parallel_cluster_version = config['slurm']['ParallelClusterConfig']['Version']
@@ -174,6 +181,52 @@ def get_parallel_cluster_version(config):
         logger.error(f"Unsupported ParallelCluster version: {parallel_cluster_version}\nSupported versions are:\n{json.dumps(PARALLEL_CLUSTER_VERSIONS, indent=4)}")
         raise KeyError(parallel_cluster_version)
     return parallel_cluster_version
+
+PARALLEL_CLUSTER_SUPPORTS_CENTOS_7_MIN_VERSION = MIN_PARALLEL_CLUSTER_VERSION
+PARALLEL_CLUSTER_SUPPORTS_CENTOS_7_DEPRECATED_VERSION = parse_version('3.10.0')
+def PARALLEL_CLUSTER_SUPPORTS_CENTOS_7(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_CENTOS_7_MIN_VERSION and parallel_cluster_version < PARALLEL_CLUSTER_SUPPORTS_CENTOS_7_DEPRECATED_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_RHEL_8_MIN_VERSION = parse_version('3.6.0')
+def PARALLEL_CLUSTER_SUPPORTS_RHEL_8(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_RHEL_8_MIN_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_ROCKY_8_MIN_VERSION = parse_version('3.8.0')
+def PARALLEL_CLUSTER_SUPPORTS_ROCKY_8(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_ROCKY_8_MIN_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_RHEL_9_MIN_VERSION = parse_version('3.9.0')
+def PARALLEL_CLUSTER_SUPPORTS_RHEL_9(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_RHEL_9_MIN_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_ROCKY_9_MIN_VERSION = parse_version('3.9.0')
+def PARALLEL_CLUSTER_SUPPORTS_ROCKY_9(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_ROCKY_9_MIN_VERSION
+
+PARALLEL_CLUSTER_SUPPORTS_AMAZON_LINUX_2023_MIN_VERSION = parse_version('3.10.0')
+def PARALLEL_CLUSTER_SUPPORTS_AMAZON_LINUX_2023(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_AMAZON_LINUX_2023_MIN_VERSION
+
+def get_PARALLEL_CLUSTER_ALLOWED_OSES(config):
+    allowed_oses = [
+    'alinux2',
+    'ubuntu2004',
+    'ubuntu2204'
+    ]
+    parallel_cluster_version = parse_version(get_parallel_cluster_version(config))
+    if PARALLEL_CLUSTER_SUPPORTS_AMAZON_LINUX_2023(parallel_cluster_version):
+        allowed_oses.append('alinux2023')
+    if PARALLEL_CLUSTER_SUPPORTS_CENTOS_7(parallel_cluster_version):
+        allowed_oses.append('centos7')
+    if PARALLEL_CLUSTER_SUPPORTS_RHEL_8(parallel_cluster_version):
+        allowed_oses.append('rhel8')
+    if PARALLEL_CLUSTER_SUPPORTS_RHEL_9(parallel_cluster_version):
+        allowed_oses.append('rhel9')
+    if PARALLEL_CLUSTER_SUPPORTS_ROCKY_8(parallel_cluster_version):
+        allowed_oses.append('rocky8')
+    if PARALLEL_CLUSTER_SUPPORTS_ROCKY_9(parallel_cluster_version):
+        allowed_oses.append('rocky9')
+    return sorted(allowed_oses)
 
 def get_PARALLEL_CLUSTER_MUNGE_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
@@ -521,7 +574,7 @@ def get_config_schema(config):
                 'Version': And(str, lambda version: version in PARALLEL_CLUSTER_VERSIONS, lambda version: parse_version(version) >= MIN_PARALLEL_CLUSTER_VERSION),
                 Optional('ClusterConfig'): lambda s: True,
                 Optional('Image', default={'Os': DEFAULT_OS(config)}): {
-                    'Os': And(str, lambda s: s in PARALLEL_CLUSTER_ALLOWED_OSES),
+                    'Os': And(str, lambda s: s in get_PARALLEL_CLUSTER_ALLOWED_OSES(config)),
                     # CustomAmi: AMI to use for head and compute nodes instead of the pre-built AMIs.
                     Optional('CustomAmi'): And(str, lambda s: s.startswith('ami-')),
                 },
@@ -538,6 +591,12 @@ def get_config_schema(config):
                     Optional('AdminUserName'): str,
                     Optional('AdminPasswordSecretArn'): And(str, lambda s: s.startswith('arn:')),
                     Optional('ClientSecurityGroup'): {str: And(str, lambda s: re.match('sg-', s))},
+                },
+                Optional('Slurmdbd'): {
+                    Optional('SlurmdbdStackName'): str,
+                    Optional('Host'): str,
+                    Optional('Port'): int,
+                    Optional('ClientSecurityGroup'): And(str, lambda s: re.match('sg-', s))
                 },
                 Optional('Dcv', default={}): {
                     Optional('Enabled', default=False): bool,
@@ -672,7 +731,7 @@ def get_config_schema(config):
                     Optional('Partition', default='onprem'): str,
                 }
             },
-            Optional('SlurmUid', default=900): int,
+            Optional('SlurmUid', default=401): int,
             Optional('storage'): {
                 #
                 # ExtraMounts

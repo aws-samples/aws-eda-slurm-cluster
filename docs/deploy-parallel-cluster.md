@@ -10,24 +10,6 @@ The current latest version is 3.9.1.
 
 See [Deployment Prerequisites](deployment-prerequisites.md) page.
 
-### Create ParallelCluster UI (optional but recommended)
-
-It is highly recommended to create a ParallelCluster UI to manage your ParallelCluster clusters.
-A different UI is required for each version of ParallelCluster that you are using.
-The versions are list in the [ParallelCluster Release Notes](https://docs.aws.amazon.com/parallelcluster/latest/ug/document_history.html).
-The minimum required version is 3.6.0 which adds support for RHEL 8 and increases the number of allows queues and compute resources.
-The suggested version is at least 3.7.0 because it adds configurable compute node weights which we use to prioritize the selection of
-compute nodes by their cost.
-
-The instructions are in the [ParallelCluster User Guide](https://docs.aws.amazon.com/parallelcluster/latest/ug/install-pcui-v3.html).
-
-### Create ParallelCluster Slurm Database
-
-The Slurm Database is required for configuring Slurm accounts, users, groups, and fair share scheduling.
-It you need these and other features then you will need to create a ParallelCluster Slurm Database.
-You do not need to create a new database for each cluster; multiple clusters can share the same database.
-Follow the directions in this [ParallelCluster tutorial to configure slurm accounting](https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3).
-
 ## Create the Cluster
 
 To install the cluster run the install script. You can override some parameters in the config file
