@@ -876,14 +876,13 @@ class CdkSlurmStack(Stack):
                     'arm64': {},
                     'x86_64': {}
                 },
-            }
+            },
+            'Rocky': {}
         }
         if config_schema.PARALLEL_CLUSTER_SUPPORTS_AMAZON_LINUX_2023(self.PARALLEL_CLUSTER_VERSION):
-            self.ami_builds['amzn'] = {
-                '2023': {
-                    'arm64': {},
-                    'x86_64': {}
-                }
+            self.ami_builds['amzn']['2023'] = {
+                'arm64': {},
+                'x86_64': {}
             }
         if config_schema.PARALLEL_CLUSTER_SUPPORTS_CENTOS_7(self.PARALLEL_CLUSTER_VERSION):
             self.ami_builds['centos'] = {
@@ -892,33 +891,21 @@ class CdkSlurmStack(Stack):
                 }
             }
         if config_schema.PARALLEL_CLUSTER_SUPPORTS_RHEL_9(self.PARALLEL_CLUSTER_VERSION):
-            self.ami_builds['rhel'] = {
-                '9': {
-                    'arm64': {},
-                    'x86_64': {}
-                }
+            self.ami_builds['rhel']['9'] = {
+                'arm64': {},
+                'x86_64': {}
             }
         if config_schema.PARALLEL_CLUSTER_SUPPORTS_ROCKY_8(self.PARALLEL_CLUSTER_VERSION):
-            self.ami_builds['Rocky'] = {
-                '8': {
-                    'arm64': {},
-                    'x86_64': {}
-                }
+            self.ami_builds['Rocky']['8'] = {
+                'arm64': {},
+                'x86_64': {}
             }
         if config_schema.PARALLEL_CLUSTER_SUPPORTS_ROCKY_9(self.PARALLEL_CLUSTER_VERSION):
-            self.ami_builds['Rocky'] = {
-                '9': {
-                    'arm64': {},
-                    'x86_64': {}
-                }
+            self.ami_builds['Rocky']['9'] = {
+                'arm64': {},
+                'x86_64': {}
             }
-        if config_schema.PARALLEL_CLUSTER_SUPPORTS_ROCKY_9(self.PARALLEL_CLUSTER_VERSION):
-            self.ami_builds['Rocky'] = {
-                '9': {
-                    'arm64': {},
-                    'x86_64': {}
-                }
-            }
+        logger.info(f"AMI builds:\n{json.dumps(self.ami_builds, indent=4)}")
         self.s3_client.put_object(
             Bucket = self.assets_bucket,
             Key    = f"{self.assets_base_key}/config/build-files/build-file-amis.json",
