@@ -192,6 +192,10 @@
               <ul class="nav flex-column">
               </ul>
             </li>
+            <li class="nav-item" data-level="4"><a href="#slurmdbd" class="nav-link">Slurmdbd</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
               </ul>
             </li>
             <li class="nav-item" data-level="3"><a href="#clustername" class="nav-link">ClusterName</a>
@@ -350,11 +354,16 @@
         <a href="#database">Database</a>:
             <a href="#databasestackname">DatabaseStackName</a>: str
             <a href="#fqdn">FQDN</a>: str
-            <a href="#port">Port</a>: str
+            <a href="#database-port">Port</a>: str
             <a href="#adminusername">AdminUserName</a>: str
             <a href="#adminpasswordsecretarn">AdminPasswordSecretArn</a>: str
-            <a href="#clientsecuritygroup">ClientSecurityGroup</a>:
+            <a href="#database-clientsecuritygroup">ClientSecurityGroup</a>:
                 SecurityGroupName: SecurityGroupId
+        <a href="#slurmdbd">Slurmdbd</a>:
+            <a href="#slurmdbdstackname">SlurmdbdStackName</a>: str
+            <a href="#slurmdbd-host">Host</a>: str
+            <a href="#slurmdbd-port">Port</a>: str
+            <a href="#slurmdbd-clientsecuritygroup">ClientSecurityGroup</a>: str
         <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Dcv">Dcv:</a>
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Dcv-Enabled">Enabled</a>: bool
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Dcv-Port">Port</a>: int
@@ -548,11 +557,14 @@ All of the instances must have the same CPU architecture and the same OS.</p>
 <p>See <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster">https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster</a></p>
 <h4 id="database">Database</h4>
 <p>Optional</p>
+<p><strong>Note</strong>: Starting with ParallelCluster 3.10.0, you should use slurm/ParallelClusterConfig/<a href="#slurmdbd">Slurmdbd</a> instead of slurm/ParallelClusterConfig/Database.
+You cannot have both parameters.</p>
 <p>Configure the Slurm database to use with the cluster.</p>
 <p>This is created independently of the cluster so that the same database can be used with multiple clusters.</p>
-<p>The easiest way to do this is to use the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3">CloudFormation template provided by ParallelCluster</a> and then to just pass
-the name of the stack in <a href="#databasestackname">DatabaseStackName</a>.
-All of the other parameters will be pulled from the stack.</p>
+<p>See <a href="../deployment-prerequisites#create-parallelcluster-slurm-database">Create ParallelCluster Slurm Database</a> on the deployment prerequisites page.</p>
+<p>If you used the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3">CloudFormation template provided by ParallelCluster</a>, then the easiest way to configure it is to pass
+the name of the stack in slurm/ParallelClusterConfig/Database/<a href="#databasestackname">DatabaseStackName</a>.
+All of the other parameters will be pulled from the outputs of the stack.</p>
 <p>See the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmSettings-Database">ParallelCluster documentation</a>.</p>
 <h5 id="databasestackname">DatabaseStackName</h5>
 <p>Name of the ParallelCluster CloudFormation stack that created the database.</p>
@@ -566,7 +578,7 @@ All of the other parameters will be pulled from the stack.</p>
 </ul>
 <h5 id="fqdn">FQDN</h5>
 <p>Used with the Port to set the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-Uri">Uri</a> of the database.</p>
-<h5 id="port">Port</h5>
+<h5 id="database-port">Database: Port</h5>
 <p>type: int</p>
 <p>Database's port.</p>
 <h5 id="adminusername">AdminUserName</h5>
@@ -578,9 +590,37 @@ All of the other parameters will be pulled from the stack.</p>
 <p>The Amazon Resource Name (ARN) of the AWS Secrets Manager secret that contains the AdminUserName plaintext password.
 This password is used together with AdminUserName and Slurm accounting to authenticate on the database server.</p>
 <p>Sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-PasswordSecretArn">PasswordSecretArn</a> parameter in ParallelCluster.</p>
-<h5 id="clientsecuritygroup">ClientSecurityGroup</h5>
+<h5 id="database-clientsecuritygroup">Database: ClientSecurityGroup</h5>
 <p>Security group that has permissions to connect to the database.</p>
-<p>Required to be attached to the head node that is running slurmdbd so that the port connection to the database is allows.</p>
+<p>Required to be attached to the head node that is running slurmdbd so that the port connection to the database is allowed.</p>
+<h4 id="slurmdbd">Slurmdbd</h4>
+<p><strong>Note</strong>: This is not supported before ParallelCluster 3.10.0. If you specify this parameter then you cannot specify slurm/ParallelClusterConfig/<a href="#database">Database</a>.</p>
+<p>Optional</p>
+<p>Configure an external Slurmdbd instance to use with the cluster.
+The Slurmdbd instance provides access to the shared Slurm database.
+This is created independently of the cluster so that the same database can be used with multiple clusters.</p>
+<p>This is created independently of the cluster so that the same slurmdbd instance can be used with multiple clusters.</p>
+<p>See <a href="../deployment-prerequisites#create-slurmdbd-instance">Create Slurmdbd instance</a> on the deployment prerequisites page.</p>
+<p>If you used the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/external-slurmdb-accounting.html#external-slurmdb-accounting-step1">CloudFormation template provided by ParallelCluster</a>, then the easiest way to configure it is to pass
+the name of the stack in slurm/ParallelClusterConfig/Database/<a href="#slurmdbdstackname">SlurmdbdStackName</a>.
+All of the other parameters will be pulled from the parameters and outputs of the stack.</p>
+<p>See the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmSettings-ExternalSlurmdbd">ParallelCluster documentation for ExternalSlurmdbd</a>.</p>
+<h5 id="slurmdbdstackname">SlurmdbdStackName</h5>
+<p>Name of the ParallelCluster CloudFormation stack that created the Slurmdbd instance.</p>
+<p>The following parameters will be set using the outputs of the stack:</p>
+<ul>
+<li>Host</li>
+<li>Port</li>
+<li>ClientSecurityGroup</li>
+</ul>
+<h5 id="slurmdbd-host">Slurmdbd: Host</h5>
+<p>IP address or DNS name of the Slurmdbd instance.</p>
+<h5 id="slurmdbd-port">Slurmdbd: Port</h5>
+<p>Default: 6819</p>
+<p>Port used by the slurmdbd daemon on the Slurmdbd instance.</p>
+<h5 id="slurmdbd-clientsecuritygroup">Slurmdbd: ClientSecurityGroup</h5>
+<p>Security group that has access to use the Slurmdbd instance.
+This will be added as an extra security group to the head node.</p>
 <h3 id="clustername">ClusterName</h3>
 <p>Name of the ParallelCluster cluster.</p>
 <p>Default: If StackName ends with "-config" then ClusterName is StackName with "-config" stripped off.
@@ -590,6 +630,7 @@ Otherwise add "-cl" to end of StackName.</p>
 For an existing secret can be the secret name or the ARN.
 If the secret doesn't exist one will be created, but won't be part of the cloudformation stack so that it won't be deleted when the stack is deleted.
 Required if your submitters need to use more than 1 cluster.</p>
+<p>See <a href="../deployment-prerequisites#create-munge-key">Create Munge Key</a> for more details.</p>
 <h3 id="slurmctl">SlurmCtl</h3>
 <p>Configure the Slurm head node or controller.</p>
 <p>Required, but can be an empty dict to accept all of the defaults.</p>
@@ -875,7 +916,7 @@ Once all of the license are used by running jobs, then any pending jobs will rem
 <h5 id="server">Server</h5>
 <p>The license server hosting the licenses.</p>
 <p>Not currently used.</p>
-<h5 id="port_1">Port</h5>
+<h5 id="port">Port</h5>
 <p>The port on the license server used to request licenses.</p>
 <p>Not currently used.</p>
 <h5 id="servertype">ServerType</h5>
