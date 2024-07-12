@@ -18,6 +18,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 '''
 Create/update/delete ParallelCluster AMI build configuration files and store them in S3.
+
+Don't fail if can't create build-files so that cluster can successfully deploy.
 '''
 import boto3
 import cfnresponse
@@ -67,7 +69,7 @@ def get_image_builder_parent_image(distribution, version, architecture, parallel
     images = sorted(response['Images'], key=lambda image: image['CreationDate'], reverse=True)
     if not images:
         logger.error(f"No AMI found for {distribution} {version} {architecture}")
-        exit(1)
+        return None
     image_id = images[0]['ImageId']
     return image_id
 
@@ -175,6 +177,7 @@ def lambda_handler(event, context):
             build_file_template_content = response['Body'].read().decode('utf-8')
             build_file_template = Template(build_file_template_content)
 
+        error_count = 0
         for distribution in ami_builds:
             for version in ami_builds[distribution]:
                 for architecture in ami_builds[distribution][version]:
@@ -183,6 +186,9 @@ def lambda_handler(event, context):
                     else:
                         template_vars['InstanceType'] = 'c6i.2xlarge'
                     template_vars['ParentImage'] = get_image_builder_parent_image(distribution, version, architecture, parallelcluster_version)
+                    if not template_vars['ParentImage']:
+                        error_count += 1
+                        continue
                     template_vars['RootVolumeSize'] = int(get_ami_root_volume_size(template_vars['ParentImage'])) + 10
                     logger.info(f"{distribution}-{version}-{architecture} image id: {template_vars['ParentImage']} root volume size={template_vars['RootVolumeSize']}")
 
@@ -242,9 +248,12 @@ def lambda_handler(event, context):
                             Body   = build_file_content
                         )
 
+        if error_count:
+            raise RuntimeError(f"Errors occurred when creating build config files.")
+
     except Exception as e:
         logger.exception(str(e))
-        cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, physicalResourceId=cluster_name)
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {'error': str(e)}, physicalResourceId=cluster_name)
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
@@ -252,6 +261,6 @@ def lambda_handler(event, context):
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
-        raise
+        return
 
     cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)

@@ -3,10 +3,13 @@
 - name: Show vars used in this playbook
   debug:
     msg: |
-      cluster_name:               {{ cluster_name }}
-      distribution:               {{ distribution }}
-      region:                     {{ region }}
-      slurm_base_dir:             {{ slurm_base_dir }}
+      cluster_name:                   {{ cluster_name }}
+      distribution:                   {{ distribution }}
+      parallel_cluster_munge_version: {{ parallel_cluster_munge_version }}
+      region:                         {{ region }}
+      slurm_base_dir:                 {{ slurm_base_dir }}
+      slurm_config_dir:               {{ slurm_config_dir }}
+      slurm_uid:                      {{ slurm_uid }}
 
 - name: Add /opt/slurm/{{ cluster_name }} to /etc/fstab
   mount:
@@ -53,9 +56,28 @@
     state: present
     create_home: no
 
+
+- name: Get current munge version
+  register: munged_version_output
+  shell: |
+    if ! [ -e /usr/sbin/munged ]; then
+        echo "NONE"
+        exit 0
+    fi
+    /usr/sbin/munged -V | awk '{print $1}'
+
+- set_fact:
+    act_munged_version: "{{ munged_version_output.stdout }}"
+    exp_munged_version: "munge-{{ parallel_cluster_munge_version }}"
+
+- name: Show munged_version
+  debug:
+    msg: |
+      act_munged_version: "{{ act_munged_version }}"
+      exp_munged_version: "{{ exp_munged_version }}"
+
 - name: Build munge version used by ParallelCluster ({{ parallel_cluster_munge_version }})
-  args:
-    creates: /usr/sbin/munged
+  when: act_munged_version != exp_munged_version
   shell: |
     set -ex
 
@@ -116,6 +138,7 @@
     system: yes
     state: present
     create_home: no
+    uid: "{{ slurm_uid }}"
 
 - name: Configure modules
   template:

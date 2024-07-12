@@ -352,6 +352,27 @@ class SlurmInstaller():
         with open("installer_history.txt", "a+") as f:
             f.write(f"\n[{datetime.datetime.utcnow()}] {cmd}")
 
+        # Check that the ParallelCluster stack isn't being created or updated.
+        if 'ClusterName' not in self.config['slurm']:
+            if self.config['StackName'].endswith('-config'):
+                self.config['slurm']['ClusterName'] = self.config['StackName'][0:-7]
+            else:
+                self.config['slurm']['ClusterName'] = f"{self.config['StackName']}-cl"
+            logger.info(f"slurm/ClusterName defaulted to {self.config['slurm']['ClusterName']}")
+        stack_name = self.config['slurm']['ClusterName']
+        cfn_client = session.client("cloudformation", region_name=region)
+        try:
+            stack_info = cfn_client.describe_stacks(StackName=stack_name)['Stacks'][0]
+        except:
+            logger.info(f"ParallelCluster stack (stack_name) doesn't exist.")
+            stack_info = None
+        if stack_info:
+            stack_status = stack_info['StackStatus']
+            logger.info(f"ParallelCluster stack (stack_name) in {stack_status} state.")
+            if stack_status not in ['CREATE_COMPLETE', 'ROLLBACK_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']:
+                logger.error(f"ParallelCluster stack ({stack_name} is in invalid state: {stack_status}")
+                exit(1)
+
         # Then launch the actual CDK installer
         logger.info("\n====== Deploying SLURM ======\n")
         launch_installer = os.system(cmd) # nosec

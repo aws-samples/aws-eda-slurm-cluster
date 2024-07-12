@@ -27,11 +27,16 @@ This project creates a ParallelCluster configuration file that is documented in 
         <a href="#database">Database</a>:
             <a href="#databasestackname">DatabaseStackName</a>: str
             <a href="#fqdn">FQDN</a>: str
-            <a href="#port">Port</a>: str
+            <a href="#database-port">Port</a>: str
             <a href="#adminusername">AdminUserName</a>: str
             <a href="#adminpasswordsecretarn">AdminPasswordSecretArn</a>: str
-            <a href="#clientsecuritygroup">ClientSecurityGroup</a>:
+            <a href="#database-clientsecuritygroup">ClientSecurityGroup</a>:
                 SecurityGroupName: SecurityGroupId
+        <a href="#slurmdbd">Slurmdbd</a>:
+            <a href="#slurmdbdstackname">SlurmdbdStackName</a>: str
+            <a href="#slurmdbd-host">Host</a>: str
+            <a href="#slurmdbd-port">Port</a>: str
+            <a href="#slurmdbd-clientsecuritygroup">ClientSecurityGroup</a>: str
         <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Dcv">Dcv:</a>
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Dcv-Enabled">Enabled</a>: bool
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Dcv-Port">Port</a>: int
@@ -304,13 +309,18 @@ See [https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#p
 
 Optional
 
+**Note**: Starting with ParallelCluster 3.10.0, you should use slurm/ParallelClusterConfig/[Slurmdbd](#slurmdbd) instead of slurm/ParallelClusterConfig/Database.
+You cannot have both parameters.
+
 Configure the Slurm database to use with the cluster.
 
 This is created independently of the cluster so that the same database can be used with multiple clusters.
 
-The easiest way to do this is to use the [CloudFormation template provided by ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3) and then to just pass
-the name of the stack in [DatabaseStackName](#databasestackname).
-All of the other parameters will be pulled from the stack.
+See [Create ParallelCluster Slurm Database](../deployment-prerequisites#create-parallelcluster-slurm-database) on the deployment prerequisites page.
+
+If you used the [CloudFormation template provided by ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3), then the easiest way to configure it is to pass
+the name of the stack in slurm/ParallelClusterConfig/Database/[DatabaseStackName](#databasestackname).
+All of the other parameters will be pulled from the outputs of the stack.
 
 See the [ParallelCluster documentation](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmSettings-Database).
 
@@ -330,7 +340,7 @@ The following parameters will be set using the outputs of the stack:
 
 Used with the Port to set the [Uri](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-Uri) of the database.
 
-##### Port
+##### Database: Port
 
 type: int
 
@@ -353,11 +363,56 @@ This password is used together with AdminUserName and Slurm accounting to authen
 
 Sets the [PasswordSecretArn](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-Database-PasswordSecretArn) parameter in ParallelCluster.
 
-##### ClientSecurityGroup
+##### Database: ClientSecurityGroup
 
 Security group that has permissions to connect to the database.
 
-Required to be attached to the head node that is running slurmdbd so that the port connection to the database is allows.
+Required to be attached to the head node that is running slurmdbd so that the port connection to the database is allowed.
+
+#### Slurmdbd
+
+**Note**: This is not supported before ParallelCluster 3.10.0. If you specify this parameter then you cannot specify slurm/ParallelClusterConfig/[Database](#database).
+
+Optional
+
+Configure an external Slurmdbd instance to use with the cluster.
+The Slurmdbd instance provides access to the shared Slurm database.
+This is created independently of the cluster so that the same database can be used with multiple clusters.
+
+This is created independently of the cluster so that the same slurmdbd instance can be used with multiple clusters.
+
+See [Create Slurmdbd instance](../deployment-prerequisites#create-slurmdbd-instance) on the deployment prerequisites page.
+
+If you used the [CloudFormation template provided by ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/external-slurmdb-accounting.html#external-slurmdb-accounting-step1), then the easiest way to configure it is to pass
+the name of the stack in slurm/ParallelClusterConfig/Database/[SlurmdbdStackName](#slurmdbdstackname).
+All of the other parameters will be pulled from the parameters and outputs of the stack.
+
+See the [ParallelCluster documentation for ExternalSlurmdbd](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmSettings-ExternalSlurmdbd).
+
+##### SlurmdbdStackName
+
+Name of the ParallelCluster CloudFormation stack that created the Slurmdbd instance.
+
+The following parameters will be set using the outputs of the stack:
+
+* Host
+* Port
+* ClientSecurityGroup
+
+##### Slurmdbd: Host
+
+IP address or DNS name of the Slurmdbd instance.
+
+##### Slurmdbd: Port
+
+Default: 6819
+
+Port used by the slurmdbd daemon on the Slurmdbd instance.
+
+##### Slurmdbd: ClientSecurityGroup
+
+Security group that has access to use the Slurmdbd instance.
+This will be added as an extra security group to the head node.
 
 ### ClusterName
 
@@ -372,6 +427,8 @@ AWS secret with a base64 encoded munge key to use for the cluster.
 For an existing secret can be the secret name or the ARN.
 If the secret doesn't exist one will be created, but won't be part of the cloudformation stack so that it won't be deleted when the stack is deleted.
 Required if your submitters need to use more than 1 cluster.
+
+See [Create Munge Key](../deployment-prerequisites#create-munge-key) for more details.
 
 ### SlurmCtl
 
