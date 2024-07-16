@@ -480,34 +480,40 @@ class CdkSlurmStack(Stack):
         Add Submitter security groups.
         Configure /home file system.
         '''
+        res_stack_name = self.config['RESStackName']
         res_environment_name = self.config['RESEnvironmentName']
-        logger.info(f"Updating configuration for RES environment: {res_environment_name}")
+        logger.info(f"Updating configuration for RES")
+        logger.info(f"    stack: {res_stack_name}")
+        logger.info(f"    environment: {res_environment_name}")
 
         self.config['slurm']['SubmitterInstanceTags'] = {'res:EnvironmentName': [res_environment_name]}
 
-        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
-        res_stack_name = None
+        res_stack_name_found = False
         stack_statuses = {}
         stack_dicts = {}
-        for stack_dict in cloudformation_client.list_stacks(
-                StackStatusFilter=[
-                    'CREATE_COMPLETE',
-                    'ROLLBACK_COMPLETE',
-                    'UPDATE_COMPLETE',
-                    'UPDATE_ROLLBACK_COMPLETE',
-                    'IMPORT_COMPLETE',
-                    'IMPORT_ROLLBACK_COMPLETE'
-                ]
-            )["StackSummaries"]:
-            stack_name = stack_dict['StackName']
-            if stack_name == res_environment_name:
-                res_stack_name = stack_dict['StackName']
-                # Don't break here so get all of the stack names
-            stack_status = stack_dict['StackStatus']
-            stack_statuses[stack_name] = stack_status
-            stack_dicts[stack_name] = stack_dict
-        if not res_stack_name:
-            message = f"CloudFormation RES stack named {res_environment_name} not found. Existing stacks:"
+        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
+        list_stacks_paginator = cloudformation_client.get_paginator('list_stacks')
+        list_stacks_kwargs = {
+            'StackStatusFilter': [
+                'CREATE_COMPLETE',
+                'ROLLBACK_COMPLETE',
+                'UPDATE_COMPLETE',
+                'UPDATE_ROLLBACK_COMPLETE',
+                'IMPORT_COMPLETE',
+                'IMPORT_ROLLBACK_COMPLETE'
+            ]
+        }
+        for list_stacks_response in list_stacks_paginator.paginate(**list_stacks_kwargs):
+            for stack_dict in list_stacks_response["StackSummaries"]:
+                stack_name = stack_dict['StackName']
+                if stack_name == res_stack_name:
+                    res_stack_name_found = True
+                    # Don't break here so get all of the stack names
+                stack_status = stack_dict['StackStatus']
+                stack_statuses[stack_name] = stack_status
+                stack_dicts[stack_name] = stack_dict
+        if not res_stack_name_found:
+            message = f"CloudFormation RES stack named {res_stack_name} not found. Existing stacks:"
             for stack_name in sorted(stack_statuses):
                 message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
             logger.error(message)
@@ -542,7 +548,7 @@ class CdkSlurmStack(Stack):
             logger.info(f"    SubnetId: {self.config['SubnetId']}")
 
         # Get RES VDI Security Group
-        res_vdc_stack_name = f"{res_stack_name}-vdc"
+        res_vdc_stack_name = f"{res_environment_name}-vdc"
         if res_vdc_stack_name not in stack_statuses:
             message = f"CloudFormation RES stack named {res_vdc_stack_name} not found. Existing stacks:"
             for stack_name in sorted(stack_statuses):
@@ -563,8 +569,7 @@ class CdkSlurmStack(Stack):
             exit(1)
 
         # Get cluster manager Security Group
-        logger.debug(f"Searching for cluster manager security group id")
-        res_cluster_manager_stack_name = f"{res_stack_name}-cluster-manager"
+        res_cluster_manager_stack_name = f"{res_environment_name}-cluster-manager"
         if res_cluster_manager_stack_name not in stack_statuses:
             message = f"CloudFormation RES stack named {res_cluster_manager_stack_name} not found. Existing stacks:"
             for stack_name in sorted(stack_statuses):
@@ -586,7 +591,7 @@ class CdkSlurmStack(Stack):
 
         # Get vdc controller Security Group
         logger.debug(f"Searching for VDC controller security group id")
-        res_vdc_stack_name = f"{res_stack_name}-vdc"
+        res_vdc_stack_name = f"{res_environment_name}-vdc"
         if res_vdc_stack_name not in stack_statuses:
             message = f"CloudFormation RES stack named {res_vdc_stack_name} not found. Existing stacks:"
             for stack_name in sorted(stack_statuses):
@@ -621,7 +626,7 @@ class CdkSlurmStack(Stack):
             # parameter SharedHomeFileSystemId
             logger.setLevel(logging.DEBUG)
             logger.debug(f"Searching for RES /home file system")
-            res_shared_storage_stack_name = f"{res_stack_name}"
+            res_shared_storage_stack_name = f"{res_environment_name}"
             if res_shared_storage_stack_name not in stack_statuses:
                 message = f"CloudFormation RES stack named {res_shared_storage_stack_name} not found. Existing stacks:"
                 for stack_name in sorted(stack_statuses):

@@ -567,6 +567,7 @@ def get_config_schema(config):
         # Optional, but highly recommended
         Optional('ErrorSnsTopicArn'): str,
         Optional('TimeZone', default='US/Central'): str,
+        Optional('RESStackName'): str,
         Optional('RESEnvironmentName'): str,
         'slurm': {
             Optional('ParallelClusterConfig'): {

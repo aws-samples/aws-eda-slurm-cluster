@@ -364,7 +364,7 @@ class SlurmInstaller():
         try:
             stack_info = cfn_client.describe_stacks(StackName=stack_name)['Stacks'][0]
         except:
-            logger.info(f"ParallelCluster stack (stack_name) doesn't exist.")
+            logger.info(f"ParallelCluster stack ({stack_name}) doesn't exist.")
             stack_info = None
         if stack_info:
             stack_status = stack_info['StackStatus']
