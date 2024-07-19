@@ -480,7 +480,11 @@ class CdkSlurmStack(Stack):
         Add Submitter security groups.
         Configure /home file system.
         '''
-        res_stack_name = self.config['RESStackName']
+        try:
+            res_stack_name = self.config['RESStackName']
+        except KeyError:
+            logger.error(f"You must specify RESStackName if you specify RESEnvironmentName")
+            exit(1)
         res_environment_name = self.config['RESEnvironmentName']
         logger.info(f"Updating configuration for RES")
         logger.info(f"    stack: {res_stack_name}")
@@ -1278,6 +1282,7 @@ class CdkSlurmStack(Stack):
                     'ec2:DeleteNetworkInterface',
                     'ec2:DeletePlacementGroup',
                     'ec2:DeleteSecurityGroup',
+                    'ec2:DeleteTags',
                     'ec2:DeleteVolume',
                     'ec2:Describe*',
                     'ec2:DisassociateAddress',
@@ -1501,6 +1506,7 @@ class CdkSlurmStack(Stack):
                 'ClusterName': self.config['slurm']['ClusterName'],
                 'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'Region': self.cluster_region,
+                'VpcId': self.config['VpcId']
             }
         )
         self.create_head_node_a_record_lambda.add_to_role_policy(
@@ -1508,8 +1514,9 @@ class CdkSlurmStack(Stack):
                 effect=iam.Effect.ALLOW,
                 actions=[
                     'ec2:DescribeInstances',
+                    'ec2:DescribeVpcs',
                     'route53:ChangeResourceRecordSets',
-                    'route53:ListHostedZones',
+                    'route53:ListHostedZonesByVPC',
                     'route53:ListResourceRecordSets',
                 ],
                 resources=['*']
@@ -1589,9 +1596,12 @@ class CdkSlurmStack(Stack):
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName'],
-                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
-                    'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
-                    'RESDomainJoinedInstanceModuleId': 'vdc',
+                    # 'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
+                    # 'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
+                    # 'RESDomainJoinedInstanceModuleId': 'vdc',
+                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-cluster-manager",
+                    'RESDomainJoinedInstanceModuleName': 'cluster-manager',
+                    'RESDomainJoinedInstanceModuleId': 'cluster-manager',
                     'RESDomainJoinedInstanceNodeType': 'app'
                 }
             )
@@ -1683,9 +1693,12 @@ class CdkSlurmStack(Stack):
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
                     'RESEnvironmentName': self.config['RESEnvironmentName'],
-                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
-                    'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
-                    'RESDomainJoinedInstanceModuleId': 'vdc',
+                    # 'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
+                    # 'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
+                    # 'RESDomainJoinedInstanceModuleId': 'vdc',
+                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-cluster-manager",
+                    'RESDomainJoinedInstanceModuleName': 'cluster-manager',
+                    'RESDomainJoinedInstanceModuleId': 'cluster-manager',
                     'RESDomainJoinedInstanceNodeType': 'app'
                 }
             )
@@ -1814,24 +1827,6 @@ class CdkSlurmStack(Stack):
         # W40:Security Groups egress with an IpProtocol of -1 found
         self.suppress_cfn_nag(self.imagebuilder_sg, 'W40', 'All outbound allowed.')
 
-        self.nfs_sg = ec2.SecurityGroup(self, "NfsSG", vpc=self.vpc, allow_all_outbound=False, description="Nfs Security Group")
-        Tags.of(self.nfs_sg).add("Name", f"{self.stack_name}-NfsSG")
-        self.suppress_cfn_nag(self.nfs_sg, 'W29', 'Egress port range used to block all egress')
-
-        # FSxZ requires all output access
-        self.zfs_sg = ec2.SecurityGroup(self, "ZfsSG", vpc=self.vpc, allow_all_outbound=True, description="Zfs Security Group")
-        Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
-        # W5:Security Groups found with cidr open to world on egress
-        self.suppress_cfn_nag(self.zfs_sg, 'W5', 'FSxZ requires all egress access.')
-        # W40:Security Groups egress with an IpProtocol of -1 found
-        self.suppress_cfn_nag(self.zfs_sg, 'W40', 'FSxZ requires all egress access.')
-        #self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
-
-        # Compute nodes may use lustre file systems so create a security group with the required ports.
-        self.lustre_sg = ec2.SecurityGroup(self, "LustreSG", vpc=self.vpc, allow_all_outbound=False, description="Lustre Security Group")
-        Tags.of(self.lustre_sg).add("Name", f"{self.stack_name}-LustreSG")
-        self.suppress_cfn_nag(self.lustre_sg, 'W29', 'Egress port range used to block all egress')
-
         # These are the security groups that have client access to mount the extra file systems
         self.extra_mount_security_groups = {}
         for fs_type in self.config['slurm'].get('storage', {}).get('ExtraMountSecurityGroups', {}).keys():
@@ -1923,51 +1918,6 @@ class CdkSlurmStack(Stack):
         }
         if self.slurmdbd_sg and 'ExistingSlurmDbd' not in self.config['slurm']:
             fs_client_sgs['SlurmDbd'] = self.slurmdbd_sg
-        for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
-            fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(self.NFS_PORT), f"{fs_client_sg_name} to Nfs")
-        if self.onprem_cidr:
-            self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.NFS_PORT), 'OnPremNodes to Nfs')
-
-        # ZFS Connections
-        # https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html
-        for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(111), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(111), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(self.NFS_PORT), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(self.NFS_PORT), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
-            self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
-            self.suppress_cfn_nag(fs_client_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
-        self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
-        if self.onprem_cidr:
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(111), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(111), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.NFS_PORT), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(self.NFS_PORT), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(20001, 20003), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp_range(20001, 20003), 'OnPremNodes to Zfs')
-            self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
-            self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
-
-        # Lustre Connections
-        lustre_fs_client_sgs = copy(fs_client_sgs)
-        lustre_fs_client_sgs['Lustre'] = self.lustre_sg
-        for fs_client_sg_name, fs_client_sg in lustre_fs_client_sgs.items():
-            fs_client_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp(988), f"{fs_client_sg_name} to Lustre")
-            fs_client_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"{fs_client_sg_name} to Lustre")
-            self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp(988), f"Lustre to {fs_client_sg_name}")
-            self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp_range(1021, 1023), f"Lustre to {fs_client_sg_name}")
-            self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
-            self.suppress_cfn_nag(fs_client_sg, 'W29', 'Correct, restricted range for lustre: 1021-1023')
-        self.lustre_sg.connections.allow_from(self.lustre_sg, ec2.Port.tcp(988), f"Lustre to Lustre")
-        self.lustre_sg.connections.allow_from(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"Lustre to Lustre")
-        self.suppress_cfn_nag(self.lustre_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
-        if self.onprem_cidr:
-            self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(988), 'OnPremNodes to Lustre')
-            self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), 'OnPremNodes to Lustre')
-            self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(988), f"Lustre to OnPremNodes")
-            self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), f"Lustre to OnPremNodes")
 
         for fs_type in self.extra_mount_security_groups.keys():
             for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
@@ -1981,13 +1931,6 @@ class CdkSlurmStack(Stack):
                         self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp_range(20001, 20003), f"SlurmNode to {extra_mount_sg_name} - Zfs")
                         self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
                         self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
-                elif fs_type == 'lustre':
-                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp(988), f"SlurmNode to {extra_mount_sg_name} - Lustre")
-                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"SlurmNode to {extra_mount_sg_name} - Lustre")
-                    self.lustre_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(988), f"{extra_mount_sg_name} to SlurmNode")
-                    self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp_range(1021, 1023), f"{extra_mount_sg_name} to SlurmNode")
-                    self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
-                    self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for lustre: 1021-1023')
 
         # slurmctl connections
         # egress
@@ -2506,20 +2449,6 @@ class CdkSlurmStack(Stack):
                 if 'Networking' not in login_node_pool:
                     login_node_pool['Networking'] = {'SubnetIds': [self.config['SubnetId']]}
 
-        # Give the head node access to extra mounts
-        for fs_type in self.extra_mount_security_groups.keys():
-            index = 0
-            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                template_var = f"ExtraMountSecurityGroupId{index}"
-                self.create_parallel_cluster_config_lambda.add_environment(
-                    key = template_var,
-                    value = extra_mount_sg.security_group_id
-                )
-                self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(
-                    "{{" + template_var + "}}"
-                )
-                index += 1
-
         if 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
             # Check that the AMI support the head node instance type
             head_node_ami = self.config['slurm']['ParallelClusterConfig']['Image']['CustomAmi']
@@ -3031,9 +2960,10 @@ class CdkSlurmStack(Stack):
             for iam_policy_arn in self.config['slurm']['InstanceConfig']['AdditionalIamPolicies']:
                 parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
 
-        # Give the compute node access to extra mounts
-        for fs_type in self.extra_mount_security_groups.keys():
-            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
+        # slurmnode_sg is already added as an extra and it has access to the ExtraMountSecurityGroups
+        # # Give the compute node access to extra mounts
+        # for fs_type in self.extra_mount_security_groups.keys():
+        #     for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
+        #         parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
 
         return parallel_cluster_queue

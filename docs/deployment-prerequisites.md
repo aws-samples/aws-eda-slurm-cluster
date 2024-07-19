@@ -255,8 +255,9 @@ It needs at least the following inbound rules:
 
 It needs the following outbound rules.
 
-| Type | Port range | Destination | Description
-|------|------------|-------------|------------
+| Type | Port range | Destination         | Description
+|------|------------|---------------------|------------
+| TCP  | 2049       | SlurmHeadNodeSG     | SlurmHeadNode NFS       | Mount the slurm NFS file system with binaries and config
 | TCP  | 1024-65535 | SlurmSubmitterSG    | SlurmSubmitter ephemeral
 | TCP  | 6000-7024  | SlurmSubmitterSG    | SlurmSubmitter X11
 
@@ -274,8 +275,8 @@ It needs the following inbound rules.
 
 | Type | Port range | Source             | Description | Details
 |------|------------|--------------------|------------ |--------
-| TCP  |  988       | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients | 
-| TCP  | 1018-1023  | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients | 
+| TCP  |  988       | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients |
+| TCP  | 1018-1023  | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients |
 
 It needs the following outbound rules.
 
@@ -284,19 +285,29 @@ It needs the following outbound rules.
 | TCP  |  988       | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allow Lustre traffic between FSx for Lustre file servers and Lustre clients |
 | TCP  | 1018-1023  | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allow Lustre traffic between FSx for Lustre file servers and Lustre clients |
 
-The same inbound and outbound rules need to be aded to all 3 of the Slurm security groups too.
+The same inbound and outbound rules need to be added to all 3 of the Slurm security groups too.
 
 ## FSx for NetApp Ontap Security Group
 
 We'll refer to this group as FSxOntapSG, but you can name it whatever you want.
-The [required security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/limit-access-security-groups.html#fsx-vpc-security-groups).
+All the [security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/limit-access-security-groups.html#fsx-vpc-security-groups).
+
+The minimum set required for mounting the file system are documented below.
 
 It needs the following inbound rules.
 
-| Type      | Port range | Source             | Description | Details
-|-----------|------------|--------------------|------------ |--------
-| All ICMP  |  All       | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Pinging the instance
-| TCP  | See user guide  | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | 
+| Type | Port range  | Source             | Description | Details
+|------|-------------|--------------------|------------ |--------
+| TCP  |  111        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Remote procedure call for NFS
+| UDP  |  111        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Remote procedure call for NFS
+| TCP  |  635        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS mount
+| UDP  |  635        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS mount
+| TCP  | 2049        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS server daemon
+| UDP  | 2049        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS server daemon
+| TCP  | 4045        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS lock daemon
+| UDP  | 4045        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS lock daemon
+| TCP  | 4046        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Network status monitor for NFS
+| UDP  | 4046        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Network status monitor for NFS
 
 It needs the following outbound rules.
 
@@ -306,9 +317,18 @@ It needs the following outbound rules.
 
 The Slurm security groups need to add the following outbound rule to allow mounting using NFS.
 
-| Type | Port range | Destination        | Description | Details
-|------|------------|--------------------|-------------|--------
-| TCP  | 2049       | FSxOntapSG         | NFS         |
+| Type | Port range  | Destination        | Description | Details
+|------|-------------|--------------------|-------------|--------
+| TCP  |  111        | FSxOntap           |             | Remote procedure call for NFS
+| UDP  |  111        | FSxOntap           |             | Remote procedure call for NFS
+| TCP  |  635        | FSxOntap           |             | NFS mount
+| UDP  |  635        | FSxOntap           |             | NFS mount
+| TCP  | 2049        | FSxOntap           |             | NFS server daemon
+| UDP  | 2049        | FSxOntap           |             | NFS server daemon
+| TCP  | 4045        | FSxOntap           |             | NFS lock daemon
+| UDP  | 4045        | FSxOntap           |             | NFS lock daemon
+| TCP  | 4046        | FSxOntap           |             | Network status monitor for NFS
+| UDP  | 4046        | FSxOntap           |             | Network status monitor for NFS
 
 ## FSx for OpenZFS Security Group
 
@@ -319,7 +339,12 @@ It needs the following inbound rules.
 
 | Type | Port range | Source             | Description | Details
 |------|------------|--------------------|------------ |--------
-| TCP  | 111  | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | 
+| TCP  |  111        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Remote procedure call for NFS
+| UDP  |  111        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Remote procedure call for NFS
+| TCP  | 2049        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS server daemon
+| UDP  | 2049        | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS server daemon
+| TCP  | 20001-20003 | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS mount, status monitor, and lock daemon
+| UDP  | 20001-20003 | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | NFS mount, status monitor, and lock daemon
 
 Remove all outbound rules.
 
