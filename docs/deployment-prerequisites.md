@@ -191,6 +191,8 @@ After you have created the security groups then create the rules as described be
 
 The SlurmSubmitterSG will be attached to your login nodes, such as your virtual desktops.
 
+**NOTE**: To make this available to Research and Engineering Studio (RES) so that it can be automatically assigned to virtual desktops, you need to add a tag named **res:Resource** with a value of **vdi-security-group**. When you create a project, you can select this security group to be added to virtual desktops that use the project.
+
 It needs at least the following inbound rules:
 
 | Type | Port range | Source             | Description | Details
@@ -257,6 +259,80 @@ It needs the following outbound rules.
 |------|------------|-------------|------------
 | TCP  | 1024-65535 | SlurmSubmitterSG    | SlurmSubmitter ephemeral
 | TCP  | 6000-7024  | SlurmSubmitterSG    | SlurmSubmitter X11
+
+## Security Groups for File Systems
+
+You will usually have externally created file systems that should be mounted on the compute nodes.
+You will need to define security groups for the file system network interfaces and modify the Slurm security groups to give them access to the file systems.
+
+### FSx for Lustre Security Group
+
+We'll refer to this group as FSxLustreSG, but you can name it whatever you want.
+The [required security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/LustreGuide/limit-access-security-groups.html#lustre-client-inbound-outbound-rules).
+
+It needs the following inbound rules.
+
+| Type | Port range | Source             | Description | Details
+|------|------------|--------------------|------------ |--------
+| TCP  |  988       | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients | 
+| TCP  | 1018-1023  | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients | 
+
+It needs the following outbound rules.
+
+| Type | Port range | Destination        | Description | Details
+|------|------------|--------------------|-------------|--------
+| TCP  |  988       | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allow Lustre traffic between FSx for Lustre file servers and Lustre clients |
+| TCP  | 1018-1023  | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allow Lustre traffic between FSx for Lustre file servers and Lustre clients |
+
+The same inbound and outbound rules need to be aded to all 3 of the Slurm security groups too.
+
+## FSx for NetApp Ontap Security Group
+
+We'll refer to this group as FSxOntapSG, but you can name it whatever you want.
+The [required security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/limit-access-security-groups.html#fsx-vpc-security-groups).
+
+It needs the following inbound rules.
+
+| Type      | Port range | Source             | Description | Details
+|-----------|------------|--------------------|------------ |--------
+| All ICMP  |  All       | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Pinging the instance
+| TCP  | See user guide  | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | 
+
+It needs the following outbound rules.
+
+| Type | Port range | Destination        | Description | Details
+|------|------------|--------------------|-------------|--------
+| All  |  All       | | |
+
+The Slurm security groups need to add the following outbound rule to allow mounting using NFS.
+
+| Type | Port range | Destination        | Description | Details
+|------|------------|--------------------|-------------|--------
+| TCP  | 2049       | FSxOntapSG         | NFS         |
+
+## FSx for OpenZFS Security Group
+
+We'll refer to this group as FSxZfsSG, but you can name it whatever you want.
+The [required security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html).
+
+It needs the following inbound rules.
+
+| Type | Port range | Source             | Description | Details
+|------|------------|--------------------|------------ |--------
+| TCP  | 111  | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | 
+
+Remove all outbound rules.
+
+The Slurm security groups need to add the following outbound rule to allow mounting using NFS.
+
+| Type | Port range  | Destination        | Description | Details
+|------|-------------|--------------------|-------------|--------
+| TCP  |  111        | FSxZfs             |             | Remote procedure call for NFS
+| UDP  |  111        | FSxZfs             |             | Remote procedure call for NFS
+| TCP  | 2049        | FSxZfs             |             | NFS server daemon
+| UDP  | 2049        | FSxZfs             |             | NFS server daemon
+| TCP  | 20001-20003 | FSxZfs             |             | NFS mount, status monitor, and lock daemon
+| UDP  | 20001-20003 | FSxZfs             |             | NFS mount, status monitor, and lock daemon
 
 ## Create Configuration File
 
