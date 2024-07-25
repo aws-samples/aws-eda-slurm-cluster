@@ -39,6 +39,7 @@ def lambda_handler(event, context):
         cluster_name = environ['ClusterName']
         cluster_region = environ['Region']
         environment_name = environ['RESEnvironmentName']
+        slurm_login_node_sg_id = environ['SlurmLoginNodeSGId']
         logger.info(f"Configure RES({environment_name}) submitters for {cluster_name} in {cluster_region}")
 
         ec2_client = boto3.client('ec2', region_name=cluster_region)
@@ -66,7 +67,19 @@ def lambda_handler(event, context):
                         continue
                     for tags in instance_info['Tags']:
                         logger.info(f"            {tags}")
-                    submitter_instance_ids.append(instance_info['InstanceId'])
+                    instance_id = instance_info['InstanceId']
+                    submitter_instance_ids.append(instance_id)
+                    security_group_ids = []
+                    for security_group_dict in instance_info['SecurityGroups']:
+                        security_group_ids.append(security_group_dict['GroupId'])
+                    if slurm_login_node_sg_id not in security_group_ids:
+                        # Attach the security group
+                        logger.info(f"Attaching {slurm_login_node_sg_id} to {instance_id}.")
+                        security_group_ids.append(slurm_login_node_sg_id)
+                        ec2_client.modify_instance_attribute(InstanceId=instance_id, Groups=security_group_ids)
+                    else:
+                        logger.info(f"{slurm_login_node_sg_id} already attached to {instance_id}")
+
         logger.info(f"submitter_instance_ids: {submitter_instance_ids}")
         if not submitter_instance_ids:
             logger.info("No running submitters.")

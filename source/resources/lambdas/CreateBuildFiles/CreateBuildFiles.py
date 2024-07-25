@@ -68,7 +68,6 @@ def get_image_builder_parent_image(distribution, version, architecture, parallel
     logger.debug(f"Images:\n{json.dumps(response['Images'], indent=4)}")
     images = sorted(response['Images'], key=lambda image: image['CreationDate'], reverse=True)
     if not images:
-        logger.error(f"No AMI found for {distribution} {version} {architecture}")
         return None
     image_id = images[0]['ImageId']
     return image_id
@@ -178,6 +177,7 @@ def lambda_handler(event, context):
             build_file_template = Template(build_file_template_content)
 
         error_count = 0
+        error_messages = []
         for distribution in ami_builds:
             for version in ami_builds[distribution]:
                 for architecture in ami_builds[distribution][version]:
@@ -188,6 +188,9 @@ def lambda_handler(event, context):
                     template_vars['ParentImage'] = get_image_builder_parent_image(distribution, version, architecture, parallelcluster_version)
                     if not template_vars['ParentImage']:
                         error_count += 1
+                        error_message = f"No parent AMI found for {distribution} {version} {architecture}"
+                        logger.error(error_message)
+                        error_messages.append(error_message)
                         continue
                     template_vars['RootVolumeSize'] = int(get_ami_root_volume_size(template_vars['ParentImage'])) + 10
                     logger.info(f"{distribution}-{version}-{architecture} image id: {template_vars['ParentImage']} root volume size={template_vars['RootVolumeSize']}")
@@ -229,7 +232,7 @@ def lambda_handler(event, context):
 
                     template_vars['ParentImage'] = get_fpga_developer_image(distribution, version, architecture)
                     if not template_vars['ParentImage']:
-                        logger.debug(f"No FPGA Developer AMI found for {distribution}{version} {architecture}")
+                        logger.info(f"No FPGA Developer AMI found for {distribution}{version} {architecture}")
                         continue
                     template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-fpga-{distribution}-{version}-{architecture}".replace('_', '-')
                     template_vars['RootVolumeSize'] = int(get_ami_root_volume_size(template_vars['ParentImage'])) + 10
@@ -249,7 +252,10 @@ def lambda_handler(event, context):
                         )
 
         if error_count:
-            raise RuntimeError(f"Errors occurred when creating build config files.")
+            message = f"Errors occurred when creating build config files."
+            for error_message in error_messages:
+                message += f"\n{error_message}"
+            raise RuntimeError(message)
 
     except Exception as e:
         logger.exception(str(e))

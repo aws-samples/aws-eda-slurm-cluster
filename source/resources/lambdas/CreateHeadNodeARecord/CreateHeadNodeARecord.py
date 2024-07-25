@@ -20,6 +20,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 Create an A record for the ParallelCluster head node.
 
 This should be called by on_head_node_started.sh.
+
+Note: The hosted zone name has a global name space and isn't guaranteed to be unique.
+Account could have clusters with the same name in different VPCs and different regions.
 '''
 import boto3
 import json
@@ -40,6 +43,7 @@ def lambda_handler(event, context):
 
         cluster_name = environ['ClusterName']
         cluster_region = environ['Region']
+        vpc_id = environ['VpcId']
 
         logger.info(f"Create head node A record for {cluster_name} in {cluster_region}")
 
@@ -48,15 +52,22 @@ def lambda_handler(event, context):
         # Get the ParallelCluster hosted zone
         hosted_zone_name = f"{cluster_name}.pcluster."
         hosted_zone_id = None
-        list_hosted_zones_paginator = route53_client.get_paginator('list_hosted_zones')
-        for response in list_hosted_zones_paginator.paginate():
-            for hosted_zone_info in response['HostedZones']:
-                if hosted_zone_info['Name'] == hosted_zone_name:
-                    hosted_zone_id = hosted_zone_info['Id']
+        kwargs = {
+            'VPCId': vpc_id,
+            'VPCRegion': cluster_region
+        }
+        done = False
+        while not hosted_zone_id and not done:
+            response = route53_client.list_hosted_zones_by_vpc(**kwargs)
+            for hosted_zone_summary in response['HostedZoneSummaries']:
+                if hosted_zone_summary['Name'] == hosted_zone_name:
+                    hosted_zone_id = hosted_zone_summary['HostedZoneId']
                     logger.info(f"{hosted_zone_name} hosted zone id: {hosted_zone_id}")
                     break
-            if hosted_zone_id:
-                break
+            if response.get('NextToken', None):
+                kwargs['NextToken'] = response['NextToken']
+            else:
+                done = True
         if not hosted_zone_id:
             raise ValueError(f"No private hosted zone named {hosted_zone_name} found.")
 

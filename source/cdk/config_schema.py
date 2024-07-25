@@ -567,8 +567,8 @@ def get_config_schema(config):
         # Optional, but highly recommended
         Optional('ErrorSnsTopicArn'): str,
         Optional('TimeZone', default='US/Central'): str,
+        Optional('AdditionalSecurityGroupsStackName'): str,
         Optional('RESStackName'): str,
-        Optional('RESEnvironmentName'): str,
         'slurm': {
             Optional('ParallelClusterConfig'): {
                 Optional('Enable', default=True): And(bool, lambda s: s == True),
@@ -748,13 +748,7 @@ def get_config_schema(config):
                         Optional('FileSystemId'): And(str, lambda s: s.startswith('fs-')),
                         Optional('VolumeId'): And(str, lambda s: s.startswith('fsvol-')),
                     }
-                ],
-                # ExtraMountSecurityGroups
-                Optional('ExtraMountSecurityGroups', default={}): {
-                    Optional(Or('nfs', 'zfs', 'lustre')): {
-                        str: And(str, lambda s: re.match(r'sg-', s))
-                    }
-                }
+                ]
             },
         },
         Optional('Licenses', default={}): {
