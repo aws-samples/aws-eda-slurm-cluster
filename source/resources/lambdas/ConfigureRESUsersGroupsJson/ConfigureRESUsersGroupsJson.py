@@ -64,7 +64,7 @@ def lambda_handler(event, context):
                 domain_joined_instance_id = domain_joined_instance_info['InstanceId']
                 logger.info(f"Domain joined instance id: {domain_joined_instance_id}")
         if not domain_joined_instance_id:
-            raise RuntimeError(f"No running instances found with tags res:EnvironmentName={environment_name} and res:ModuleId={res_domain_joined_instance_module_name}")
+            raise RuntimeError(f"No running instances found with tags res:EnvironmentName={environment_name}, Name={res_domain_joined_instance_name}, res:ModuleName={res_domain_joined_instance_module_name}, res:ModuleId={res_domain_joined_instance_module_id}, res:NodeType={res_domain_joined_instance_node_type}")
 
         ssm_client = boto3.client('ssm', region_name=cluster_region)
         commands = f"""
