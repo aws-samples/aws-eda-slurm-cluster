@@ -12,7 +12,8 @@ This project creates a ParallelCluster configuration file that is documented in 
 <a href="#subnetid">SubnetId</a>: str
 <a href="#errorsnstopicarn">ErrorSnsTopicArn</a>: str
 <a href="#timezone">TimeZone</a>: str
-<a href="#resenvironmentname">RESEnvironmentName</a>: str
+<a href="#additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</a>: str
+<a href="#resstackname">RESStackName</a>: str
 <a href="#slurm">slurm</a>:
     <a href="#parallelclusterconfig">ParallelClusterConfig</a>:
         <a href="#version">Version</a>: str
@@ -81,9 +82,6 @@ This project creates a ParallelCluster configuration file that is documented in 
         - str
         <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Imds">Imds</a>:
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Imds-Secured">Secured</a>: bool
-    <a href="#submitterinstancetags">SubmitterInstanceTags</a>: str
-        TagName:
-        - TagValues
     <a href="#instanceconfig">InstanceConfig</a>:
         <a href="#usespot">UseSpot</a>: str
         <a href="#exclude">Exclude</a>:
@@ -122,9 +120,6 @@ This project creates a ParallelCluster configuration file that is documented in 
           <a href="#storagetype">StorageType</a>: str
           <a href="#filesystemid">FileSystemId</a>: str
           <a href="#volumeid">VolumeId</a>: str
-        <a href="#extramountsecuritygroups">ExtraMountSecurityGroups</a>:
-            <a href="#filesystemtype">FileSystemType</a>:
-                SecurityGroupName: SecurityGroupId
     <a href="#licenses">Licenses</a>:
         <a href="#licensename">LicenseName</a>:
             <a href="#count">Count</a>: int
@@ -202,13 +197,17 @@ The time zone to use for all EC2 instances in the cluster.
 
 default='US/Central'
 
-### RESEnvironmentName
+### AdditionalSecurityGroupsStackName
+
+If you followed the [automated process to create security groups for external login nodes and file systems](../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems), then specify the stack name that you deployed and the additional security groups will be configured for the head and compute nodes.
+
+### RESStackName
 
 If you are deploying the cluster to use from Research and Engineering Studio (RES) virtual desktops, then you
-can specify the environment name so that the virtual desktops automatically get configured to use the cluster.
+can specify the stack name for the RES environment to automate the integration.
+The virtual desktops automatically get configured to use the cluster.
 
-The security group of the desktops will be updated with rules that allow them to talk to the cluster and the
-cluster will be configured on the desktop.
+This requires you to [configure security groups for external login nodes](../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems).
 
 The Slurm binaries will be compiled for the OS of the desktops and and environment modulefile will be created
 so that the users just need to load the cluster modulefile to use the cluster.
@@ -546,12 +545,6 @@ Additional security groups that will be added to the head node instance.
 
 List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the head node instance.
 
-### SubmitterInstanceTags
-
-Tags of instances that can be configured to submit to the cluster.
-
-When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.
-
 ### InstanceConfig
 
 Configure the instances used by the cluster.
@@ -795,6 +788,19 @@ This can be used so the compute nodes have the same file structure as the remote
 
 This is used to configure [ParallelCluster SharedStorage](https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html).
 
+For example:
+
+```
+storage:
+    ExtraMounts:
+    - dest: "/tools"
+      StorageType: FsxOpenZfs
+      VolumeId: 'fsvol-abcd1234'
+      src: 'fs-efgh5678.fsx.us-east-1.amazonaws.com:/fsx/'
+      type: nfs4
+      options: 'nfsvers=4.1'
+```
+
 ##### dest
 
 The directory where the file system will be mounted.
@@ -831,37 +837,6 @@ Specifies the ID of an existing [FSx for Lustre](https://docs.aws.amazon.com/par
 ##### VolumeId
 
 Specifies the volume ID of an existing [FSx for ONTAP](https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOntapSettings-VolumeId) or [FSx for OpenZFS](https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOpenZfsSettings-VolumeId) file system.
-
-#### ExtraMountSecurityGroups
-
-The security groups used by the file systems so that the head and comnpute nodes
-can be configured to connect to them.
-
-For example:
-
-```
-storage:
-    ExtraMounts:
-    - dest: "/tools"
-      StorageType: FsxOpenZfs
-      VolumeId: 'fsvol-abcd1234'
-      src: 'fs-efgh5678.fsx.us-east-1.amazonaws.com:/fsx/'
-      type: nfs4
-      options: 'nfsvers=4.1'
-    ExtraMountSecurityGroups:
-        zfs:
-            FsxSG: sg-12345678
-```
-
-##### FileSystemType
-
-Type of file system so that the appropriate ports can be opened.
-
-Valid values:
-
-* nfs
-* zfs
-* lustre
 
 ### Licenses
 

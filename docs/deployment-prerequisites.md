@@ -155,7 +155,7 @@ Here are some notes on the required parameters and how to fill them out.
 | AmiId        | You can get this using the ParallelCluster UI. Click on Images and sort on Operating system. Confirm that the version is at least 3.10.0. Select the AMI for alinux2023 and the arm64 architecture.
 | CustomCookbookUrl | Leave blank
 | DBMSClientSG | Get this from the DatabaseClientSecurityGroup output of the database stack.
-| DBMSDatabaseName | This is an arbitrary name. It must be alphanumeric. I use slurmaccounting
+| DBMSDatabaseName | This is an arbitrary name. It must be alphanumeric. I use **slurmaccounting**
 | DBMSPasswordSecretArn | Get this from the DatabaseSecretArn output of the database stack
 | DBMSUri               | Get this from the DatabaseHost output of the database stack. Note that if you copy and paste the link you should delete the https:// prefix and the trailing '/'.
 | DBMSUsername          | Get this from the DatabaseAdminUser output of the database stack.
@@ -169,170 +169,65 @@ Here are some notes on the required parameters and how to fill them out.
 | SubnetId              | Preferably the same subnet where the clusters will be deployed.
 | VPCId                 | The VPC of the subnet.
 
-The stack name will be used in the slurm/ParallelClusterConfig/[SlurmdbdStackName](../config#slurmdbdstackname) configuration parameter.
+The stack name will be used in two places.
+It will be used by the script that creates security groups for you in the following section.
+It will also be used in the slurm/ParallelClusterConfig/[SlurmdbdStackName](../config#slurmdbdstackname) configuration parameter when you create your cluster.
 
-## Security Groups for Login Nodes
+The stack will only take about 3 minutes to deploy.
 
-If you want to allow instances like remote desktops to use the cluster directly, you must define
-three security groups that allow connections between the instance, the Slurm head node, and the Slurm compute nodes.
-We call the instance that is connecting to the Slurm cluster a login node or a submitter instance.
+## Shared Security Groups for login nodes and file systems
 
-I'll call the three security groups the following names, but they can be whatever you want.
+Instances like remote desktops that access the cluster directly are called login nodes.
+If you want to use your own login nodes to access the cluster, then you must define
+several security groups that allow connections between the login nodes, the Slurm head node, and the Slurm compute nodes.
+If you are using shared file servers like FSx file systems, then you also need to configure security
+groups for the file systems that allows the login and slurm nodes to access the file systems.
 
-* SlurmSubmitterSG
-* SlurmHeadNodeSG
-* SlurmComputeNodeSG
+The [details](../security-groups) are straightforward, but time consuming, so the process has been automated for you.
+Simply run the following script which will deploy a CloudFormation stack that creates the required
+security groups.
 
-First create these security groups without any security group rules.
-The reason for this is that the security group rules reference the other security groups so the groups must all exist before any of the rules can be created.
-After you have created the security groups then create the rules as described below.
+```
+cd aws-eda-slurm-cluster
+./create-slurm-security-groups.sh --region <REGION> --stack-name <STACK_NAME> --VpcId <VPC_ID>
+```
 
-### Slurm Submitter Security Group
+Additional script options can be specified if you created an external SlurmDbd instance or have existing security groups for your FSx file systems.
 
-The SlurmSubmitterSG will be attached to your login nodes, such as your virtual desktops.
+| Script Option                    | Description
+|----------------------------------|-----
+| **--slurmdbd-stack-name**        | Stack name that deployed external slurmdbd instance.
+| **--slurmdbd-security-group-id** | Id of security group attached to the slurmdbd instance.
+| **--fsxl-security-group-id**     | Id of security group attached to FSx for Lustre file systems
+| **--fsxo-security-group-id**     | Id of security group attached to FSx for NetApp Ontap file systems
+| **--fsxz-security-group-id**     | Id of security group attached to FSx for OpenZfs file systems
 
-**NOTE**: To make this available to Research and Engineering Studio (RES) so that it can be automatically assigned to virtual desktops, you need to add a tag named **res:Resource** with a value of **vdi-security-group**. When you create a project, you can select this security group to be added to virtual desktops that use the project.
+The stack outputs will have the security group ids.
 
-It needs at least the following inbound rules:
+| Output Name          | Use
+|----------------------|------
+| SlurmHeadNodeSGId    | Additional security group for Slurm head node
+| SlurmComputeNodeSGId | Additional security group for Slurm compute nodes
+| SlurmSubmitterSGId   | Additional security group for Slurm login nodes
+| SlurmLustreSGId      | Security group for FSx for Lustre file systems
+| SlurmOntapSGId       | Security group for FSx for NetApp Ontap file systems
+| SlurmZfsSGId         | Security group for FSx for OpenZfs file systems
 
-| Type | Port range | Source             | Description | Details
-|------|------------|--------------------|------------ |--------
-| TCP  | 1024-65535 | SlurmHeadNodeSG    | SlurmHeadNode ephemeral    | Head node can use ephemeral ports to connect to the submitter
-| TCP  | 1024-65535 | SlurmComputeNodeSG | SlurmComputeNode ephemeral | Compute node will connect to submitter using ephemeral ports to manage interactive shells
-| TCP  | 6000-7024  | SlurmComputeNodeSG | SlurmComputeNode X11       | Compute node can send X11 traffic to submitter for GUI applications
+You can pass the name of the stack to the [AdditionalSecurityGroupsStackName](../config#additionalsecuritygroupsstackname) configuration parameter when you create your cluster
+and it will get the security groups ids for you and configure the cluster to use them.
 
-It needs the following outbound rules.
+## Create File Systems
 
-| Type | Port range | Destination        | Description | Details
-|------|------------|--------------------|-------------|--------
-| TCP  | 2049       | SlurmHeadNodeSG    | SlurmHeadNode NFS       | Mount the slurm NFS file system with binaries and config
-| TCP  | 6818       | SlurmComputeNodeSG | SlurmComputeNode slurmd | Connect to compute node for interactive jobs
-| TCP  | 6819       | SlurmHeadNodeSG    | SlurmHeadNode slurmdbd  | Connect to slurmdbd (accounting database) daemon on head node for versions before 3.10.0.
-| TCP  | 6819       | SlurmdbdSG         | Slurmdbd                | Connect to external Slurmdbd instance. For versions starting in 3.10.0.
-| TCP  | 6820-6829  | SlurmHeadNodeSG    | SlurmHeadNode slurmctld
-| TCP  | 6830       | SlurmHeadNodeSG    | SlurmHeadNode slurmrestd
+Most EDA workloads require a high performance shared file system.
+AWS provides managed file systems that meet the needs of EDA workloads.
+FSx for NetApp ONTAP, FSx for OpenZfs, and FSx for Lustre are managed file systems
+that meet the needs of EDA workloads.
 
-### Slurm Head Node Security Group
+Create the file systems that you require and use the appropriate security group from the previous section
+when you create the file system.
 
-The SlurmHeadNodeSG will be specified in your configuration file for the slurm/SlurmCtl/AdditionalSecurityGroups parameter.
-
-It needs at least the following inbound rules:
-
-| Type | Port range | Source | Description
-|------|------------|--------|------------
-| TCP  | 2049       | SlurmSubmitterSG    | SlurmSubmitter NFS
-| TCP  | 6819       | SlurmSubmitterSG    | SlurmSubmitter slurmdbd. If not using external Slurmdbd.
-| TCP  | 6820-6829  | SlurmSubmitterSG    | SlurmSubmitter slurmctld
-| TCP  | 6830       | SlurmSubmitterSG    | SlurmSubmitter slurmrestd
-
-It needs the following outbound rules.
-
-| Type | Port range | Destination | Description
-|------|------------|-------------|------------
-| TCP  | 1024-65535 | SlurmSubmitterSG    | SlurmSubmitter ephemeral
-
-### External Slurmdbd Security Group
-
-**Note**: ParallelCluster 3.10.0 added support for an external Slurmdbd instance.
-
-The submitter must be able to directly access the Slurmdbd instance on port 6819 when running commands like `sacctmgr`.
-You must edit the inbound rules of the Slurmdbd instances security group to allow the access.
-Add the following inbound rule.
-
-| Type | Port range | Source | Description
-|------|------------|--------|------------
-| TCP  | 6819       | SlurmSubmitterSG    | SlurmSubmitter slurmdbd
-
-### Slurm Compute Node Security Group
-
-The SlurmComputeNodeSG will be specified in your configuration file for the slurm/InstanceConfig/AdditionalSecurityGroups parameter.
-
-It needs at least the following inbound rules:
-
-| Type | Port range | Source | Description
-|------|------------|--------|------------
-| TCP  | 6818       | SlurmSubmitterSG    | SlurmSubmitter slurmd
-
-It needs the following outbound rules.
-
-| Type | Port range | Destination | Description
-|------|------------|-------------|------------
-| TCP  | 1024-65535 | SlurmSubmitterSG    | SlurmSubmitter ephemeral
-| TCP  | 6000-7024  | SlurmSubmitterSG    | SlurmSubmitter X11
-
-## Security Groups for File Systems
-
-You will usually have externally created file systems that should be mounted on the compute nodes.
-You will need to define security groups for the file system network interfaces and modify the Slurm security groups to give them access to the file systems.
-
-### FSx for Lustre Security Group
-
-We'll refer to this group as FSxLustreSG, but you can name it whatever you want.
-The [required security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/LustreGuide/limit-access-security-groups.html#lustre-client-inbound-outbound-rules).
-
-It needs the following inbound rules.
-
-| Type | Port range | Source             | Description | Details
-|------|------------|--------------------|------------ |--------
-| TCP  |  988       | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients | 
-| TCP  | 1018-1023  | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allows Lustre traffic between FSx for Lustre file servers and Lustre clients | 
-
-It needs the following outbound rules.
-
-| Type | Port range | Destination        | Description | Details
-|------|------------|--------------------|-------------|--------
-| TCP  |  988       | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allow Lustre traffic between FSx for Lustre file servers and Lustre clients |
-| TCP  | 1018-1023  | FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | Allow Lustre traffic between FSx for Lustre file servers and Lustre clients |
-
-The same inbound and outbound rules need to be aded to all 3 of the Slurm security groups too.
-
-## FSx for NetApp Ontap Security Group
-
-We'll refer to this group as FSxOntapSG, but you can name it whatever you want.
-The [required security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/limit-access-security-groups.html#fsx-vpc-security-groups).
-
-It needs the following inbound rules.
-
-| Type      | Port range | Source             | Description | Details
-|-----------|------------|--------------------|------------ |--------
-| All ICMP  |  All       | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | Pinging the instance
-| TCP  | See user guide  | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | 
-
-It needs the following outbound rules.
-
-| Type | Port range | Destination        | Description | Details
-|------|------------|--------------------|-------------|--------
-| All  |  All       | | |
-
-The Slurm security groups need to add the following outbound rule to allow mounting using NFS.
-
-| Type | Port range | Destination        | Description | Details
-|------|------------|--------------------|-------------|--------
-| TCP  | 2049       | FSxOntapSG         | NFS         |
-
-## FSx for OpenZFS Security Group
-
-We'll refer to this group as FSxZfsSG, but you can name it whatever you want.
-The [required security group rule are documented in the FSx documentation](https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html).
-
-It needs the following inbound rules.
-
-| Type | Port range | Source             | Description | Details
-|------|------------|--------------------|------------ |--------
-| TCP  | 111  | SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmSubmitterSG | | 
-
-Remove all outbound rules.
-
-The Slurm security groups need to add the following outbound rule to allow mounting using NFS.
-
-| Type | Port range  | Destination        | Description | Details
-|------|-------------|--------------------|-------------|--------
-| TCP  |  111        | FSxZfs             |             | Remote procedure call for NFS
-| UDP  |  111        | FSxZfs             |             | Remote procedure call for NFS
-| TCP  | 2049        | FSxZfs             |             | NFS server daemon
-| UDP  | 2049        | FSxZfs             |             | NFS server daemon
-| TCP  | 20001-20003 | FSxZfs             |             | NFS mount, status monitor, and lock daemon
-| UDP  | 20001-20003 | FSxZfs             |             | NFS mount, status monitor, and lock daemon
+If the file system already exists, then attach the appropriate security group to the network interfaces of
+the file systems.
 
 ## Create Configuration File
 
@@ -351,17 +246,20 @@ You should save your selections in the config file.
 
 | Parameter                          | Description | Valid Values | Default
 |------------------------------------|-------------|--------------|--------
-| [StackName](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L366-L367) | The cloudformation stack that will deploy the cluster. |  | None
-| [slurm/ClusterName](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L447-L452) | Name of the Slurm cluster | For ParallelCluster shouldn't be the same as StackName | | None
-| [Region](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L368-L369) | Region where VPC is located | | `$AWS_DEFAULT_REGION`
-| [VpcId](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L372-L373)  | The vpc where the cluster will be deployed. |  vpc-* | None
-| [SshKeyPair](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L370-L371) | EC2 Keypair to use for instances | | None
-| [ErrorSnsTopicArn](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L379-L380) | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
-| [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543) | Configure instance types that the cluster can use and number of nodes. | | See [default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml)
+| [StackName](../config#stackname) | The cloudformation stack that will deploy the cluster. I prefer to end the name with "-config" .|  | None
+| [slurm/ClusterName](../config#clustername) | Name of the Slurm cluster | Can't be the same as StackName. | If StackName ends in "-config" then StackName with "-config" stripped off. Otherwise, StackName with "-cl" appended.
+| [Region](../config#region) | Region where VPC is located | | `$AWS_DEFAULT_REGION`
+| [VpcId](../config#vpcid)  | The vpc where the cluster will be deployed. |  vpc-* | None
+| [SshKeyPair](../config#sshkeypair) | EC2 Keypair to use for instances | | None
+| [ErrorSnsTopicArn](../config#errorsnstopicarn) | ARN of an SNS topic that will be notified of errors | `arn:aws:sns:{{region}}:{AccountId}:{TopicName}` | None
+| [slurm/InstanceConfig](../config#instanceconfig) | Configure instance types that the cluster can use and number of nodes. | | See [default_config.yml](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml)
+| [AdditionalSecurityGroupsStackName](../config#additionalsecuritygroupsstackname) | Name of stack that created security groups for external login nodes and file systems. | |
+| [RESStackName](../config##resstackname) | Name of RES environment | |
+| [slurm/storage/ExtraMounts](../config#extramounts) | Extra mount points | | None
 
 ### Configure the Compute Instances
 
-The [slurm/InstanceConfig](https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/cdk/config_schema.py#L491-L543) configuration parameter configures the base operating systems, CPU architectures, instance families,
+The [slurm/InstanceConfig](../config#instanceconfig) configuration parameter configures the base operating systems, CPU architectures, instance families,
 and instance types that the Slurm cluster should support.
 ParallelCluster currently doesn't support heterogeneous clusters;
 all nodes must have the same architecture and Base OS.

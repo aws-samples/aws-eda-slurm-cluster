@@ -91,6 +91,9 @@ def lambda_handler(event, context):
         cluster_region = environ['Region']
         logger.info(f"{requestType} request for {cluster_name} in {cluster_region}")
 
+        # Create sns client so can send notifications on any errors.
+        sns_client = boto3.client('sns')
+
         cluster_status = get_cluster_status(cluster_name, cluster_region)
         if cluster_status:
             valid_statuses = ['CREATE_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
@@ -145,8 +148,15 @@ def lambda_handler(event, context):
                 )
                 logger.info("Create call succeeded.")
                 logger.info(f"response={response}")
-            except:
-                logger.exception("ParallelCluster create failed. Ignoring exception")
+            except Exception as e:
+                logger.exception("ParallelCluster create exception. Ignoring exception so config stack deployment doesn't fail,")
+                message = f"ParallelCluster create exception:\n\n{e}"
+                sns_client.publish(
+                    TopicArn = environ['ErrorSnsTopicArn'],
+                    Subject = f"{cluster_name} CreateParallelCluster create failed",
+                    Message = message
+                )
+                logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
         elif requestType == "Update":
             logger.info("Checking compute fleet status.")
             compute_fleet_status = pc.describe_compute_fleet(
@@ -177,7 +187,7 @@ def lambda_handler(event, context):
                 if 'No changes found in your cluster configuration' in message:
                     logger.info('No changes found in your cluster configuration.')
                 else:
-                    logger.error(message)
+                    raise
 
             except UpdateClusterBadRequestException as e:
                 message = e.content.message
@@ -186,7 +196,7 @@ def lambda_handler(event, context):
                 if 'All compute nodes must be stopped' in str(e.content.__dict__):
                     stop_and_retry = True
                 else:
-                    logger.error(f"{message}")
+                    raise
 
             if stop_and_retry:
                 logger.info(f"Stopping the cluster and retrying the update.")
@@ -227,6 +237,7 @@ def lambda_handler(event, context):
                     message = e.content.message
                     logger.error(message)
                     logger.error(f"{e.content.__dict__}")
+                    raise
                 except Exception as e:
                     logger.exception("ParallelCluster Update failed.")
 
@@ -256,10 +267,21 @@ def lambda_handler(event, context):
         else:
             raise ValueError(f"Unsupported requestType: {requestType}")
 
+    except (BadRequestException, UpdateClusterBadRequestException) as e:
+        cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, physicalResourceId=cluster_name)
+        message = e.content.message
+        logger.exception(f"{requestType} failed: {message}")
+        sns_client.publish(
+            TopicArn = environ['ErrorSnsTopicArn'],
+            Subject = f"{cluster_name} CreateParallelCluster {requestType} failed",
+            Message = message
+        )
+        logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")
+        raise
+
     except Exception as e:
         logger.exception(str(e))
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, physicalResourceId=cluster_name)
-        sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
             Subject = f"{cluster_name} CreateParallelCluster failed",

@@ -4,6 +4,7 @@ docs_dir: docs
 nav:
   - 'index.md'
   - 'deployment-prerequisites.md'
+  - 'security-groups.md'
   - 'deploy-parallel-cluster.md'
   - 'config.md'
   - 'res_integration.md'

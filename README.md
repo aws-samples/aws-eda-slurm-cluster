@@ -14,16 +14,18 @@ Key features are:
 * Automatic scaling of AWS EC2 instances based on demand
 * Use any AWS EC2 instance type including Graviton2
 * Use of spot instances
+* Memory-aware scheduling
+* License-aware scheduling (Manages tool licenses as a consumable resource)
+* User and group fair share scheduling
 * Handling of spot terminations
 * Handling of insufficient capacity exceptions
 * Batch and interactive partitions (queues)
-* Manages tool licenses as a consumable resource
-* User and group fair share scheduling
 * Slurm accounting database
 * CloudWatch dashboard
 * Job preemption
 * Manage on-premises compute nodes
 * Configure partitions (queues) and nodes that are always on to support reserved instances (RIs) and savings plans (SPs).
+* Integration with [Research and Engineering Studio on AWS (RES)](https://aws.amazon.com/hpc/res/)
 
 Features in the legacy version and not in the ParallelCluster version:
 
@@ -31,13 +33,12 @@ Features in the legacy version and not in the ParallelCluster version:
 * Multi-AZ support. Supported by ParallelCluster, but not currently implemented.
 * Multi-region support
 * AWS Fault Injection Simulator (FIS) templates to test spot terminations
-* Support for MungeKeySsmParameter
 * Multi-cluster federation
 
 ParallelCluster Limitations
 
 * Number of "Compute Resources" (CRs) is limited to 50 which limits the number of instance types allowed in a cluster.
-  ParallelCluster can have multiple instance types in a CR, but with memory based scheduling enabled, they must all have the same number of cores and amount of memory.
+  ParallelCluster can have multiple instance types in a compute resource (CR), but with memory based scheduling enabled, they must all have the same number of cores and amount of memory.
 * All Slurm instances must have the same OS and CPU architecture.
 * Stand-alone Slurm database daemon instance. Prevents federation.
 * Multi-region support. This is unlikely to change because multi-region services run against our archiectural philosophy.
@@ -57,11 +58,12 @@ ParallelCluster:
 
 * Amazon Linux 2
 * CentOS 7
-* RedHat 7 and 8
+* RedHat 7, 8 and 9
+* Rocky Linux 8 and 9
 
-This Slurm cluster supports both Intel/AMD (x86_64) based instances and ARM Graviton2 (arm64/aarch64) based instances.
+This Slurm cluster supports both Intel/AMD (x86_64) based instances and Graviton (arm64/aarch64) based instances.
 
-[Graviton instances require](https://github.com/aws/aws-graviton-getting-started/blob/main/os.md) Amazon Linux 2 or RedHat 8 operating systems.
+[Graviton instances require](https://github.com/aws/aws-graviton-getting-started/blob/main/os.md) Amazon Linux 2 or RedHat/Rocky >=8 operating systems.
 RedHat 7 and CentOS 7 do not support Graviton 2.
 
 This provides the following different combinations of OS and processor architecture.
@@ -72,10 +74,13 @@ ParallelCluster:
 * Amazon Linux 2 and x86_64
 * CentOS 7 and x86_64
 * RedHat 7 and x86_64
-* RedHat 8 and arm64
-* RedHat 8 and x86_64
+* RedHat 8/9 and arm64
+* RedHat 8/9 and x86_64
+* Rocky 8/9 and arm64
+* Rocky 8/9 and x86_64
 
 Note that in ParallelCluster, all compute nodes must have the same OS and architecture.
+However, you can create as many clusters as you require.
 
 ## Documentation
 

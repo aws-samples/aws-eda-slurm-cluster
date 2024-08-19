@@ -211,7 +211,7 @@ class CdkSlurmStack(Stack):
         config_keys = {
             'Region': ['region', 'region'],
             'SshKeyPair': ['SshKeyPair', 'ssh-keypair'],
-            'RESEnvironmentName': ['RESEnvironmentName', None],
+            'RESStackName': ['RESStackName', None],
             'VpcId': ['VpcId', 'vpc-id'],
             'CIDR': ['CIDR', 'cidr'],
             'SubnetId': ['SubnetId', None],
@@ -235,7 +235,7 @@ class CdkSlurmStack(Stack):
         '''
         Check config, set defaults, and sanity check the configuration.
 
-        If RESEnvironmentName is configured then update configuration from RES stacks.
+        If RESStackName is configured then update configuration from RES stacks.
         '''
         config_errors = 0
 
@@ -249,7 +249,10 @@ class CdkSlurmStack(Stack):
             logger.error(f"You must provide --stack-name on the command line or StackName in the config file.")
             config_errors += 1
 
-        if 'RESEnvironmentName' in self.config:
+        if 'AdditionalSecurityGroupsStackName' in self.config:
+            self.update_config_with_additional_security_groups()
+
+        if 'RESStackName' in self.config:
             self.update_config_for_res()
 
         if 'ErrorSnsTopicArn' not in self.config:
@@ -379,7 +382,11 @@ class CdkSlurmStack(Stack):
             if 'SlurmdbdStackName' in self.config['slurm']['ParallelClusterConfig']['Slurmdbd']:
                 cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
                 # Check that the stack exists
-                stacks_list = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'])['Stacks']
+                try:
+                    stacks_list = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'])['Stacks']
+                except ClientError:
+                    logger.error(f"Can't find {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']} stack specified in /slurm/ParallelClusterConfig/Slurmdbd/SlurmdbdStackName.")
+                    exit(1)
                 if not stacks_list:
                     logger.error(f"No stack named {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']} found.")
                     exit(1)
@@ -473,25 +480,74 @@ class CdkSlurmStack(Stack):
             exit(1)
         self.config = validated_config
 
+    def update_config_with_additional_security_groups(self):
+        '''
+        Update config with security groups from AdditionalSecurityGroupsStackName.
+        '''
+        stack_name = self.config['AdditionalSecurityGroupsStackName']
+        logger.info(f"Updating config with additional security groups from {stack_name} stack.")
+        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
+        try:
+            stack_dicts = cloudformation_client.describe_stacks(StackName=stack_name)['Stacks']
+        except ClientError:
+            logger.error(f"AdditionalSecurityGroupsStackName={stack_name} stack doesn't exist.")
+            exit(1)
+        output_dicts = stack_dicts[0]['Outputs']
+        self.slurm_compute_node_sg_id = None
+        self.slurm_head_node_sg_id = None
+        self.slurm_login_node_sg_id = None
+        for output_dict in output_dicts:
+            if output_dict['OutputKey'] == 'SlurmComputeNodeSGId':
+                self.slurm_compute_node_sg_id = output_dict['OutputValue']
+            elif output_dict['OutputKey'] == 'SlurmHeadNodeSGId':
+                self.slurm_head_node_sg_id = output_dict['OutputValue']
+            elif output_dict['OutputKey'] == 'SlurmLoginNodeSGId':
+                self.slurm_login_node_sg_id = output_dict['OutputValue']
+        num_errors = 0
+        if not self.slurm_compute_node_sg_id:
+            logger.error(f"Could not find SlurmComputeNodeSGId output in {stack_name} stack.")
+            num_errors += 1
+        if not self.slurm_head_node_sg_id:
+            logger.error(f"Could not find SlurmHeadNodeSGId output in {stack_name} stack.")
+            num_errors += 1
+        if not self.slurm_login_node_sg_id:
+            logger.error(f"Could not find SlurmLoginNodeSGId output in {stack_name} stack.")
+            num_errors += 1
+        if num_errors:
+            exit(1)
+
+        if 'AdditionalSecurityGroups' not in self.config['slurm']['SlurmCtl']:
+            self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups'] = []
+        if self.slurm_head_node_sg_id in self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups']:
+            logger.info(f"{self.slurm_head_node_sg_id} already configured in slurm/SlurmCtl/AdditionalSecurityGroups.")
+        else:
+            self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups'].append(self.slurm_head_node_sg_id)
+            logger.info(f"Added slurm/SlurmCtl/AdditionalSecurityGroups={self.slurm_head_node_sg_id}")
+
+        if 'AdditionalSecurityGroups' not in self.config['slurm']['InstanceConfig']:
+            self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups'] = []
+        if self.slurm_compute_node_sg_id in self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups']:
+            logger.info(f"{self.slurm_compute_node_sg_id} already configured in slurm/InstanceConfig/AdditionalSecurityGroups.")
+        else:
+            self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups'].append(self.slurm_compute_node_sg_id)
+            logger.info(f"Added slurm/InstanceConfig/AdditionalSecurityGroups={self.slurm_compute_node_sg_id}")
+
     def update_config_for_res(self):
         '''
         Update config with information from RES stacks
 
-        Add Submitter security groups.
+        Add login node security groups.
         Configure /home file system.
         '''
         res_stack_name = self.config['RESStackName']
-        res_environment_name = self.config['RESEnvironmentName']
         logger.info(f"Updating configuration for RES")
         logger.info(f"    stack: {res_stack_name}")
-        logger.info(f"    environment: {res_environment_name}")
 
-        self.config['slurm']['SubmitterInstanceTags'] = {'res:EnvironmentName': [res_environment_name]}
-
+        # Get RES environment name from stack parameters.
+        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
         res_stack_name_found = False
         stack_statuses = {}
         stack_dicts = {}
-        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
         list_stacks_paginator = cloudformation_client.get_paginator('list_stacks')
         list_stacks_kwargs = {
             'StackStatusFilter': [
@@ -519,26 +575,33 @@ class CdkSlurmStack(Stack):
             logger.error(message)
             exit(1)
 
-        # Get VpcId, SubnetId from RES stack
+        # Get environment name, VpcId, SubnetId from RES stack
         stack_parameters = cloudformation_client.describe_stacks(StackName=res_stack_name)['Stacks'][0]['Parameters']
+        self.res_environment_name = None
         vpc_id = None
         subnet_ids = []
         for stack_parameter_dict in stack_parameters:
-            if stack_parameter_dict['ParameterKey'] == 'VpcId':
+            if stack_parameter_dict['ParameterKey'] == 'EnvironmentName':
+                self.res_environment_name = stack_parameter_dict['ParameterValue']
+            elif stack_parameter_dict['ParameterKey'] == 'VpcId':
                 vpc_id = stack_parameter_dict['ParameterValue']
             elif stack_parameter_dict['ParameterKey'] in ['PrivateSubnets', 'InfrastructureHostSubnets', 'VdiSubnets']:
                 subnet_ids = stack_parameter_dict['ParameterValue'].split(',')
+        if not self.res_environment_name:
+            logger.error(f"EnvironmentName parameter not found in {res_stack_name} RES stack.")
+            exit(1)
+        logger.info(f"    environment: {self.res_environment_name}")
         if not vpc_id:
-            logger.error(f"VpcId parameter not found in {res_environment_name} RES stack.")
+            logger.error(f"VpcId parameter not found in {res_stack_name} RES stack.")
             exit(1)
         if 'VpcId' in self.config and self.config['VpcId'] != vpc_id:
-            logger.error(f"Config file VpcId={self.config['VpcId']} is not the same as RESEnvironmentName VpcId={vpc_id}.")
+            logger.error(f"Config file VpcId={self.config['VpcId']} is not the same as RES {res_stack_name} VpcId={vpc_id}.")
             exit(1)
         if 'VpcId' not in self.config:
             self.config['VpcId'] = vpc_id
             logger.info(f"    VpcId: {vpc_id}")
         if not subnet_ids:
-            logger.error(f"PrivateSubnets, InfrastructureHostSubnets, or VdiSubnets parameters not found in {res_environment_name} RES stack.")
+            logger.error(f"PrivateSubnets, InfrastructureHostSubnets, or VdiSubnets parameters not found in {res_stack_name} RES stack.")
             exit(1)
         if 'SubnetId' in self.config and self.config['SubnetId'] not in subnet_ids:
             logger.error(f"Config file SubnetId={self.config['SubnetId']} is not a RES private subnet. RES private subnets: {subnet_ids}.")
@@ -547,8 +610,10 @@ class CdkSlurmStack(Stack):
             self.config['SubnetId'] = subnet_ids[0]
             logger.info(f"    SubnetId: {self.config['SubnetId']}")
 
+        # self.config['slurm']['SubmitterInstanceTags'] = {'res:EnvironmentName': [self.res_environment_name]}
+
         # Get RES VDI Security Group
-        res_vdc_stack_name = f"{res_environment_name}-vdc"
+        res_vdc_stack_name = f"{self.res_environment_name}-vdc"
         if res_vdc_stack_name not in stack_statuses:
             message = f"CloudFormation RES stack named {res_vdc_stack_name} not found. Existing stacks:"
             for stack_name in sorted(stack_statuses):
@@ -569,7 +634,7 @@ class CdkSlurmStack(Stack):
             exit(1)
 
         # Get cluster manager Security Group
-        res_cluster_manager_stack_name = f"{res_environment_name}-cluster-manager"
+        res_cluster_manager_stack_name = f"{self.res_environment_name}-cluster-manager"
         if res_cluster_manager_stack_name not in stack_statuses:
             message = f"CloudFormation RES stack named {res_cluster_manager_stack_name} not found. Existing stacks:"
             for stack_name in sorted(stack_statuses):
@@ -591,7 +656,7 @@ class CdkSlurmStack(Stack):
 
         # Get vdc controller Security Group
         logger.debug(f"Searching for VDC controller security group id")
-        res_vdc_stack_name = f"{res_environment_name}-vdc"
+        res_vdc_stack_name = f"{self.res_environment_name}-vdc"
         if res_vdc_stack_name not in stack_statuses:
             message = f"CloudFormation RES stack named {res_vdc_stack_name} not found. Existing stacks:"
             for stack_name in sorted(stack_statuses):
@@ -626,7 +691,7 @@ class CdkSlurmStack(Stack):
             # parameter SharedHomeFileSystemId
             logger.setLevel(logging.DEBUG)
             logger.debug(f"Searching for RES /home file system")
-            res_shared_storage_stack_name = f"{res_environment_name}"
+            res_shared_storage_stack_name = f"{self.res_environment_name}"
             if res_shared_storage_stack_name not in stack_statuses:
                 message = f"CloudFormation RES stack named {res_shared_storage_stack_name} not found. Existing stacks:"
                 for stack_name in sorted(stack_statuses):
@@ -656,23 +721,23 @@ class CdkSlurmStack(Stack):
                     'options': 'nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport'
                 }
             )
-            if 'ExtraMountSecurityGroups' not in self.config['slurm']['storage']:
-                self.config['slurm']['storage']['ExtraMountSecurityGroups'] = {}
-            if 'nfs' not in self.config['slurm']['storage']['ExtraMountSecurityGroups']:
-                self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs'] = {}
+
             res_home_mount_sg_id = res_dcv_security_group_id
-            home_sg_found = False
-            for extra_mount_sg in self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs']:
-                extra_mount_sg_id = self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs'][extra_mount_sg]
-                if extra_mount_sg_id == res_home_mount_sg_id:
-                    home_sg_found = True
-                    break
-            if home_sg_found:
-                logger.info(f"    {extra_mount_sg}({res_home_mount_sg_id}) already configured in config['slurm']['storage']['ExtraMountSecurityGroups']['nfs']")
+            if 'AdditionalSecurityGroups' not in self.config['slurm']['SlurmCtl']:
+                self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups'] = []
+            if res_home_mount_sg_id in self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups']:
+                logger.info(f"{res_home_mount_sg_id} already configured in slurm/SlurmCtl/AdditionalSecurityGroups.")
             else:
-                res_home_mount_sg = f"{res_environment_name}-DCV-Host"
-                self.config['slurm']['storage']['ExtraMountSecurityGroups']['nfs'][res_home_mount_sg] = res_home_mount_sg_id
-                logger.info(f"    ExtraMountSecurityGroup: {res_home_mount_sg}({res_home_mount_sg_id})")
+                self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups'].append(res_home_mount_sg_id)
+                logger.info(f"Added slurm/SlurmCtl/AdditionalSecurityGroups={res_home_mount_sg_id}")
+
+            if 'AdditionalSecurityGroups' not in self.config['slurm']['InstanceConfig']:
+                self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups'] = []
+            if res_home_mount_sg_id in self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups']:
+                logger.info(f"{res_home_mount_sg_id} already configured in slurm/InstanceConfig/AdditionalSecurityGroups.")
+            else:
+                self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups'].append(res_home_mount_sg_id)
+                logger.info(f"Added slurm/InstanceConfig/AdditionalSecurityGroups={res_home_mount_sg_id}")
 
     def create_parallel_cluster_assets(self):
         # Create a secure hash of all of the assets so that changes can be easily detected to trigger cluster updates.
@@ -738,7 +803,7 @@ class CdkSlurmStack(Stack):
             )
         # W47:SNS Topic should specify KmsMasterKeyId property
         self.suppress_cfn_nag(self.create_head_node_a_record_sns_topic, 'W47', 'Use default KMS key.')
-        if 'RESEnvironmentName' in self.config:
+        if 'RESStackName' in self.config:
             # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
             self.configure_res_users_groups_json_sns_topic = sns.Topic(
                 self, "ConfigureRESUsersGroupsJsonSnsTopic",
@@ -787,7 +852,7 @@ class CdkSlurmStack(Stack):
             )
         os.remove(playbooks_zipfile_filename)
 
-        if 'RESEnvironmentName' in self.config:
+        if 'RESStackName' in self.config:
             self.configure_res_users_groups_json_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESUsersGroupsJsonSnsTopicArn"
             self.configure_res_users_groups_json_sns_topic_arn_parameter = ssm.StringParameter(
                 self, f"ConfigureRESUsersGroupsJsonSnsTopicArnParameter",
@@ -833,7 +898,7 @@ class CdkSlurmStack(Stack):
             template_vars['HomeMountSrc'] = self.mount_home_src
         else:
             template_vars['HomeMountSrc'] = ''
-        if 'RESEnvironmentName' in self.config:
+        if 'RESStackName' in self.config:
             template_vars['ConfigureRESUsersGroupsJsonSnsTopicArnParameter'] = self.configure_res_users_groups_json_sns_topic_arn_parameter_name
             template_vars['ConfigureRESSubmittersSnsTopicArnParameter'] = self.configure_res_submitters_sns_topic_arn_parameter_name
 
@@ -1278,6 +1343,7 @@ class CdkSlurmStack(Stack):
                     'ec2:DeleteNetworkInterface',
                     'ec2:DeletePlacementGroup',
                     'ec2:DeleteSecurityGroup',
+                    'ec2:DeleteTags',
                     'ec2:DeleteVolume',
                     'ec2:Describe*',
                     'ec2:DisassociateAddress',
@@ -1501,6 +1567,7 @@ class CdkSlurmStack(Stack):
                 'ClusterName': self.config['slurm']['ClusterName'],
                 'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'Region': self.cluster_region,
+                'VpcId': self.config['VpcId']
             }
         )
         self.create_head_node_a_record_lambda.add_to_role_policy(
@@ -1508,8 +1575,9 @@ class CdkSlurmStack(Stack):
                 effect=iam.Effect.ALLOW,
                 actions=[
                     'ec2:DescribeInstances',
+                    'ec2:DescribeVpcs',
                     'route53:ChangeResourceRecordSets',
-                    'route53:ListHostedZones',
+                    'route53:ListHostedZonesByVPC',
                     'route53:ListResourceRecordSets',
                 ],
                 resources=['*']
@@ -1571,7 +1639,7 @@ class CdkSlurmStack(Stack):
                     )
                 )
 
-        if 'RESEnvironmentName' in self.config:
+        if 'RESStackName' in self.config:
             configureRESUsersGroupsJsonLambdaAsset = s3_assets.Asset(self, "ConfigureRESUsersGroupsJsonAsset", path="resources/lambdas/ConfigureRESUsersGroupsJson")
             self.configure_res_users_groups_json_lambda = aws_lambda.Function(
                 self, "ConfigRESUsersGroupsJsonLambda",
@@ -1588,11 +1656,16 @@ class CdkSlurmStack(Stack):
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESEnvironmentName': self.config['RESEnvironmentName'],
-                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
-                    'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
-                    'RESDomainJoinedInstanceModuleId': 'vdc',
-                    'RESDomainJoinedInstanceNodeType': 'app'
+                    'RESStackName': self.config['RESStackName'],
+                    'RESEnvironmentName': self.res_environment_name,
+                    # 'RESDomainJoinedInstanceName': f"{self.res_environment_name}-vdc-controller",
+                    # 'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
+                    # 'RESDomainJoinedInstanceModuleId': 'vdc',
+                    'RESDomainJoinedInstanceName': f"{self.res_environment_name}-cluster-manager",
+                    'RESDomainJoinedInstanceModuleName': 'cluster-manager',
+                    'RESDomainJoinedInstanceModuleId': 'cluster-manager',
+                    'RESDomainJoinedInstanceNodeType': 'app',
+                    'SlurmLoginNodeSGId': self.slurm_login_node_sg_id
                 }
             )
             self.configure_res_users_groups_json_lambda.add_to_role_policy(
@@ -1600,6 +1673,7 @@ class CdkSlurmStack(Stack):
                     effect=iam.Effect.ALLOW,
                     actions=[
                         'ec2:DescribeInstances',
+                        'ec2:ModifyInstanceAttribute',
                         'ssm:GetCommandInvocation',
                         'ssm:SendCommand',
                     ],
@@ -1637,7 +1711,9 @@ class CdkSlurmStack(Stack):
                     'Region': self.cluster_region,
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
-                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                    'RESStackName': self.config['RESStackName'],
+                    'RESEnvironmentName': self.res_environment_name,
+                    'SlurmLoginNodeSGId': self.slurm_login_node_sg_id
                 }
             )
             self.configure_res_submitters_lambda.add_to_role_policy(
@@ -1645,6 +1721,7 @@ class CdkSlurmStack(Stack):
                     effect=iam.Effect.ALLOW,
                     actions=[
                         'ec2:DescribeInstances',
+                        'ec2:ModifyInstanceAttribute',
                         'ssm:GetCommandInvocation',
                         'ssm:SendCommand',
                     ],
@@ -1682,10 +1759,13 @@ class CdkSlurmStack(Stack):
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESEnvironmentName': self.config['RESEnvironmentName'],
-                    'RESDomainJoinedInstanceName': f"{self.config['RESEnvironmentName']}-vdc-controller",
-                    'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
-                    'RESDomainJoinedInstanceModuleId': 'vdc',
+                    'RESEnvironmentName': self.res_environment_name,
+                    # 'RESDomainJoinedInstanceName': f"{self.res_environment_name}-vdc-controller",
+                    # 'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
+                    # 'RESDomainJoinedInstanceModuleId': 'vdc',
+                    'RESDomainJoinedInstanceName': f"{self.res_environment_name}-cluster-manager",
+                    'RESDomainJoinedInstanceModuleName': 'cluster-manager',
+                    'RESDomainJoinedInstanceModuleId': 'cluster-manager',
                     'RESDomainJoinedInstanceNodeType': 'app'
                 }
             )
@@ -1727,7 +1807,7 @@ class CdkSlurmStack(Stack):
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESEnvironmentName': self.config['RESEnvironmentName']
+                    'RESEnvironmentName': self.res_environment_name
                 }
             )
             self.deconfigure_res_submitters_lambda.add_to_role_policy(
@@ -1799,12 +1879,9 @@ class CdkSlurmStack(Stack):
         self.jwt_token_for_slurmrestd_ssm_parameter.grant_write(self.parallel_cluster_jwt_write_policy)
 
     def create_security_groups(self):
-        self.NFS_PORT = 2049
         self.slurmctld_port_min = 6820
         self.slurmctld_port_max = 6829
         self.slurmctld_port = '6820-6829'
-        self.slurmd_port = 6818
-        self.slurmdbd_port = 6819
         self.slurmrestd_port = 6830
 
         self.imagebuilder_sg = ec2.SecurityGroup(self, "ImageBuilderSG", vpc=self.vpc, allow_all_outbound=True, description="ImageBuilder Security Group")
@@ -1814,265 +1891,9 @@ class CdkSlurmStack(Stack):
         # W40:Security Groups egress with an IpProtocol of -1 found
         self.suppress_cfn_nag(self.imagebuilder_sg, 'W40', 'All outbound allowed.')
 
-        self.nfs_sg = ec2.SecurityGroup(self, "NfsSG", vpc=self.vpc, allow_all_outbound=False, description="Nfs Security Group")
-        Tags.of(self.nfs_sg).add("Name", f"{self.stack_name}-NfsSG")
-        self.suppress_cfn_nag(self.nfs_sg, 'W29', 'Egress port range used to block all egress')
-
-        # FSxZ requires all output access
-        self.zfs_sg = ec2.SecurityGroup(self, "ZfsSG", vpc=self.vpc, allow_all_outbound=True, description="Zfs Security Group")
-        Tags.of(self.zfs_sg).add("Name", f"{self.stack_name}-ZfsSG")
-        # W5:Security Groups found with cidr open to world on egress
-        self.suppress_cfn_nag(self.zfs_sg, 'W5', 'FSxZ requires all egress access.')
-        # W40:Security Groups egress with an IpProtocol of -1 found
-        self.suppress_cfn_nag(self.zfs_sg, 'W40', 'FSxZ requires all egress access.')
-        #self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Egress port range used to block all egress')
-
-        # Compute nodes may use lustre file systems so create a security group with the required ports.
-        self.lustre_sg = ec2.SecurityGroup(self, "LustreSG", vpc=self.vpc, allow_all_outbound=False, description="Lustre Security Group")
-        Tags.of(self.lustre_sg).add("Name", f"{self.stack_name}-LustreSG")
-        self.suppress_cfn_nag(self.lustre_sg, 'W29', 'Egress port range used to block all egress')
-
-        # These are the security groups that have client access to mount the extra file systems
-        self.extra_mount_security_groups = {}
-        for fs_type in self.config['slurm'].get('storage', {}).get('ExtraMountSecurityGroups', {}).keys():
-            self.extra_mount_security_groups[fs_type] = {}
-            for extra_mount_sg_name, extra_mount_sg_id in self.config['slurm']['storage']['ExtraMountSecurityGroups'][fs_type].items():
-                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(extra_mount_sg_id)
-                self.extra_mount_security_groups[fs_type][extra_mount_sg_name] = ec2.SecurityGroup.from_security_group_id(
-                    self, f"{extra_mount_sg_name}{fs_type}",
-                    security_group_id = extra_mount_sg_id,
-                    allow_all_outbound = allow_all_outbound,
-                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
-                )
-
-        self.slurmctl_sg = ec2.SecurityGroup(self, "SlurmCtlSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmCtl Security Group")
-        self.slurmctl_sg_name = f"{self.stack_name}-SlurmCtlSG"
-        Tags.of(self.slurmctl_sg).add("Name", self.slurmctl_sg_name)
-        self.suppress_cfn_nag(self.slurmctl_sg, 'W29', 'Egress port range used to block all egress')
-
-        if 'ExistingSlurmDbd' in self.config['slurm']:
-            for slurmdbd_sg_name, slurmdbd_sg_id in self.config['slurm']['ExistingSlurmDbd']['SecurityGroup'].items():
-                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(slurmdbd_sg_id)
-                self.slurmdbd_sg = ec2.SecurityGroup.from_security_group_id(
-                    self, f"{slurmdbd_sg_name}",
-                    security_group_id = slurmdbd_sg_id,
-                    allow_all_outbound = allow_all_outbound,
-                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
-                )
-                self.slurmdbd_sg_name = slurmdbd_sg_name
-        elif 'SlurmDbd' in self.config['slurm']:
-            self.slurmdbd_sg = ec2.SecurityGroup(self, "SlurmDbdSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmDbd Security Group")
-            self.slurmdbd_sg_name = f"{self.stack_name}-SlurmDbdSG"
-            Tags.of(self.slurmdbd_sg).add("Name", self.slurmdbd_sg_name)
-        else:
-            self.slurmdbd_sg = None
-        if self.slurmdbd_sg:
-            self.suppress_cfn_nag(self.slurmdbd_sg, 'W29', 'Egress port range used to block all egress')
-
-        self.slurmnode_sg = ec2.SecurityGroup(self, "SlurmNodeSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmNode Security Group")
-        self.slurmnode_sg_name = f"{self.stack_name}-SlurmNodeSG"
-        Tags.of(self.slurmnode_sg).add("Name", self.slurmnode_sg_name)
-        self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Egress port range used to block all egress')
-
-        self.federated_slurmctl_sgs = {}
-        if 'Federation' in self.config['slurm']:
-            for federated_slurmctl_sg_name, federated_slurmctl_sg_id in self.config['slurm']['Federation']['SlurmCtlSecurityGroups'].items():
-                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(federated_slurmctl_sg_id)
-                federated_slurmctl_sg = ec2.SecurityGroup.from_security_group_id(
-                    self, f"{federated_slurmctl_sg_name}",
-                    security_group_id = federated_slurmctl_sg_id,
-                    allow_all_outbound = allow_all_outbound,
-                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
-                )
-                self.federated_slurmctl_sgs[federated_slurmctl_sg_name] = federated_slurmctl_sg
-                federated_slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(self.slurmd_port), f"{federated_slurmctl_sg_name} to {self.slurmnode_sg_name}")
-                if self.onprem_cidr:
-                    federated_slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f"{federated_slurmctl_sg_name} to OnPremNodes")
-
-        self.federated_slurmnode_sgs = {}
-        if 'Federation' in self.config['slurm']:
-            for federated_slurmnode_sg_name, federated_slurmnode_sg_id in self.config['slurm']['Federation']['SlurmNodeSecurityGroups'].items():
-                (allow_all_outbound, allow_all_ipv6_outbound) = self.allow_all_outbound(federated_slurmnode_sg_id)
-                federated_slurmnode_sg = ec2.SecurityGroup.from_security_group_id(
-                    self, f"{federated_slurmnode_sg_name}",
-                    security_group_id = federated_slurmnode_sg_id,
-                    allow_all_outbound = allow_all_outbound,
-                    allow_all_ipv6_outbound = allow_all_ipv6_outbound
-                )
-                self.federated_slurmnode_sgs[federated_slurmnode_sg_name] = federated_slurmnode_sg
-
-        self.submitter_security_groups = {}
-        self.slurm_submitter_sg = ec2.SecurityGroup(self, "SlurmSubmitterSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmSubmitter Security Group")
-        self.slurm_submitter_sg_name = f"{self.stack_name}-SlurmSubmitterSG"
-        Tags.of(self.slurm_submitter_sg).add("Name", self.slurm_submitter_sg_name)
-        self.suppress_cfn_nag(self.slurm_submitter_sg, 'W29', 'Egress port range used to block all egress')
-        self.submitter_security_groups[self.slurm_submitter_sg_name] = self.slurm_submitter_sg
-
         self.slurm_rest_api_lambda_sg = ec2.SecurityGroup(self, "SlurmRestLambdaSG", vpc=self.vpc, allow_all_outbound=False, description="SlurmRestApiLambda to SlurmCtl Security Group")
         self.slurm_rest_api_lambda_sg_name = f"{self.stack_name}-SlurmRestApiLambdaSG"
         Tags.of(self.slurm_rest_api_lambda_sg).add("Name", self.slurm_rest_api_lambda_sg_name)
-        self.slurm_rest_api_lambda_sg.add_egress_rule(self.slurmctl_sg, ec2.Port.tcp(443), description=f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - TLS")
-
-        # Security Group Rules
-
-        # NFS Connections
-        fs_client_sgs = {
-            "SlurmCtl": self.slurmctl_sg,
-            "SlurmNode": self.slurmnode_sg,
-            **self.submitter_security_groups
-        }
-        if self.slurmdbd_sg and 'ExistingSlurmDbd' not in self.config['slurm']:
-            fs_client_sgs['SlurmDbd'] = self.slurmdbd_sg
-        for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
-            fs_client_sg.connections.allow_to(self.nfs_sg, ec2.Port.tcp(self.NFS_PORT), f"{fs_client_sg_name} to Nfs")
-        if self.onprem_cidr:
-            self.nfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.NFS_PORT), 'OnPremNodes to Nfs')
-
-        # ZFS Connections
-        # https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html
-        for fs_client_sg_name, fs_client_sg in fs_client_sgs.items():
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(111), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(111), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp(self.NFS_PORT), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp(self.NFS_PORT), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
-            fs_client_sg.connections.allow_to(self.zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fs_client_sg_name} to Zfs")
-            self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
-            self.suppress_cfn_nag(fs_client_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
-        self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
-        if self.onprem_cidr:
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(111), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(111), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.NFS_PORT), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp(self.NFS_PORT), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(20001, 20003), 'OnPremNodes to Zfs')
-            self.zfs_sg.connections.allow_from(self.onprem_cidr, ec2.Port.udp_range(20001, 20003), 'OnPremNodes to Zfs')
-            self.suppress_cfn_nag(self.zfs_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
-            self.suppress_cfn_nag(self.zfs_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
-
-        # Lustre Connections
-        lustre_fs_client_sgs = copy(fs_client_sgs)
-        lustre_fs_client_sgs['Lustre'] = self.lustre_sg
-        for fs_client_sg_name, fs_client_sg in lustre_fs_client_sgs.items():
-            fs_client_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp(988), f"{fs_client_sg_name} to Lustre")
-            fs_client_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"{fs_client_sg_name} to Lustre")
-            self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp(988), f"Lustre to {fs_client_sg_name}")
-            self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp_range(1021, 1023), f"Lustre to {fs_client_sg_name}")
-            self.suppress_cfn_nag(fs_client_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
-            self.suppress_cfn_nag(fs_client_sg, 'W29', 'Correct, restricted range for lustre: 1021-1023')
-        self.lustre_sg.connections.allow_from(self.lustre_sg, ec2.Port.tcp(988), f"Lustre to Lustre")
-        self.lustre_sg.connections.allow_from(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"Lustre to Lustre")
-        self.suppress_cfn_nag(self.lustre_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
-        if self.onprem_cidr:
-            self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(988), 'OnPremNodes to Lustre')
-            self.lustre_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), 'OnPremNodes to Lustre')
-            self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(988), f"Lustre to OnPremNodes")
-            self.lustre_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1021, 1023), f"Lustre to OnPremNodes")
-
-        for fs_type in self.extra_mount_security_groups.keys():
-            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                if fs_type in ['nfs', 'zfs']:
-                    self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp(self.NFS_PORT), f"SlurmNode to {extra_mount_sg_name} - Nfs")
-                    if fs_type == 'zfs':
-                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp(111), f"SlurmNode to {extra_mount_sg_name} - Zfs")
-                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp(111), f"SlurmNode to {extra_mount_sg_name} - Zfs")
-                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp(self.NFS_PORT), f"SlurmNode to {extra_mount_sg_name} - Zfs")
-                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.tcp_range(20001, 20003), f"SlurmNode to {extra_mount_sg_name} - Zfs")
-                        self.slurmnode_sg.connections.allow_to(extra_mount_sg, ec2.Port.udp_range(20001, 20003), f"SlurmNode to {extra_mount_sg_name} - Zfs")
-                        self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for zfs: 20001-20003')
-                        self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for zfs: 20001-20003')
-                elif fs_type == 'lustre':
-                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp(988), f"SlurmNode to {extra_mount_sg_name} - Lustre")
-                    self.slurmnode_sg.connections.allow_to(self.lustre_sg, ec2.Port.tcp_range(1021, 1023), f"SlurmNode to {extra_mount_sg_name} - Lustre")
-                    self.lustre_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(988), f"{extra_mount_sg_name} to SlurmNode")
-                    self.lustre_sg.connections.allow_to(fs_client_sg, ec2.Port.tcp_range(1021, 1023), f"{extra_mount_sg_name} to SlurmNode")
-                    self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Correct, restricted range for lustre: 1021-1023')
-                    self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Correct, restricted range for lustre: 1021-1023')
-
-        # slurmctl connections
-        # egress
-        self.slurmctl_sg.connections.allow_from(self.slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{self.slurmctl_sg_name} to {self.slurmctl_sg_name}")
-        self.slurmctl_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{self.slurmctl_sg_name} to {self.slurmctl_sg_name}")
-        self.slurmctl_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(self.slurmd_port), f"{self.slurmctl_sg_name} to {self.slurmnode_sg_name}")
-        if self.slurmdbd_sg:
-            self.slurmctl_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(self.slurmdbd_port), f"{self.slurmctl_sg_name} to {self.slurmdbd_sg_name} - Write job information")
-        if 'ExistingSlurmDbd' in self.config['slurm']:
-            self.slurmdbd_sg.connections.allow_from(self.slurmctl_sg, ec2.Port.tcp(self.slurmdbd_port), f"{self.slurmctl_sg_name} to {self.slurmdbd_sg_name} - Write job information")
-        for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
-            self.slurmctl_sg.connections.allow_to(slurm_submitter_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmctl_sg_name} to {slurm_submitter_sg_name} - srun")
-            self.suppress_cfn_nag(slurm_submitter_sg, 'W27', 'Port range ok. slurmctl requires requires ephemeral ports to submitter for srun: 1024-65535')
-        self.suppress_cfn_nag(self.slurmctl_sg, 'W27', 'Port range ok. slurmctl requires requires ephemeral ports to submitter for srun: 1024-65535')
-        self.slurmctl_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(80), description="Internet")
-        self.slurmctl_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
-        self.suppress_cfn_nag(self.slurmctl_sg, 'W5', 'Egress to internet required to install packages and slurm software')
-        for federated_slurmctl_sg_name, federated_slurmctl_sg in self.federated_slurmctl_sgs.items():
-            self.slurmctl_sg.connections.allow_from(federated_slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{federated_slurmctl_sg_name} to {self.slurmctl_sg_name}")
-            self.slurmctl_sg.connections.allow_to(federated_slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{self.slurmctl_sg_name} to {federated_slurmctl_sg_name}")
-        for federated_slurmnode_sg_name, federated_slurmnode_sg in self.federated_slurmnode_sgs.items():
-            self.slurmctl_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(self.slurmd_port), f"{self.slurmctl_sg_name} to {federated_slurmnode_sg_name}")
-        if self.onprem_cidr:
-            self.slurmctl_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f'{self.slurmctl_sg_name} to OnPremNodes')
-            self.slurmctl_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f'OnPremNodes to {self.slurmctl_sg_name}')
-        self.slurmctl_sg.connections.allow_from(self.slurm_rest_api_lambda_sg, ec2.Port.tcp(self.slurmrestd_port), f"{self.slurm_rest_api_lambda_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
-        # slurmdbd connections
-        # egress
-        if self.slurmdbd_sg:
-            self.slurmdbd_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{self.slurmdbd_sg_name} to {self.slurmctl_sg_name}")
-            # @todo Does slurmdbd really need ephemeral access to slurmctl?
-            # self.slurmdbd_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmdbd_sg_name} to {self.slurmctl_sg_name} - Ephemeral")
-            if 'ExistingSlurmDbd' not in self.config['slurm']:
-                self.slurmdbd_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(80), description="Internet")
-                self.slurmdbd_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
-                self.suppress_cfn_nag(self.slurmdbd_sg, 'W5', 'Egress to internet required to install packages and slurm software')
-
-        # slurmnode connections
-        # egress
-        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name}")
-        self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(self.slurmd_port), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name}")
-        self.slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.slurmrestd_port), f"{self.slurmnode_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
-        self.slurmnode_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {self.slurmnode_sg_name} - ephemeral")
-        self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to other slurmnodes: 1024-65535')
-        for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
-            self.slurmnode_sg.connections.allow_to(slurm_submitter_sg, ec2.Port.tcp_range(6000, 7024), f"{self.slurmnode_sg_name} to {slurm_submitter_sg_name} - x11")
-            # @todo Not sure if this is really initiated from the slurm node
-            self.slurmnode_sg.connections.allow_to(slurm_submitter_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {slurm_submitter_sg_name} - ephemeral")
-            self.suppress_cfn_nag(slurm_submitter_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to slurm submitters: 1024-65535')
-            if self.onprem_cidr:
-                slurm_submitter_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(6000, 7024), f"OnPremNodes to {slurm_submitter_sg_name} - x11")
-                # @todo Not sure if this is really initiated from the slurm node
-                self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {slurm_submitter_sg_name} - ephemeral")
-        self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmnode requires requires ephemeral ports to slurm submitters: 1024-65535')
-        self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(80), description="Internet")
-        self.slurmnode_sg.add_egress_rule(ec2.Peer.ipv4("0.0.0.0/0"), ec2.Port.tcp(443), description="Internet")
-        self.suppress_cfn_nag(self.slurmnode_sg, 'W5', 'Egress to internet required to install packages and slurm software')
-        for federated_slurmnode_sg_name, federated_slurmnode_sg in self.federated_slurmnode_sgs.items():
-            federated_slurmnode_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{federated_slurmnode_sg_name} to {self.slurmctl_sg_name}")
-            self.slurmnode_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp(self.slurmd_port), f"{self.slurmnode_sg_name} to {federated_slurmnode_sg_name}")
-            self.slurmnode_sg.connections.allow_to(federated_slurmnode_sg, ec2.Port.tcp_range(1024, 65535), f"{self.slurmnode_sg_name} to {federated_slurmnode_sg_name} - ephemeral")
-            if self.onprem_cidr:
-                federated_slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f"OnPremNodes to {federated_slurmnode_sg_name}")
-                self.federated_slurmnode_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {federated_slurmnode_sg_name} - ephemeral")
-        if self.onprem_cidr:
-            self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f"OnPremNodes to {self.slurmnode_sg_name}")
-            self.slurmnode_sg.connections.allow_from(self.onprem_cidr, ec2.Port.tcp_range(1024, 65535), f"OnPremNodes to {self.slurmnode_sg_name}")
-
-        # slurm submitter connections
-        # egress
-        for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
-            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.NFS_PORT), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name} - NFS")
-            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp_range(self.slurmctld_port_min, self.slurmctld_port_max), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name}")
-            slurm_submitter_sg.connections.allow_to(self.slurmnode_sg, ec2.Port.tcp(self.slurmd_port), f"{slurm_submitter_sg_name} to {self.slurmnode_sg_name} - srun")
-            if self.slurmdbd_sg:
-                slurm_submitter_sg.connections.allow_to(self.slurmdbd_sg, ec2.Port.tcp(self.slurmdbd_port), f"{slurm_submitter_sg_name} to {self.slurmdbd_sg_name} - sacct")
-            slurm_submitter_sg.connections.allow_to(self.slurmctl_sg, ec2.Port.tcp(self.slurmrestd_port), f"{slurm_submitter_sg_name} to {self.slurmctl_sg_name} - slurmrestd")
-            if self.onprem_cidr:
-                slurm_submitter_sg.connections.allow_to(self.onprem_cidr, ec2.Port.tcp(self.slurmd_port), f"{slurm_submitter_sg_name} to OnPremNodes - srun")
-            # W29:Security Groups found egress with port range instead of just a single port
-            self.suppress_cfn_nag(self.slurmnode_sg, 'W29', 'Port range ok. Submitter to SlurmCtl requires range for slurmctld ports')
-
-        # Try to suppress cfn_nag warnings on ingress/egress rules
-        for slurm_submitter_sg_name, slurm_submitter_sg in self.submitter_security_groups.items():
-            self.suppress_cfn_nag(self.slurmnode_sg, 'W27', 'Port range ok. slurmsubmitter requires ephemeral ports for several reasons: 1024-65535')
 
     def allow_all_outbound(self, security_group_id: str):
         allow_all_outbound = False
@@ -2369,6 +2190,9 @@ class CdkSlurmStack(Stack):
                 logger.error(f"Config slurm/ParallelClusterConfig/ComputeNodeAmi({compute_node_ami}) architecture=={ami_architecture}. Must be the same as slurm/ParallelClusterConfig/Architecture({cluster_architecture})")
                 exit(1)
 
+        # The config file allows user to set the initial config for any config parameters that we don't control
+        # so that I don't have to duplicate all of the ParallelCluster config schema.
+        # Need to make sure that we don't override settings
         self.parallel_cluster_config = self.config['slurm']['ParallelClusterConfig'].get('ClusterConfig', {})
 
         self.parallel_cluster_config['HeadNode'] = self.parallel_cluster_config.get('HeadNode', {})
@@ -2410,7 +2234,6 @@ class CdkSlurmStack(Stack):
         self.parallel_cluster_config['HeadNode']['Networking']['SubnetId'] = self.config['SubnetId']
 
         self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'] = self.parallel_cluster_config['HeadNode']['Networking'].get('AdditionalSecurityGroups', [])
-        self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append('{{SlurmCtlSecurityGroupId}}')
         if 'AdditionalSecurityGroups' in self.config['slurm']['SlurmCtl']:
             for security_group_id in self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups']:
                 self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(security_group_id)
@@ -2505,20 +2328,6 @@ class CdkSlurmStack(Stack):
             for login_node_pool in self.parallel_cluster_config['LoginNodes']['Pools']:
                 if 'Networking' not in login_node_pool:
                     login_node_pool['Networking'] = {'SubnetIds': [self.config['SubnetId']]}
-
-        # Give the head node access to extra mounts
-        for fs_type in self.extra_mount_security_groups.keys():
-            index = 0
-            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                template_var = f"ExtraMountSecurityGroupId{index}"
-                self.create_parallel_cluster_config_lambda.add_environment(
-                    key = template_var,
-                    value = extra_mount_sg.security_group_id
-                )
-                self.parallel_cluster_config['HeadNode']['Networking']['AdditionalSecurityGroups'].append(
-                    "{{" + template_var + "}}"
-                )
-                index += 1
 
         if 'CustomAmi' in self.config['slurm']['ParallelClusterConfig']['Image']:
             # Check that the AMI support the head node instance type
@@ -2876,14 +2685,6 @@ class CdkSlurmStack(Stack):
             key = 'ParallelClusterSnsPublishPolicyArn',
             value = self.parallel_cluster_sns_publish_policy.managed_policy_arn
         )
-        self.create_parallel_cluster_config_lambda.add_environment(
-            key = 'SlurmCtlSecurityGroupId',
-            value = self.slurmctl_sg.security_group_id
-        )
-        self.create_parallel_cluster_config_lambda.add_environment(
-            key = 'SlurmNodeSecurityGroupId',
-            value = self.slurmnode_sg.security_group_id
-        )
         self.parallel_cluster_config = CustomResource(
             self, "ParallelClusterConfig",
             service_token = self.create_parallel_cluster_config_lambda.function_arn,
@@ -2907,7 +2708,7 @@ class CdkSlurmStack(Stack):
         self.parallel_cluster.node.add_dependency(self.create_head_node_a_record_lambda)
         self.parallel_cluster.node.add_dependency(self.update_head_node_lambda)
         # The lambdas to configure instances must exist befor the cluster so they can be called.
-        if 'RESEnvironmentName' in self.config:
+        if 'RESStackName' in self.config:
             self.parallel_cluster.node.add_dependency(self.configure_res_users_groups_json_lambda)
             self.parallel_cluster.node.add_dependency(self.configure_res_submitters_lambda)
         # Build config files need to be created before cluster so that they can be downloaded as part of on_head_node_configures
@@ -2927,7 +2728,7 @@ class CdkSlurmStack(Stack):
         )
         self.update_head_node.node.add_dependency(self.parallel_cluster)
 
-        if 'RESEnvironmentName' in self.config:
+        if 'RESStackName' in self.config:
             # Custom resource to deconfigure cluster manager before deleting cluster
             self.deconfigure_res_users_groups_json = CustomResource(
                 self, "DeconfigureRESUsersGroupsJson",
@@ -3016,7 +2817,7 @@ class CdkSlurmStack(Stack):
             },
             'Networking': {
                 'SubnetIds': [self.config['SubnetId']],
-                'AdditionalSecurityGroups': ['{{SlurmNodeSecurityGroupId}}'],
+                'AdditionalSecurityGroups': [],
                 'PlacementGroup': {}
             },
         }
@@ -3030,10 +2831,5 @@ class CdkSlurmStack(Stack):
         if 'AdditionalIamPolicies' in self.config['slurm']['InstanceConfig']:
             for iam_policy_arn in self.config['slurm']['InstanceConfig']['AdditionalIamPolicies']:
                 parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
-
-        # Give the compute node access to extra mounts
-        for fs_type in self.extra_mount_security_groups.keys():
-            for extra_mount_sg_name, extra_mount_sg in self.extra_mount_security_groups[fs_type].items():
-                parallel_cluster_queue['Networking']['AdditionalSecurityGroups'].append(extra_mount_sg.security_group_id)
 
         return parallel_cluster_queue
