@@ -39,6 +39,9 @@
                                 <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
                             </li>
                             <li class="navitem">
+                                <a href="../security-groups/" class="nav-link">Security Groups</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem active">
@@ -150,7 +153,11 @@
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#resenvironmentname" class="nav-link">RESEnvironmentName</a>
+            <li class="nav-item" data-level="3"><a href="#additionalsecuritygroupsstackname" class="nav-link">AdditionalSecurityGroupsStackName</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#resstackname" class="nav-link">RESStackName</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -258,10 +265,6 @@
             </li>
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#submitterinstancetags" class="nav-link">SubmitterInstanceTags</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
             <li class="nav-item" data-level="3"><a href="#instanceconfig" class="nav-link">InstanceConfig</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-level="4"><a href="#usespot" class="nav-link">UseSpot</a>
@@ -304,10 +307,6 @@
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#extramountsecuritygroups" class="nav-link">ExtraMountSecurityGroups</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
               </ul>
             </li>
             <li class="nav-item" data-level="3"><a href="#licenses" class="nav-link">Licenses</a>
@@ -339,7 +338,8 @@
 <a href="#subnetid">SubnetId</a>: str
 <a href="#errorsnstopicarn">ErrorSnsTopicArn</a>: str
 <a href="#timezone">TimeZone</a>: str
-<a href="#resenvironmentname">RESEnvironmentName</a>: str
+<a href="#additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</a>: str
+<a href="#resstackname">RESStackName</a>: str
 <a href="#slurm">slurm</a>:
     <a href="#parallelclusterconfig">ParallelClusterConfig</a>:
         <a href="#version">Version</a>: str
@@ -408,9 +408,6 @@
         - str
         <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Imds">Imds</a>:
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Imds-Secured">Secured</a>: bool
-    <a href="#submitterinstancetags">SubmitterInstanceTags</a>: str
-        TagName:
-        - TagValues
     <a href="#instanceconfig">InstanceConfig</a>:
         <a href="#usespot">UseSpot</a>: str
         <a href="#exclude">Exclude</a>:
@@ -449,9 +446,6 @@
           <a href="#storagetype">StorageType</a>: str
           <a href="#filesystemid">FileSystemId</a>: str
           <a href="#volumeid">VolumeId</a>: str
-        <a href="#extramountsecuritygroups">ExtraMountSecurityGroups</a>:
-            <a href="#filesystemtype">FileSystemType</a>:
-                SecurityGroupName: SecurityGroupId
     <a href="#licenses">Licenses</a>:
         <a href="#licensename">LicenseName</a>:
             <a href="#count">Count</a>: int
@@ -498,11 +492,13 @@ You can subscribe to the topic so that you are notified for things like script o
 <h3 id="timezone">TimeZone</h3>
 <p>The time zone to use for all EC2 instances in the cluster.</p>
 <p>default='US/Central'</p>
-<h3 id="resenvironmentname">RESEnvironmentName</h3>
+<h3 id="additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</h3>
+<p>If you followed the <a href="../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems">automated process to create security groups for external login nodes and file systems</a>, then specify the stack name that you deployed and the additional security groups will be configured for the head and compute nodes.</p>
+<h3 id="resstackname">RESStackName</h3>
 <p>If you are deploying the cluster to use from Research and Engineering Studio (RES) virtual desktops, then you
-can specify the environment name so that the virtual desktops automatically get configured to use the cluster.</p>
-<p>The security group of the desktops will be updated with rules that allow them to talk to the cluster and the
-cluster will be configured on the desktop.</p>
+can specify the stack name for the RES environment to automate the integration.
+The virtual desktops automatically get configured to use the cluster.</p>
+<p>This requires you to <a href="../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems">configure security groups for external login nodes</a>.</p>
 <p>The Slurm binaries will be compiled for the OS of the desktops and and environment modulefile will be created
 so that the users just need to load the cluster modulefile to use the cluster.</p>
 <h2 id="slurm">slurm</h2>
@@ -697,9 +693,6 @@ This policy sets what happens to the preempted jobs.</p>
 <p>Additional security groups that will be added to the head node instance.</p>
 <h4 id="head-node-additionaliampolicies">Head Node AdditionalIamPolicies</h4>
 <p>List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be added to the head node instance.</p>
-<h3 id="submitterinstancetags">SubmitterInstanceTags</h3>
-<p>Tags of instances that can be configured to submit to the cluster.</p>
-<p>When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.</p>
 <h3 id="instanceconfig">InstanceConfig</h3>
 <p>Configure the instances used by the cluster.</p>
 <p>A partition will be created for each combination of Base OS, Architecture, and Spot.</p>
@@ -855,6 +848,16 @@ the on-premises firewall can be configured to match the ParallelCluster seccurit
 <p>Additional mounts for compute nodes.</p>
 <p>This can be used so the compute nodes have the same file structure as the remote desktops.</p>
 <p>This is used to configure <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html">ParallelCluster SharedStorage</a>.</p>
+<p>For example:</p>
+<pre><code>storage:
+    ExtraMounts:
+    - dest: &quot;/tools&quot;
+      StorageType: FsxOpenZfs
+      VolumeId: 'fsvol-abcd1234'
+      src: 'fs-efgh5678.fsx.us-east-1.amazonaws.com:/fsx/'
+      type: nfs4
+      options: 'nfsvers=4.1'
+</code></pre>
 <h5 id="dest">dest</h5>
 <p>The directory where the file system will be mounted.</p>
 <p>This sets the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-MountDir">MountDir</a>.</p>
@@ -877,30 +880,6 @@ the on-premises firewall can be configured to match the ParallelCluster seccurit
 <p>Specifies the ID of an existing <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxLustreSettings-FileSystemId">FSx for Lustre</a> or <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-EfsSettings-FileSystemId">EFS</a> file system.</p>
 <h5 id="volumeid">VolumeId</h5>
 <p>Specifies the volume ID of an existing <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOntapSettings-VolumeId">FSx for ONTAP</a> or <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/SharedStorage-v3.html#yaml-SharedStorage-FsxOpenZfsSettings-VolumeId">FSx for OpenZFS</a> file system.</p>
-<h4 id="extramountsecuritygroups">ExtraMountSecurityGroups</h4>
-<p>The security groups used by the file systems so that the head and comnpute nodes
-can be configured to connect to them.</p>
-<p>For example:</p>
-<pre><code>storage:
-    ExtraMounts:
-    - dest: &quot;/tools&quot;
-      StorageType: FsxOpenZfs
-      VolumeId: 'fsvol-abcd1234'
-      src: 'fs-efgh5678.fsx.us-east-1.amazonaws.com:/fsx/'
-      type: nfs4
-      options: 'nfsvers=4.1'
-    ExtraMountSecurityGroups:
-        zfs:
-            FsxSG: sg-12345678
-</code></pre>
-<h5 id="filesystemtype">FileSystemType</h5>
-<p>Type of file system so that the appropriate ports can be opened.</p>
-<p>Valid values:</p>
-<ul>
-<li>nfs</li>
-<li>zfs</li>
-<li>lustre</li>
-</ul>
 <h3 id="licenses">Licenses</h3>
 <p>Configure license counts for the scheduler.</p>
 <p>If the Slurm database is configured then it will be updated with the license counts.

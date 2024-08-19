@@ -39,6 +39,9 @@
                                 <a href="deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
                             </li>
                             <li class="navitem">
+                                <a href="security-groups/" class="nav-link">Security Groups</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
                             <li class="navitem">
@@ -148,16 +151,18 @@ work continues to add features to ParallelCluster so that those features may be 
 <li>Automatic scaling of AWS EC2 instances based on demand</li>
 <li>Use any AWS EC2 instance type including Graviton2</li>
 <li>Use of spot instances</li>
+<li>Memory-aware scheduling</li>
+<li>License-aware scheduling (Manages tool licenses as a consumable resource)</li>
+<li>User and group fair share scheduling</li>
 <li>Handling of spot terminations</li>
 <li>Handling of insufficient capacity exceptions</li>
 <li>Batch and interactive partitions (queues)</li>
-<li>Manages tool licenses as a consumable resource</li>
-<li>User and group fair share scheduling</li>
 <li>Slurm accounting database</li>
 <li>CloudWatch dashboard</li>
 <li>Job preemption</li>
 <li>Manage on-premises compute nodes</li>
 <li>Configure partitions (queues) and nodes that are always on to support reserved instances (RIs) and savings plans (SPs).</li>
+<li>Integration with <a href="https://aws.amazon.com/hpc/res/">Research and Engineering Studio on AWS (RES)</a></li>
 </ul>
 <p>Features in the legacy version and not in the ParallelCluster version:</p>
 <ul>
@@ -165,13 +170,12 @@ work continues to add features to ParallelCluster so that those features may be 
 <li>Multi-AZ support. Supported by ParallelCluster, but not currently implemented.</li>
 <li>Multi-region support</li>
 <li>AWS Fault Injection Simulator (FIS) templates to test spot terminations</li>
-<li>Support for MungeKeySsmParameter</li>
 <li>Multi-cluster federation</li>
 </ul>
 <p>ParallelCluster Limitations</p>
 <ul>
 <li>Number of "Compute Resources" (CRs) is limited to 50 which limits the number of instance types allowed in a cluster.
-  ParallelCluster can have multiple instance types in a CR, but with memory based scheduling enabled, they must all have the same number of cores and amount of memory.</li>
+  ParallelCluster can have multiple instance types in a compute resource (CR), but with memory based scheduling enabled, they must all have the same number of cores and amount of memory.</li>
 <li>All Slurm instances must have the same OS and CPU architecture.</li>
 <li>Stand-alone Slurm database daemon instance. Prevents federation.</li>
 <li>Multi-region support. This is unlikely to change because multi-region services run against our archiectural philosophy.
@@ -189,10 +193,11 @@ work continues to add features to ParallelCluster so that those features may be 
 <ul>
 <li>Amazon Linux 2</li>
 <li>CentOS 7</li>
-<li>RedHat 7 and 8</li>
+<li>RedHat 7, 8 and 9</li>
+<li>Rocky Linux 8 and 9</li>
 </ul>
-<p>This Slurm cluster supports both Intel/AMD (x86_64) based instances and ARM Graviton2 (arm64/aarch64) based instances.</p>
-<p><a href="https://github.com/aws/aws-graviton-getting-started/blob/main/os.md">Graviton instances require</a> Amazon Linux 2 or RedHat 8 operating systems.
+<p>This Slurm cluster supports both Intel/AMD (x86_64) based instances and Graviton (arm64/aarch64) based instances.</p>
+<p><a href="https://github.com/aws/aws-graviton-getting-started/blob/main/os.md">Graviton instances require</a> Amazon Linux 2 or RedHat/Rocky &gt;=8 operating systems.
 RedHat 7 and CentOS 7 do not support Graviton 2.</p>
 <p>This provides the following different combinations of OS and processor architecture.</p>
 <p>ParallelCluster:</p>
@@ -201,10 +206,13 @@ RedHat 7 and CentOS 7 do not support Graviton 2.</p>
 <li>Amazon Linux 2 and x86_64</li>
 <li>CentOS 7 and x86_64</li>
 <li>RedHat 7 and x86_64</li>
-<li>RedHat 8 and arm64</li>
-<li>RedHat 8 and x86_64</li>
+<li>RedHat 8/9 and arm64</li>
+<li>RedHat 8/9 and x86_64</li>
+<li>Rocky 8/9 and arm64</li>
+<li>Rocky 8/9 and x86_64</li>
 </ul>
-<p>Note that in ParallelCluster, all compute nodes must have the same OS and architecture.</p>
+<p>Note that in ParallelCluster, all compute nodes must have the same OS and architecture.
+However, you can create as many clusters as you require.</p>
 <h2 id="documentation">Documentation</h2>
 <p><a href="https://aws-samples.github.io/aws-eda-slurm-cluster/">View on GitHub Pages</a></p>
 <p>You can also view the docs locally,
@@ -309,5 +317,5 @@ firefox http://127.0.0.1:8000/ &amp;
 
 <!--
 MkDocs version : 1.5.3
-Build Date UTC : 2024-07-25 06:14:28.295314+00:00
+Build Date UTC : 2024-08-19 19:22:43.407561+00:00
 -->

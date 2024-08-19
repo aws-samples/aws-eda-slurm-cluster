@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Security Groups - EDA SLURM Cluster on AWS</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/font-awesome.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+            <div class="container">
+                <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-collapse">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="navitem">
+                                <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Security Groups</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../res_integration/" class="nav-link">RES Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../run_jobs/" class="nav-link">Run Jobs</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../job_preemption/" class="nav-link">Job Preemption</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../rest_api/" class="nav-link">Slurm REST API</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../debug/" class="nav-link">Debug</a>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-toggle="modal" data-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../deployment-prerequisites/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../deploy-parallel-cluster/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/security-groups.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-light navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-level="1"><a href="#security-groups" class="nav-link">Security Groups</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#security-groups-for-login-nodes" class="nav-link">Security Groups for Login Nodes</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#slurm-login-node-security-group" class="nav-link">Slurm Login Node Security Group</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#slurm-head-node-security-group" class="nav-link">Slurm Head Node Security Group</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#slurm-compute-node-security-group" class="nav-link">Slurm Compute Node Security Group</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#external-slurmdbd-security-group" class="nav-link">External Slurmdbd Security Group</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#security-groups-for-file-systems" class="nav-link">Security Groups for File Systems</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#fsx-for-lustre-security-group" class="nav-link">FSx for Lustre Security Group</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#fsx-for-netapp-ontap-security-group" class="nav-link">FSx for NetApp Ontap Security Group</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#fsx-for-openzfs-security-group" class="nav-link">FSx for OpenZFS Security Group</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="security-groups">Security Groups</h1>
+<p>This page documents the configuration of security groups that will be used by your clusters.</p>
+<p><strong>Note</strong>: This process has been automated and is described on the <a href="../deployment-prerequisites#shared-security-groups-for-clusters-and-file-systems">deployment prerequisites page</a>.
+You can refer to this page to understand the security groups that are created or if you choose to manually create the security groups yourself.</p>
+<h2 id="security-groups-for-login-nodes">Security Groups for Login Nodes</h2>
+<p>We call instances that can connect to the Slurm cluster a login node.
+Login nodes can be used to submit and manage jobs.
+ParallelCluster can be configured to create login nodes that you must SSH into to use the cluster.
+If you want to allow instances like remote desktops to use the cluster directly, you must configure them as login nodes
+and give them network permissions to connect to the cluster instances.
+You must create three security groups that allow connections between the login node, the Slurm head node, and the Slurm compute nodes.
+You will also need to know the security group id for your external Slurmdbd instance, if you have one.</p>
+<table>
+<thead>
+<tr>
+<th>Security Group Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SlurmLoginNodeSG</td>
+<td>Security group that must be attached to login nodes</td>
+</tr>
+<tr>
+<td>SlurmHeadNodeSG</td>
+<td>Additional security group for head node</td>
+</tr>
+<tr>
+<td>SlurmComputeNodeSG</td>
+<td>Additional security group for compute nodes</td>
+</tr>
+<tr>
+<td>SlurmdbdSG</td>
+<td>(Optional) Existing Slurmdbd security group</td>
+</tr>
+</tbody>
+</table>
+<p>First create these security groups without any security group rules.
+The reason for this is that the security group rules reference the other security groups so the groups must all exist before any of the rules can be created.
+After you have created the security groups then create the rules as described below.</p>
+<h3 id="slurm-login-node-security-group">Slurm Login Node Security Group</h3>
+<p>The LoginNodeSG will be attached to your login nodes, such as your virtual desktops.</p>
+<p><strong>NOTE</strong>: To make this available to Research and Engineering Studio (RES) so that it can be automatically assigned to virtual desktops, you need to add a tag named <strong>res:Resource</strong> with a value of <strong>vdi-security-group</strong>.
+When you create a project, you can select this security group to be added to virtual desktops that use the project.</p>
+<p>It needs at least the following inbound rules:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Source</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>1024-65535</td>
+<td>SlurmHeadNodeSG</td>
+<td>SlurmHeadNode ephemeral</td>
+<td>Head node can use ephemeral ports to connect to the login node</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>1024-65535</td>
+<td>SlurmComputeNodeSG</td>
+<td>SlurmComputeNode ephemeral</td>
+<td>Compute node will connect to login node using ephemeral ports to manage interactive shells</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6000-7024</td>
+<td>SlurmComputeNodeSG</td>
+<td>SlurmComputeNode X11</td>
+<td>Compute node can send X11 traffic to login node for GUI applications</td>
+</tr>
+</tbody>
+</table>
+<p>It needs the following outbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Destination</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>2049</td>
+<td>SlurmHeadNodeSG</td>
+<td>SlurmHeadNode NFS</td>
+<td>Mount the slurm NFS file system with binaries and config</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6818</td>
+<td>SlurmComputeNodeSG</td>
+<td>SlurmComputeNode slurmd</td>
+<td>Connect to compute node for interactive jobs</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6819</td>
+<td>SlurmHeadNodeSG</td>
+<td>SlurmHeadNode slurmdbd</td>
+<td>Connect to slurmdbd (accounting database) daemon on head node for versions before 3.10.0.</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6819</td>
+<td>SlurmdbdSG</td>
+<td>Slurmdbd</td>
+<td>Connect to external Slurmdbd instance. For versions starting in 3.10.0.</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6820-6829</td>
+<td>SlurmHeadNodeSG</td>
+<td>SlurmHeadNode slurmctld</td>
+<td></td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6830</td>
+<td>SlurmHeadNodeSG</td>
+<td>SlurmHeadNode slurmrestd</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="slurm-head-node-security-group">Slurm Head Node Security Group</h3>
+<p>The SlurmHeadNodeSG will be specified in your configuration file for the slurm/SlurmCtl/AdditionalSecurityGroups parameter.</p>
+<p>It needs at least the following inbound rules:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Source</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>2049</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode NFS</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6819</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode slurmdbd. If not using external Slurmdbd.</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6820-6829</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode slurmctld</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6830</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode slurmrestd</td>
+</tr>
+</tbody>
+</table>
+<p>It needs the following outbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Destination</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>1024-65535</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode ephemeral</td>
+</tr>
+</tbody>
+</table>
+<h3 id="slurm-compute-node-security-group">Slurm Compute Node Security Group</h3>
+<p>The SlurmComputeNodeSG will be specified in your configuration file for the slurm/InstanceConfig/AdditionalSecurityGroups parameter.</p>
+<p>It needs at least the following inbound rules:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Source</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>6818</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode slurmd</td>
+</tr>
+</tbody>
+</table>
+<p>It needs the following outbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Destination</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>2049</td>
+<td>SlurmHeadNodeSG</td>
+<td>SlurmHeadNode NFS</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>1024-65535</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode ephemeral</td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>6000-7024</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode X11</td>
+</tr>
+</tbody>
+</table>
+<h3 id="external-slurmdbd-security-group">External Slurmdbd Security Group</h3>
+<p><strong>Note</strong>: ParallelCluster 3.10.0 added support for an external Slurmdbd instance.</p>
+<p>The login node must be able to directly access the Slurmdbd instance on port 6819 when running commands like <code>sacctmgr</code>.
+You must edit the inbound rules of the Slurmdbd instance's security group to allow the access.
+Add the following inbound rule.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Source</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>6819</td>
+<td>SlurmLoginNodeSG</td>
+<td>SlurmLoginNode slurmdbd</td>
+</tr>
+</tbody>
+</table>
+<h2 id="security-groups-for-file-systems">Security Groups for File Systems</h2>
+<p>You will usually have externally created file systems that should be mounted on the compute nodes and login nodes.
+You will need to define security groups for the file system network interfaces and modify the Slurm security groups to give them access to the file systems.</p>
+<h3 id="fsx-for-lustre-security-group">FSx for Lustre Security Group</h3>
+<p>We'll refer to this group as FSxLustreSG, but you can name it whatever you want.
+This security group can either be provided when the file system is created, or can be attached to the network interfaces of the file system after it is created.</p>
+<p>The <a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/limit-access-security-groups.html#lustre-client-inbound-outbound-rules">required security group rules are documented in the FSx documentation</a>.</p>
+<p>It needs the following inbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Source</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>988</td>
+<td>FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td>Allows Lustre traffic between FSx for Lustre file servers and Lustre clients</td>
+<td></td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>1018-1023</td>
+<td>FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td>Allows Lustre traffic between FSx for Lustre file servers and Lustre clients</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>It needs the following outbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Destination</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP</td>
+<td>988</td>
+<td>FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td>Allow Lustre traffic between FSx for Lustre file servers and Lustre clients</td>
+<td></td>
+</tr>
+<tr>
+<td>TCP</td>
+<td>1018-1023</td>
+<td>FSxLustreSG, SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td>Allow Lustre traffic between FSx for Lustre file servers and Lustre clients</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The same inbound and outbound rules need to be added to all 3 of the Slurm security groups too.</p>
+<h2 id="fsx-for-netapp-ontap-security-group">FSx for NetApp Ontap Security Group</h2>
+<p>We'll refer to this group as FSxOntapSG, but you can name it whatever you want.
+This security group can either be provided when the file system is created, or can be attached to the network interfaces of the file system after it is created.</p>
+<p>All the <a href="https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/limit-access-security-groups.html#fsx-vpc-security-groups">security group rule are documented in the FSx documentation</a>.</p>
+<p>The minimum set required for mounting the file system are documented below.</p>
+<p>It needs the following inbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Source</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP, UDP</td>
+<td>111</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>Remote procedure call for NFS</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>635</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>NFS mount</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>2049</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>NFS server daemon</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>4045</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>NFS lock daemon</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>4046</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>Network status monitor for NFS</td>
+</tr>
+</tbody>
+</table>
+<p>It needs the following outbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Destination</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All</td>
+<td>All</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The Slurm security groups need to add the following outbound rule to allow mounting using NFS.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Destination</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP, UDP</td>
+<td>111</td>
+<td>FSxOntap</td>
+<td></td>
+<td>Remote procedure call for NFS</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>635</td>
+<td>FSxOntap</td>
+<td></td>
+<td>NFS mount</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>2049</td>
+<td>FSxOntap</td>
+<td></td>
+<td>NFS server daemon</td>
+</tr>
+<tr>
+<td>TCP,UDP</td>
+<td>4045</td>
+<td>FSxOntap</td>
+<td></td>
+<td>NFS lock daemon</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>4046</td>
+<td>FSxOntap</td>
+<td></td>
+<td>Network status monitor for NFS</td>
+</tr>
+</tbody>
+</table>
+<h2 id="fsx-for-openzfs-security-group">FSx for OpenZFS Security Group</h2>
+<p>We'll refer to this group as FSxZfsSG, but you can name it whatever you want.
+This security group can either be provided when the file system is created, or can be attached to the network interfaces of the file system after it is created.</p>
+<p>The <a href="https://docs.aws.amazon.com/fsx/latest/OpenZFSGuide/limit-access-security-groups.html">required security group rule are documented in the FSx documentation</a>.</p>
+<p>It needs the following inbound rules.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Source</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP, UDP</td>
+<td>111</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>Remote procedure call for NFS</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>2049</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>NFS server daemon</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>20001-20003</td>
+<td>SlurmHeadNodeSG, SlurmComputeNodeSG, SlurmLoginNodeSG</td>
+<td></td>
+<td>NFS mount, status monitor, and lock daemon</td>
+</tr>
+</tbody>
+</table>
+<p>Remove all outbound rules.</p>
+<p>The Slurm security groups need to add the following outbound rule to allow mounting using NFS.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Port range</th>
+<th>Destination</th>
+<th>Description</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCP, UDP</td>
+<td>111</td>
+<td>FSxZfs</td>
+<td></td>
+<td>Remote procedure call for NFS</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>2049</td>
+<td>FSxZfs</td>
+<td></td>
+<td>NFS server daemon</td>
+</tr>
+<tr>
+<td>TCP, UDP</td>
+<td>20001-20003</td>
+<td>FSxZfs</td>
+<td></td>
+<td>NFS mount, status monitor, and lock daemon</td>
+</tr>
+</tbody>
+</table></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="../js/jquery-3.6.0.min.js"></script>
+        <script src="../js/bootstrap.min.js"></script>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js"></script>
+        <script src="../search/main.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>
