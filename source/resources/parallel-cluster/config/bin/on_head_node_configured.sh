@@ -84,16 +84,16 @@ ansible-playbook $PLAYBOOKS_PATH/ParallelClusterHeadNode.yml \
 popd
 
 # Notify SNS topic that trigger configuration of cluster manager and submitters
-ConfigureRESUsersGroupsJsonSnsTopicArnParameter={{ConfigureRESUsersGroupsJsonSnsTopicArnParameter}}
-if ! [[ -z "$ConfigureRESUsersGroupsJsonSnsTopicArnParameter" ]]; then
-    ConfigureRESClusterManagerSnsTopicArn=$(aws ssm get-parameter --name $ConfigureRESUsersGroupsJsonSnsTopicArnParameter --query 'Parameter.Value' --output text)
-    aws sns publish --topic-arn $ConfigureRESClusterManagerSnsTopicArn --message 'Configure {{ClusterName}} RES ClusterManager'
+ConfigureUsersGroupsJsonSnsTopicArnParameter={{ConfigureUsersGroupsJsonSnsTopicArnParameter}}
+if ! [[ -z "$ConfigureUsersGroupsJsonSnsTopicArnParameter" ]]; then
+    ConfigureUsersGroupsJsonSnsTopicArn=$(aws ssm get-parameter --name $ConfigureUsersGroupsJsonSnsTopicArnParameter --query 'Parameter.Value' --output text)
+    aws sns publish --topic-arn $ConfigureUsersGroupsJsonSnsTopicArn --message 'Configure {{ClusterName}} users_groups.json'
 fi
 
-ConfigureRESSubmittersSnsTopicArnParameter={{ConfigureRESSubmittersSnsTopicArnParameter}}
-if ! [[ -z "$ConfigureRESSubmittersSnsTopicArnParameter" ]]; then
-    ConfigureRESSubmittersSnsTopicArn=$(aws ssm get-parameter --name $ConfigureRESSubmittersSnsTopicArnParameter --query 'Parameter.Value' --output text)
-    aws sns publish --topic-arn $ConfigureRESSubmittersSnsTopicArn --message 'Configure {{ClusterName}} RES submitters'
+ConfigureExternalLoginNodesSnsTopicArnParameter={{ConfigureExternalLoginNodesSnsTopicArnParameter}}
+if ! [[ -z "$ConfigureExternalLoginNodesSnsTopicArnParameter" ]]; then
+    ConfigureExternalLoginNodesSnsTopicArn=$(aws ssm get-parameter --name $ConfigureExternalLoginNodesSnsTopicArnParameter --query 'Parameter.Value' --output text)
+    aws sns publish --topic-arn $ConfigureExternalLoginNodesSnsTopicArn --message 'Configure {{ClusterName}} login nodes'
 fi
 
 echo "$(date): Finished ${script_name}"
