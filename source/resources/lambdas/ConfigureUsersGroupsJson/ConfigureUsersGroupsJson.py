@@ -38,28 +38,30 @@ def lambda_handler(event, context):
 
         cluster_name = environ['ClusterName']
         cluster_region = environ['Region']
-        res_environment_name = environ['RESEnvironmentName']
-        res_domain_joined_instance_name        = environ['RESDomainJoinedInstanceName']
-        res_domain_joined_instance_module_name = environ['RESDomainJoinedInstanceModuleName']
-        res_domain_joined_instance_module_id   = environ['RESDomainJoinedInstanceModuleId']
-        res_domain_joined_instance_node_type   = environ['RESDomainJoinedInstanceNodeType']
+        domain_joined_instance_tags = json.loads(environ['DomainJoinedInstanceTagsJson'])
         slurm_login_node_sg_id = environ['SlurmLoginNodeSGId']
-        logger.info(f"Configure update of /opt/slurm/{cluster_name}/config/users_groups.json from RES {res_environment_name} domain joined instance with following tags:\nName={res_domain_joined_instance_name}\nres:ModuleName={res_domain_joined_instance_module_name}\nres:ModuleId={res_domain_joined_instance_module_name}\nres:NodeType={res_domain_joined_instance_node_type}\nstate=running")
+        if slurm_login_node_sg_id == 'None':
+            slurm_login_node_sg_id = None
+
+        tags_message = ''
+        describe_instances_kwargs = {
+            'Filters': [
+                {'Name': 'instance-state-name', 'Values': ['running']}
+            ]
+        }
+        for tag_dict in domain_joined_instance_tags:
+            tag = tag_dict['Key']
+            values = tag_dict['Values']
+            tags_message += f"\n{tag}: {values}"
+            describe_instances_kwargs['Filters'].append(
+                {'Name': f"tag:{tag}", 'Values': values}
+            )
+        logger.info(f"Configure update of /opt/slurm/{cluster_name}/config/users_groups.json from domain joined instance with following tags:{tags_message}")
 
         domain_joined_instance_id = None
         domain_joined_instance_security_group_ids = []
         ec2_client = boto3.client('ec2', region_name=cluster_region)
         describe_instances_paginator = ec2_client.get_paginator('describe_instances')
-        describe_instances_kwargs = {
-            'Filters': [
-                {'Name': 'tag:res:EnvironmentName', 'Values': [res_environment_name]},
-                {'Name': 'tag:Name',           'Values': [res_domain_joined_instance_name]},
-                {'Name': 'tag:res:ModuleName', 'Values': [res_domain_joined_instance_module_name]},
-                {'Name': 'tag:res:ModuleId',   'Values': [res_domain_joined_instance_module_id]},
-                {'Name': 'tag:res:NodeType',   'Values': [res_domain_joined_instance_node_type]},
-                {'Name': 'instance-state-name', 'Values': ['running']}
-            ]
-        }
         for describe_instances_response in describe_instances_paginator.paginate(**describe_instances_kwargs):
             for reservation_dict in describe_instances_response['Reservations']:
                 domain_joined_instance_info = reservation_dict['Instances'][0]
@@ -68,16 +70,17 @@ def lambda_handler(event, context):
                 for security_group_dict in domain_joined_instance_info['SecurityGroups']:
                     domain_joined_instance_security_group_ids.append(security_group_dict['GroupId'])
         if not domain_joined_instance_id:
-            raise RuntimeError(f"No running instances found with tags res:EnvironmentName={res_environment_name}, Name={res_domain_joined_instance_name}, res:ModuleName={res_domain_joined_instance_module_name}, res:ModuleId={res_domain_joined_instance_module_id}, res:NodeType={res_domain_joined_instance_node_type}")
+            raise RuntimeError(f"No running instances found with tags:{tags_message}")
 
-        # Make sure that the RES login nodes have the required security group attached.
-        if slurm_login_node_sg_id not in domain_joined_instance_security_group_ids:
-            # Attach the security group
-            logger.info(f"Attaching {slurm_login_node_sg_id} to {domain_joined_instance_id}.")
-            domain_joined_instance_security_group_ids.append(slurm_login_node_sg_id)
-            ec2_client.modify_instance_attribute(InstanceId=domain_joined_instance_id, Groups=domain_joined_instance_security_group_ids)
-        else:
-            logger.info(f"{slurm_login_node_sg_id} already attached to {domain_joined_instance_id}")
+        # Make sure that the instance has the required security group attached.
+        if slurm_login_node_sg_id:
+            if slurm_login_node_sg_id not in domain_joined_instance_security_group_ids:
+                # Attach the security group
+                logger.info(f"Attaching {slurm_login_node_sg_id} to {domain_joined_instance_id}.")
+                domain_joined_instance_security_group_ids.append(slurm_login_node_sg_id)
+                ec2_client.modify_instance_attribute(InstanceId=domain_joined_instance_id, Groups=domain_joined_instance_security_group_ids)
+            else:
+                logger.info(f"{slurm_login_node_sg_id} already attached to {domain_joined_instance_id}")
 
         ssm_client = boto3.client('ssm', region_name=cluster_region)
         commands = f"""
@@ -102,7 +105,7 @@ sudo $script
             DocumentName = 'AWS-RunShellScript',
             InstanceIds = [domain_joined_instance_id],
             Parameters = {'commands': [commands]},
-            Comment = f"Configure {res_environment_name} users and groups for {cluster_name}",
+            Comment = f"Configure users and groups for {cluster_name}",
             TimeoutSeconds = 5 * 60 # 5 minutes
         )
         command_id = send_command_response['Command']['CommandId']

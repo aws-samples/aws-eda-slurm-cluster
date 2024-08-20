@@ -67,6 +67,10 @@ def get_cluster_status(cluster_name, cluster_region):
 def lambda_handler(event, context):
     try:
         logger.info(f"event:\n{json.dumps(event, indent=4)}")
+
+        # Create sns client so can send notifications on any errors.
+        sns_client = boto3.client('sns')
+
         cluster_name = None
         requestType = event['RequestType']
         properties = event['ResourceProperties']
@@ -90,9 +94,6 @@ def lambda_handler(event, context):
         cluster_name = environ['ClusterName']
         cluster_region = environ['Region']
         logger.info(f"{requestType} request for {cluster_name} in {cluster_region}")
-
-        # Create sns client so can send notifications on any errors.
-        sns_client = boto3.client('sns')
 
         cluster_status = get_cluster_status(cluster_name, cluster_region)
         if cluster_status:

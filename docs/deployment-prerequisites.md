@@ -441,3 +441,58 @@ slurm:
     ansys:
       Count: 1
 ```
+
+### Configure File Systems
+
+The Storage/ExtraMounts parameter allows you to configure additional file systems to mount on compute nodes.
+Note that the security groups for the file systems must allow connections from the compute nodes.
+
+#### Lustre
+
+The following example shows how to add an FSx for Lustre file system.
+The mount information can be found from the FSx console.
+
+```
+  storage:
+    ExtraMounts
+      - dest: /lustre
+        src: <FileSystemId>.fsx.<Region>.amazonaws.com@tcp:/<MountName>
+        StorageType: FsxLustre
+        FileSystemId: <FileSystemId>
+        type: lustre
+        options: relatime,flock
+```
+
+#### ONTAP
+
+The following example shows how to add an FSx for NetApp ONTAP file system.
+The mount information can be found from the FSx console.
+
+```
+  storage:
+    ExtraMounts
+      - dest: /ontap
+        src: <SvmId>.<FileSystemId>.fsx.<Region>.amazonaws.com:/vol1
+        StorageType: FsxOntap
+        FileSystemId: <FileSystemId>
+        VolumeId: <VolumeId>
+        type: nfs
+        options: default
+```
+
+#### ZFS
+
+The following example shows how to add an FSx for OpenZFS file system.
+The mount information can be found from the FSx console.
+
+```
+  storage:
+    ExtraMounts
+      - dest: /zfs
+        src: <FileSystemId>.fsx.<Region>.amazonaws.com:/fsx
+        StorageType: FsxOpenZfs
+        FileSystemId: <FileSystemId>
+        VolumeId: <VolumeId>
+        type: nfs
+        options: noatime,nfsvers=3,sync,nconnect=16,rsize=1048576,wsize=1048576
+```

@@ -14,6 +14,16 @@ This project creates a ParallelCluster configuration file that is documented in 
 <a href="#timezone">TimeZone</a>: str
 <a href="#additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</a>: str
 <a href="#resstackname">RESStackName</a>: str
+<a href="#externalloginnodes">ExternalLoginNodes</a>:
+    - <a href="#tags">Tags</a>:
+          - Key: str
+            Values: [ str ]
+      SecurityGroupId: str
+<a href="#domainjoinedinstance">DomainJoinedInstance</a>:
+    - <a href="#tags">Tags</a>:
+          - Key: str
+            Values: [ str ]
+      SecurityGroupId: str
 <a href="#slurm">slurm</a>:
     <a href="#parallelclusterconfig">ParallelClusterConfig</a>:
         <a href="#version">Version</a>: str
@@ -211,6 +221,63 @@ This requires you to [configure security groups for external login nodes](../dep
 
 The Slurm binaries will be compiled for the OS of the desktops and and environment modulefile will be created
 so that the users just need to load the cluster modulefile to use the cluster.
+
+### ExternalLoginNodes
+
+An array of specifications for instances that should automatically be configured as Slurm login nodes.
+Each array element contains one or more tags that will be used to select login node instances.
+It also includes the security group id that must be attached to the login node to give it access to the slurm cluster.
+The tags for a group of instances is an array with the tag name and an array of values.
+
+A lambda function processes each login node specification.
+It uses the tags to select running instances.
+If the instances do not have the security group attached, then it will attach the security group.
+It will then run a script each instance to configure it as a login node for the slurm cluster.
+To use the cluster, users simply load the environment modulefile that is created by the script.
+
+For example, to configure RES virtual desktops as Slurm login nodes the following configuration is added.
+
+```
+---
+ExternalLoginNodes:
+- Tags:
+  - Key: 'res:EnvironmentName'
+    Values: [ 'res-eda' ]
+  - Key: 'res:NodeType'
+    Values: ['virtual-desktop-dcv-host']
+  SecurityGroupId: <SlurmLoginNodeSGId>
+```
+
+### DomainJoinedInstance
+
+A specifications for a domain joined instance that will be used to create and update users_groups.json.
+It also includes the security group id that must be attached to the login node to give it access to the slurm head node so it can mount the slurm configuration file system.
+The tags for the instance is an array with the tag name and an array of values.
+
+A lambda function the specification.
+It uses the tags to select a running instance.
+If the instance does not have the security group attached, then it will attach the security group.
+It will then run a script each instance to configure it to save all of the users and groups into a json file that
+is used to create local users and groups on compute nodes when they boot.
+
+For example, to configure the RES cluster manager, the following configuration is added.
+
+```
+---
+DomainJoinedInstance:
+- Tags:
+  - Key: 'Name'
+    Values: [ 'res-eda-cluster-manager' ]
+  - Key: 'res:EnvironmentName'
+    Values: [ 'res-eda' ]
+  - Key: 'res:ModuleName'
+    Values: [ 'cluster-manager' ]
+  - Key: 'res:ModuleId'
+    Values: [ 'cluster-manager' ]
+  - Key: 'app'
+    Values: ['virtual-desktop-dcv-host']
+  SecurityGroupId: <SlurmLoginNodeSGId>
+```
 
 ## slurm
 
@@ -425,7 +492,7 @@ Otherwise add "-cl" to end of StackName.
 AWS secret with a base64 encoded munge key to use for the cluster.
 For an existing secret can be the secret name or the ARN.
 If the secret doesn't exist one will be created, but won't be part of the cloudformation stack so that it won't be deleted when the stack is deleted.
-Required if your submitters need to use more than 1 cluster.
+Required if your login nodes need to use more than 1 cluster.
 
 See [Create Munge Key](../deployment-prerequisites#create-munge-key) for more details.
 
