@@ -610,8 +610,6 @@ class CdkSlurmStack(Stack):
             self.config['SubnetId'] = subnet_ids[0]
             logger.info(f"    SubnetId: {self.config['SubnetId']}")
 
-        # self.config['slurm']['SubmitterInstanceTags'] = {'res:EnvironmentName': [self.res_environment_name]}
-
         # Get RES VDI Security Group
         res_vdc_stack_name = f"{self.res_environment_name}-vdc"
         if res_vdc_stack_name not in stack_statuses:
@@ -677,6 +675,52 @@ class CdkSlurmStack(Stack):
         if not res_vdc_controller_security_group_id:
             logger.error(f"RES VDC controller security group not found.")
             exit(1)
+
+        self.config['ExternalLoginNodes'] = self.config.get('ExternalLoginNodes', [])
+        self.config['ExternalLoginNodes'].append(
+            {
+                'Tags': [
+                    {
+                        'Key': 'res:EnvironmentName',
+                        'Values': [self.res_environment_name]
+                    },
+                    {
+                        'Key': 'res:NodeType',
+                        'Values': ['virtual-desktop-dcv-host']
+                    }
+                ],
+                'SecurityGroupId': self.slurm_login_node_sg_id
+            }
+        )
+
+        if 'DomainJoinedInstance' in self.config:
+            logger.error(f"Can't specify both DomainJoinedInstance and RESStackName in config file.")
+            exit(1)
+        self.config['DomainJoinedInstance'] = {
+            'Tags': [
+                {
+                    'Key': 'Name',
+                    'Values': [f"{self.res_environment_name}-cluster-manager",]
+                },
+                {
+                    'Key': 'res:EnvironmentName',
+                    'Values': [self.res_environment_name]
+                },
+                {
+                    'Key': 'res:ModuleName',
+                    'Values': ['cluster-manager']
+                },
+                {
+                    'Key': 'res:ModuleId',
+                    'Values': ['cluster-manager']
+                },
+                {
+                    'Key': 'res:NodeType',
+                    'Values': ['app']
+                }
+            ],
+            'SecurityGroupId': self.slurm_login_node_sg_id
+        }
 
         # Configure the /home mount from RES if /home not already configured
         home_mount_found = False
@@ -803,21 +847,24 @@ class CdkSlurmStack(Stack):
             )
         # W47:SNS Topic should specify KmsMasterKeyId property
         self.suppress_cfn_nag(self.create_head_node_a_record_sns_topic, 'W47', 'Use default KMS key.')
-        if 'RESStackName' in self.config:
+
+        if 'DomainJoinedInstance' in self.config:
             # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
-            self.configure_res_users_groups_json_sns_topic = sns.Topic(
-                self, "ConfigureRESUsersGroupsJsonSnsTopic",
-                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureRESUsersGroupsJson"
+            self.configure_users_groups_json_sns_topic = sns.Topic(
+                self, "ConfigureUsersGroupsJsonSnsTopic",
+                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureUsersGroupsJson"
                 )
             # W47:SNS Topic should specify KmsMasterKeyId property
-            self.suppress_cfn_nag(self.configure_res_users_groups_json_sns_topic, 'W47', 'Use default KMS key.')
-            # SNS topic that gets notified when cluster is created and triggers a lambda to configure the cluster manager
-            self.configure_res_submitters_sns_topic = sns.Topic(
-                self, "ConfigureRESSubmittersSnsTopic",
-                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureRESSubmitters"
+            self.suppress_cfn_nag(self.configure_users_groups_json_sns_topic, 'W47', 'Use default KMS key.')
+
+        if 'ExternalLoginNodes' in self.config:
+            # SNS topic that gets notified when cluster is created and triggers a lambda to configure external login nodes
+            self.configure_external_login_nodes_sns_topic = sns.Topic(
+                self, "ConfigureExternalLoginNodesSnsTopic",
+                topic_name = f"{self.config['slurm']['ClusterName']}ConfigureExternalLoginNodes"
                 )
             # W47:SNS Topic should specify KmsMasterKeyId property
-            self.suppress_cfn_nag(self.configure_res_submitters_sns_topic, 'W47', 'Use default KMS key.')
+            self.suppress_cfn_nag(self.configure_external_login_nodes_sns_topic, 'W47', 'Use default KMS key.')
 
         # Create an SSM parameter to store the JWT tokens for root and slurmrestd
         self.jwt_token_for_root_ssm_parameter_name = f"/{self.config['slurm']['ClusterName']}/slurmrestd/jwt/root"
@@ -852,22 +899,23 @@ class CdkSlurmStack(Stack):
             )
         os.remove(playbooks_zipfile_filename)
 
-        if 'RESStackName' in self.config:
-            self.configure_res_users_groups_json_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESUsersGroupsJsonSnsTopicArn"
-            self.configure_res_users_groups_json_sns_topic_arn_parameter = ssm.StringParameter(
-                self, f"ConfigureRESUsersGroupsJsonSnsTopicArnParameter",
-                parameter_name = self.configure_res_users_groups_json_sns_topic_arn_parameter_name,
-                string_value = self.configure_res_users_groups_json_sns_topic.topic_arn
+        if 'DomainJoinedInstance' in self.config:
+            self.configure_users_groups_json_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureUsersGroupsJsonSnsTopicArn"
+            self.configure_users_groups_json_sns_topic_arn_parameter = ssm.StringParameter(
+                self, f"ConfigureUsersGroupsJsonSnsTopicArnParameter",
+                parameter_name = self.configure_users_groups_json_sns_topic_arn_parameter_name,
+                string_value = self.configure_users_groups_json_sns_topic.topic_arn
             )
-            self.configure_res_users_groups_json_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
+            self.configure_users_groups_json_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
 
-            self.configure_res_submitters_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureRESSubmittersSnsTopicArn"
-            self.configure_res_submitters_sns_topic_arn_parameter = ssm.StringParameter(
-                self, f"ConfigureRESSubmittersSnsTopicArnParameter",
-                parameter_name = self.configure_res_submitters_sns_topic_arn_parameter_name,
-                string_value = self.configure_res_submitters_sns_topic.topic_arn
+        if 'ExternalLoginNodes' in self.config:
+            self.configure_external_login_nodes_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/ConfigureExternalLoginNodesSnsTopicArn"
+            self.configure_external_login_nodes_sns_topic_arn_parameter = ssm.StringParameter(
+                self, f"ConfigureExternalLoginNodesSnsTopicArnParameter",
+                parameter_name = self.configure_external_login_nodes_sns_topic_arn_parameter_name,
+                string_value = self.configure_external_login_nodes_sns_topic.topic_arn
             )
-            self.configure_res_submitters_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
+            self.configure_external_login_nodes_sns_topic_arn_parameter.grant_read(self.parallel_cluster_asset_read_policy)
 
         self.create_head_node_a_record_sns_topic_arn_parameter_name = f"/{self.config['slurm']['ClusterName']}/CreateHeadNodeARecordSnsTopicArn"
         self.create_head_node_a_record_sns_topic_arn_parameter = ssm.StringParameter(
@@ -881,8 +929,8 @@ class CdkSlurmStack(Stack):
             'assets_bucket': self.assets_bucket,
             'assets_base_key': self.assets_base_key,
             'ClusterName': self.config['slurm']['ClusterName'],
-            'ConfigureRESUsersGroupsJsonSnsTopicArnParameter': '',
-            'ConfigureRESSubmittersSnsTopicArnParameter': '',
+            'ConfigureUsersGroupsJsonSnsTopicArnParameter': '',
+            'ConfigureExternalLoginNodesSnsTopicArnParameter': '',
             'CreateHeadNodeARecordSnsTopicArnParameter': self.create_head_node_a_record_sns_topic_arn_parameter_name,
             'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
             'playbooks_s3_url': self.playbooks_s3_url,
@@ -898,9 +946,10 @@ class CdkSlurmStack(Stack):
             template_vars['HomeMountSrc'] = self.mount_home_src
         else:
             template_vars['HomeMountSrc'] = ''
-        if 'RESStackName' in self.config:
-            template_vars['ConfigureRESUsersGroupsJsonSnsTopicArnParameter'] = self.configure_res_users_groups_json_sns_topic_arn_parameter_name
-            template_vars['ConfigureRESSubmittersSnsTopicArnParameter'] = self.configure_res_submitters_sns_topic_arn_parameter_name
+        if 'DomainJoinedInstance' in self.config:
+            template_vars['ConfigureUsersGroupsJsonSnsTopicArnParameter'] = self.configure_users_groups_json_sns_topic_arn_parameter_name
+        if 'ExternalLoginNodes' in self.config:
+            template_vars['ConfigureExternalLoginNodesSnsTopicArnParameter'] = self.configure_external_login_nodes_sns_topic_arn_parameter_name
 
         # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
         files_to_upload = [
@@ -1639,36 +1688,28 @@ class CdkSlurmStack(Stack):
                     )
                 )
 
-        if 'RESStackName' in self.config:
-            configureRESUsersGroupsJsonLambdaAsset = s3_assets.Asset(self, "ConfigureRESUsersGroupsJsonAsset", path="resources/lambdas/ConfigureRESUsersGroupsJson")
-            self.configure_res_users_groups_json_lambda = aws_lambda.Function(
-                self, "ConfigRESUsersGroupsJsonLambda",
-                function_name=f"{self.stack_name}-ConfigRESUsersGroupsJson",
-                description="Configure RES users and groups json file",
+        if 'DomainJoinedInstance' in self.config:
+            configureUsersGroupsJsonLambdaAsset = s3_assets.Asset(self, "ConfigureUsersGroupsJsonAsset", path="resources/lambdas/ConfigureUsersGroupsJson")
+            self.configure_users_groups_json_lambda = aws_lambda.Function(
+                self, "ConfigUsersGroupsJsonLambda",
+                function_name=f"{self.stack_name}-ConfigUsersGroupsJson",
+                description="Configure users and groups json file",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="ConfigureRESUsersGroupsJson.lambda_handler",
-                code=aws_lambda.Code.from_bucket(configureRESUsersGroupsJsonLambdaAsset.bucket, configureRESUsersGroupsJsonLambdaAsset.s3_object_key),
+                handler="ConfigureUsersGroupsJson.lambda_handler",
+                code=aws_lambda.Code.from_bucket(configureUsersGroupsJsonLambdaAsset.bucket, configureUsersGroupsJsonLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESStackName': self.config['RESStackName'],
-                    'RESEnvironmentName': self.res_environment_name,
-                    # 'RESDomainJoinedInstanceName': f"{self.res_environment_name}-vdc-controller",
-                    # 'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
-                    # 'RESDomainJoinedInstanceModuleId': 'vdc',
-                    'RESDomainJoinedInstanceName': f"{self.res_environment_name}-cluster-manager",
-                    'RESDomainJoinedInstanceModuleName': 'cluster-manager',
-                    'RESDomainJoinedInstanceModuleId': 'cluster-manager',
-                    'RESDomainJoinedInstanceNodeType': 'app',
-                    'SlurmLoginNodeSGId': self.slurm_login_node_sg_id
+                    'DomainJoinedInstanceTagsJson': json.dumps(self.config['DomainJoinedInstance']['Tags']),
+                    'SlurmLoginNodeSGId': self.config['DomainJoinedInstance'].get('SecurityGroupId', 'None')
                 }
             )
-            self.configure_res_users_groups_json_lambda.add_to_role_policy(
+            self.configure_users_groups_json_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1681,7 +1722,7 @@ class CdkSlurmStack(Stack):
                     )
                 )
             if 'ErrorSnsTopicArn' in self.config:
-                self.configure_res_users_groups_json_lambda.add_to_role_policy(
+                self.configure_users_groups_json_lambda.add_to_role_policy(
                     statement=iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
@@ -1690,33 +1731,32 @@ class CdkSlurmStack(Stack):
                         resources=[self.config['ErrorSnsTopicArn']]
                         )
                     )
-            self.configure_res_users_groups_json_lambda.add_event_source(
-                lambda_event_sources.SnsEventSource(self.configure_res_users_groups_json_sns_topic)
+            self.configure_users_groups_json_lambda.add_event_source(
+                lambda_event_sources.SnsEventSource(self.configure_users_groups_json_sns_topic)
             )
-            self.configure_res_users_groups_json_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+            self.configure_users_groups_json_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
 
-            configureRESSubmittersLambdaAsset = s3_assets.Asset(self, "ConfigureRESSubmittersAsset", path="resources/lambdas/ConfigureRESSubmitters")
-            self.configure_res_submitters_lambda = aws_lambda.Function(
-                self, "ConfigRESSubmittersLambda",
-                function_name=f"{self.stack_name}-ConfigRESSubmitters",
-                description="Configure RES submitters",
+        if 'ExternalLoginNodes' in self.config:
+            configureExternalLoginNodesLambdaAsset = s3_assets.Asset(self, "ConfigureExternalLoginNodesAsset", path="resources/lambdas/ConfigureExternalLoginNodes")
+            self.configure_external_login_nodes_lambda = aws_lambda.Function(
+                self, "ConfigExternalLoginNodesLambda",
+                function_name=f"{self.stack_name}-ConfigExternalLoginNodes",
+                description="Configure external login nodes",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="ConfigureRESSubmitters.lambda_handler",
-                code=aws_lambda.Code.from_bucket(configureRESSubmittersLambdaAsset.bucket, configureRESSubmittersLambdaAsset.s3_object_key),
+                handler="ConfigureExternalLoginNodes.lambda_handler",
+                code=aws_lambda.Code.from_bucket(configureExternalLoginNodesLambdaAsset.bucket, configureExternalLoginNodesLambdaAsset.s3_object_key),
                 environment = {
                     'Region': self.cluster_region,
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
-                    'RESStackName': self.config['RESStackName'],
-                    'RESEnvironmentName': self.res_environment_name,
-                    'SlurmLoginNodeSGId': self.slurm_login_node_sg_id
+                    'ExternalLoginNodesConfigJson': json.dumps(self.config['ExternalLoginNodes'])
                 }
             )
-            self.configure_res_submitters_lambda.add_to_role_policy(
+            self.configure_external_login_nodes_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1729,7 +1769,7 @@ class CdkSlurmStack(Stack):
                     )
                 )
             if 'ErrorSnsTopicArn' in self.config:
-                self.configure_res_submitters_lambda.add_to_role_policy(
+                self.configure_external_login_nodes_lambda.add_to_role_policy(
                     statement=iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
@@ -1738,38 +1778,32 @@ class CdkSlurmStack(Stack):
                         resources=[self.config['ErrorSnsTopicArn']]
                         )
                     )
-            self.configure_res_submitters_lambda.add_event_source(
-                lambda_event_sources.SnsEventSource(self.configure_res_submitters_sns_topic)
+            self.configure_external_login_nodes_lambda.add_event_source(
+                lambda_event_sources.SnsEventSource(self.configure_external_login_nodes_sns_topic)
             )
-            self.configure_res_submitters_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
+            self.configure_external_login_nodes_sns_topic.grant_publish(self.parallel_cluster_sns_publish_policy)
 
-            self.deconfigureRESUsersGroupsJsonLambdaAsset = s3_assets.Asset(self, "DeconfigureRESUsersGroupsJsonAsset", path="resources/lambdas/DeconfigureRESUsersGroupsJson")
-            self.deconfigure_res_users_groups_json_lambda = aws_lambda.Function(
-                self, "DeconfigRESUsersGroupsJsonLambda",
-                function_name=f"{self.stack_name}-DeconfigRESUsersGroupsJson",
+        if 'DomainJoinedInstance' in self.config:
+            self.deconfigureUsersGroupsJsonLambdaAsset = s3_assets.Asset(self, "DeconfigureUsersGroupsJsonAsset", path="resources/lambdas/DeconfigureUsersGroupsJson")
+            self.deconfigure_users_groups_json_lambda = aws_lambda.Function(
+                self, "DeconfigUsersGroupsJsonLambda",
+                function_name=f"{self.stack_name}-DeconfigUsersGroupsJson",
                 description="Deconfigure RES users and groups json file",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="DeconfigureRESUsersGroupsJson.lambda_handler",
-                code=aws_lambda.Code.from_bucket(self.deconfigureRESUsersGroupsJsonLambdaAsset.bucket, self.deconfigureRESUsersGroupsJsonLambdaAsset.s3_object_key),
+                handler="DeconfigureUsersGroupsJson.lambda_handler",
+                code=aws_lambda.Code.from_bucket(self.deconfigureUsersGroupsJsonLambdaAsset.bucket, self.deconfigureUsersGroupsJsonLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESEnvironmentName': self.res_environment_name,
-                    # 'RESDomainJoinedInstanceName': f"{self.res_environment_name}-vdc-controller",
-                    # 'RESDomainJoinedInstanceModuleName': 'virtual-desktop-controller',
-                    # 'RESDomainJoinedInstanceModuleId': 'vdc',
-                    'RESDomainJoinedInstanceName': f"{self.res_environment_name}-cluster-manager",
-                    'RESDomainJoinedInstanceModuleName': 'cluster-manager',
-                    'RESDomainJoinedInstanceModuleId': 'cluster-manager',
-                    'RESDomainJoinedInstanceNodeType': 'app'
+                    'DomainJoinedInstanceTagsJson': json.dumps(self.config['DomainJoinedInstance']['Tags'])
                 }
             )
-            self.deconfigure_res_users_groups_json_lambda.add_to_role_policy(
+            self.deconfigure_users_groups_json_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1781,7 +1815,7 @@ class CdkSlurmStack(Stack):
                     )
                 )
             if 'ErrorSnsTopicArn' in self.config:
-                self.deconfigure_res_users_groups_json_lambda.add_to_role_policy(
+                self.deconfigure_users_groups_json_lambda.add_to_role_policy(
                     statement=iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
@@ -1791,26 +1825,27 @@ class CdkSlurmStack(Stack):
                         )
                     )
 
-            deconfigureRESSubmittersLambdaAsset = s3_assets.Asset(self, "DeconfigureRESSubmittersAsset", path="resources/lambdas/DeconfigureRESSubmitters")
-            self.deconfigure_res_submitters_lambda = aws_lambda.Function(
-                self, "DeconfigRESSubmittersLambda",
-                function_name=f"{self.stack_name}-DeconfigRESSubmitters",
-                description="Deconfigure RES submitters",
+        if 'ExternalLoginNodes' in self.config:
+            deconfigureExternalLoginNodesLambdaAsset = s3_assets.Asset(self, "DeconfigureExternalLoginNodesAsset", path="resources/lambdas/DeconfigureExternalLoginNodes")
+            self.deconfigure_external_login_nodes_lambda = aws_lambda.Function(
+                self, "DeconfigExternalLoginNodesLambda",
+                function_name=f"{self.stack_name}-DeconfigExternalLoginNodes",
+                description="Deconfigure external login nodes",
                 memory_size=2048,
                 runtime=aws_lambda.Runtime.PYTHON_3_9,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
-                handler="DeconfigureRESSubmitters.lambda_handler",
-                code=aws_lambda.Code.from_bucket(deconfigureRESSubmittersLambdaAsset.bucket, deconfigureRESSubmittersLambdaAsset.s3_object_key),
+                handler="DeconfigureExternalLoginNodes.lambda_handler",
+                code=aws_lambda.Code.from_bucket(deconfigureExternalLoginNodesLambdaAsset.bucket, deconfigureExternalLoginNodesLambdaAsset.s3_object_key),
                 environment = {
                     'ClusterName': self.config['slurm']['ClusterName'],
                     'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                     'Region': self.cluster_region,
-                    'RESEnvironmentName': self.res_environment_name
+                    'ExternalLoginNodesConfigJson': json.dumps(self.config['ExternalLoginNodes'])
                 }
             )
-            self.deconfigure_res_submitters_lambda.add_to_role_policy(
+            self.deconfigure_external_login_nodes_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(
                     effect=iam.Effect.ALLOW,
                     actions=[
@@ -1822,7 +1857,7 @@ class CdkSlurmStack(Stack):
                     )
                 )
             if 'ErrorSnsTopicArn' in self.config:
-                self.deconfigure_res_submitters_lambda.add_to_role_policy(
+                self.deconfigure_external_login_nodes_lambda.add_to_role_policy(
                     statement=iam.PolicyStatement(
                         effect=iam.Effect.ALLOW,
                         actions=[
@@ -2707,10 +2742,11 @@ class CdkSlurmStack(Stack):
         # The lambda to create an A record for the head node must be built before the parallel cluster.
         self.parallel_cluster.node.add_dependency(self.create_head_node_a_record_lambda)
         self.parallel_cluster.node.add_dependency(self.update_head_node_lambda)
-        # The lambdas to configure instances must exist befor the cluster so they can be called.
-        if 'RESStackName' in self.config:
-            self.parallel_cluster.node.add_dependency(self.configure_res_users_groups_json_lambda)
-            self.parallel_cluster.node.add_dependency(self.configure_res_submitters_lambda)
+        # The lambdas to configure instances must exist before the cluster so they can be called.
+        if 'DomainJoinedInstance' in self.config:
+            self.parallel_cluster.node.add_dependency(self.configure_users_groups_json_lambda)
+        if 'ExternalLoginNodes' in self.config:
+            self.parallel_cluster.node.add_dependency(self.configure_external_login_nodes_lambda)
         # Build config files need to be created before cluster so that they can be downloaded as part of on_head_node_configures
         self.parallel_cluster.node.add_dependency(self.build_config_files)
         self.parallel_cluster.node.add_dependency(self.parallel_cluster_config)
@@ -2728,24 +2764,25 @@ class CdkSlurmStack(Stack):
         )
         self.update_head_node.node.add_dependency(self.parallel_cluster)
 
-        if 'RESStackName' in self.config:
-            # Custom resource to deconfigure cluster manager before deleting cluster
-            self.deconfigure_res_users_groups_json = CustomResource(
-                self, "DeconfigureRESUsersGroupsJson",
-                service_token = self.deconfigure_res_users_groups_json_lambda.function_arn,
-                properties = {
-                }
-            )
-            self.deconfigure_res_users_groups_json.node.add_dependency(self.parallel_cluster)
+        # if 'DomainJoinedInstance' in self.config:
+        #     # Custom resource to deconfigure cluster manager before deleting cluster
+        #     self.deconfigure_res_users_groups_json = CustomResource(
+        #         self, "DeconfigureUsersGroupsJson",
+        #         service_token = self.deconfigure_users_groups_json_lambda.function_arn,
+        #         properties = {
+        #         }
+        #     )
+        #     self.deconfigure_res_users_groups_json.node.add_dependency(self.parallel_cluster)
 
-            # Custom resource to deconfigure submitters before deleting cluster
-            self.deconfigure_res_submitters = CustomResource(
-                self, "DeconfigureRESSubmitters",
-                service_token = self.deconfigure_res_submitters_lambda.function_arn,
-                properties = {
-                }
-            )
-            self.deconfigure_res_submitters.node.add_dependency(self.parallel_cluster)
+        # if 'ExternalLoginNodes' in self.config:
+        #     # Custom resource to deconfigure submitters before deleting cluster
+        #     self.deconfigure_res_submitters = CustomResource(
+        #         self, "DeconfigureExternalLoginNodes",
+        #         service_token = self.deconfigure_external_login_nodes_lambda.function_arn,
+        #         properties = {
+        #         }
+        #     )
+        #     self.deconfigure_res_submitters.node.add_dependency(self.parallel_cluster)
 
         CfnOutput(self, "ParallelClusterConfigTemplateYamlS3Url",
             value = self.parallel_cluster_config_template_yaml_s3_url
