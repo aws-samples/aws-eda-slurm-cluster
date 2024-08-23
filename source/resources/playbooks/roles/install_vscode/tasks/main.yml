@@ -1,0 +1,43 @@
+---
+# tasks file for install_vscode
+
+- name: Show variables used by this role
+  debug:
+    msg: |
+      ansible_architecture:       {{ ansible_architecture }}
+      architecture:               {{ architecture }}
+      distribution:               {{ distribution }}
+      distribution_major_version: {{ distribution_major_version }}
+      distribution_version:       {{ distribution_version }}
+
+      amazonlinux2:   {{ amazonlinux2 }}
+      alma:           {{ alma }}
+      alma8:          {{ alma8 }}
+      centos:         {{ centos }}
+      centos7:        {{ centos7 }}
+      rhel:           {{ rhel }}
+      rhel7:          {{ rhel7 }}
+      rhel8:          {{ rhel8 }}
+      rhel9:          {{ rhel9 }}
+      rocky:          {{ rocky }}
+      rocky8:         {{ rocky8 }}
+      rocky9:         {{ rocky9 }}
+      rhelclone:      {{ rhelclone }}
+      rhel8clone:     {{ rhel8clone }}
+      rhel9clone:     {{ rhel9clone }}
+
+- name: Install vscode key and yum repository:
+  shell:
+    cmd: |
+      rpm --import https://packages.microsoft.com/keys/microsoft.asc
+      echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" | sudo tee /etc/yum.repos.d/vscode.repo > /dev/null
+  args:
+    creates: "/etc/yum.repos.d/vscode.repo"
+
+- name: Update package cache and install vscode
+  shell:
+    cmd: |
+      dnf check-update || yum check-update
+      dnf -y install code || yum -y install code
+  args:
+    creates: "/bin/code"
