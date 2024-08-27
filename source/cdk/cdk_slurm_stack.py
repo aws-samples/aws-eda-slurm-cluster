@@ -1539,6 +1539,18 @@ class CdkSlurmStack(Stack):
                     ]
                 )
             )
+        self.create_parallel_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "iam:AttachRolePolicy",
+                    "iam:DetachRolePolicy",
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:role/*"
+                    ]
+                )
+            )
         if self.munge_key_secret_arn:
             self.create_parallel_cluster_lambda.add_to_role_policy(
                 statement=iam.PolicyStatement(

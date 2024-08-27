@@ -120,8 +120,11 @@ class CreateSlurmSecurityGroupsStack(Stack):
         # Rules for FSx Lustre
         for src_sg_name, src_sg in lustre_security_groups.items():
             for dst_sg_name, dst_sg in lustre_security_groups.items():
+                # It shouldn't be necessary to do allow_to and allow_from, but CDK left off the ingress rule form lustre to lustre if I didn't add the allow_from.
                 src_sg.connections.allow_to(dst_sg, ec2.Port.tcp(988), f"{src_sg_name} to {dst_sg_name} lustre")
                 src_sg.connections.allow_to(dst_sg, ec2.Port.tcp_range(1018, 1023), f"{src_sg_name} to {dst_sg_name} lustre")
+                dst_sg.connections.allow_from(src_sg, ec2.Port.tcp(988), f"{src_sg_name} to {dst_sg_name} lustre")
+                dst_sg.connections.allow_from(src_sg, ec2.Port.tcp_range(1018, 1023), f"{src_sg_name} to {dst_sg_name} lustre")
 
         # Rules for FSx Ontap
         for fsx_client_sg_name, fsx_client_sg in fsx_client_security_groups.items():
@@ -138,12 +141,19 @@ class CreateSlurmSecurityGroupsStack(Stack):
                 fsx_client_sg.connections.allow_to(fsx_ontap_sg, ec2.Port.udp(4046), f"{fsx_client_sg_name} to {fsx_ontap_sg_name} Network status monitor for NFS")
 
             for fsx_zfs_sg_name, fsx_zfs_sg in zfs_security_groups.items():
-                fsx_client_sg.connections.allow_to(slurm_fsx_zfs_sg, ec2.Port.tcp(111), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} rpc for NFS")
-                fsx_client_sg.connections.allow_to(slurm_fsx_zfs_sg, ec2.Port.udp(111), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} rpc for NFS")
-                fsx_client_sg.connections.allow_to(slurm_fsx_zfs_sg, ec2.Port.tcp(2049), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS server daemon")
-                fsx_client_sg.connections.allow_to(slurm_fsx_zfs_sg, ec2.Port.udp(2049), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS server daemon")
-                fsx_client_sg.connections.allow_to(slurm_fsx_zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS mount, status monitor, and lock daemon")
-                fsx_client_sg.connections.allow_to(slurm_fsx_zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS mount, status monitor, and lock daemon")
+                fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.tcp(111), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} rpc for NFS")
+                fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.udp(111), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} rpc for NFS")
+                fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.tcp(2049), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS server daemon")
+                fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.udp(2049), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS server daemon")
+                fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS mount, status monitor, and lock daemon")
+                fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS mount, status monitor, and lock daemon")
+                # There is a bug in PC 3.10.1 that requires outbound traffic to be enabled even though ZFS doesn't.
+                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp(111), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} rpc for NFS")
+                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp(111), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} rpc for NFS")
+                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp(2049), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS server daemon")
+                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp(2049), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS server daemon")
+                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS mount, status monitor, and lock daemon")
+                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS mount, status monitor, and lock daemon")
 
         for sg_name, sg in security_groups.items():
             CfnOutput(self, f"{sg_name}Id",
