@@ -1,0 +1,8 @@
+---
+- name: Install VSCode
+  hosts: local
+  connection: local
+  become_user: root
+  become: yes
+  roles:
+    - install_vscode
