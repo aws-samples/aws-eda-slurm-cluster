@@ -569,6 +569,30 @@ def get_config_schema(config):
         Optional('TimeZone', default='US/Central'): str,
         Optional('AdditionalSecurityGroupsStackName'): str,
         Optional('RESStackName'): str,
+        # ExternalLoginNodes:
+        #     Configure external login nodes
+        #    Tags of instances that can be configured to submit to the cluster.
+        #    When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.
+        Optional('ExternalLoginNodes'): [
+            {
+                'Tags': [
+                    {
+                        'Key': str,
+                        'Values': [str]
+                    }
+                ],
+                Optional('SecurityGroupId'): str
+            }
+        ],
+        Optional('DomainJoinedInstance'): {
+            'Tags': [
+                {
+                    'Key': str,
+                    'Values': [str]
+                }
+            ],
+            Optional('SecurityGroupId'): str
+        },
         'slurm': {
             Optional('ParallelClusterConfig'): {
                 Optional('Enable', default=True): And(bool, lambda s: s == True),
@@ -681,10 +705,6 @@ def get_config_schema(config):
                     Optional('Secured', default=True): bool
                 }
             },
-            # SubmitterInstanceTags:
-            #    Tags of instances that can be configured to submit to the cluster.
-            #    When the cluster is deleted, the tag is used to unmount the slurm filesystem from the instances using SSM.
-            Optional('SubmitterInstanceTags'): {str: [str]},
             #
             # InstanceConfig:
             #     Configure the instances used by the cluster

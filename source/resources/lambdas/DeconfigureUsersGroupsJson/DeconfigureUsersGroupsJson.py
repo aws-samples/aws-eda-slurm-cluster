@@ -24,6 +24,7 @@ import cfnresponse
 import json
 import logging
 from os import environ as environ
+from textwrap import dedent
 import time
 
 logger=logging.getLogger(__file__)
@@ -57,12 +58,10 @@ def lambda_handler(event, context):
                 raise KeyError(error_message)
 
         cluster_name = environ['ClusterName']
+        error_sns_topic_arn = environ['ErrorSnsTopicArn']
         cluster_region = environ['Region']
-        environment_name = environ['RESEnvironmentName']
-        res_domain_joined_instance_name        = environ['RESDomainJoinedInstanceName']
-        res_domain_joined_instance_module_name = environ['RESDomainJoinedInstanceModuleName']
-        res_domain_joined_instance_module_id   = environ['RESDomainJoinedInstanceModuleId']
-        res_domain_joined_instance_node_type   = environ['RESDomainJoinedInstanceNodeType']
+        domain_joined_instance_tags = json.loads(environ['DomainJoinedInstanceTagsJson'])
+
         logger.info(f"{requestType} request for {cluster_name} in {cluster_region}")
 
         if requestType != 'Delete':
@@ -70,81 +69,83 @@ def lambda_handler(event, context):
             cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
             return
 
-        logger.info(f"Deconfigure update of /opt/slurm/{cluster_name}/config/users_groups.json from RES {environment_name} domain joined instance with following tags:\nName={res_domain_joined_instance_name}\nres:ModuleName={res_domain_joined_instance_module_name}\nres:ModuleId={res_domain_joined_instance_module_name}\nres:NodeType={res_domain_joined_instance_node_type}\nstate=running")
+        tags_message = ''
+        describe_instances_kwargs = {
+            'Filters': [
+                {'Name': 'instance-state-name', 'Values': ['running']}
+            ]
+        }
+        for tag_dict in domain_joined_instance_tags:
+            tag = tag_dict['Key']
+            values = tag_dict['Values']
+            tags_message += f"\n{tag}: {values}"
+            describe_instances_kwargs['Filters'].append(
+                {'Name': f"tag:{tag}", 'Values': values}
+            )
+        logger.info(f"Deconfigure update of /opt/slurm/{cluster_name}/config/users_groups.json from domain joined instance with following tags:{tags_message}")
 
         domain_joined_instance_id = None
         ec2_client = boto3.client('ec2', region_name=cluster_region)
         describe_instances_paginator = ec2_client.get_paginator('describe_instances')
-        describe_instances_kwargs = {
-            'Filters': [
-                {'Name': 'tag:res:EnvironmentName', 'Values': [environment_name]},
-                {'Name': 'tag:Name',           'Values': [res_domain_joined_instance_name]},
-                {'Name': 'tag:res:ModuleName', 'Values': [res_domain_joined_instance_module_name]},
-                {'Name': 'tag:res:ModuleId',   'Values': [res_domain_joined_instance_module_id]},
-                {'Name': 'tag:res:NodeType',   'Values': [res_domain_joined_instance_node_type]},
-                {'Name': 'instance-state-name', 'Values': ['running']}
-            ]
-        }
         for describe_instances_response in describe_instances_paginator.paginate(**describe_instances_kwargs):
             for reservation_dict in describe_instances_response['Reservations']:
                 domain_joined_instance_info = reservation_dict['Instances'][0]
                 domain_joined_instance_id = domain_joined_instance_info['InstanceId']
                 logger.info(f"Domain joined instance id: {domain_joined_instance_id}")
         if not domain_joined_instance_id:
-            raise RuntimeError(f"No running instances found with tags res:EnvironmentName={environment_name} and res:ModuleId={res_domain_joined_instance_module_name}")
+            raise RuntimeError(f"No running instances found with tags:{tags_message}")
 
         ssm_client = boto3.client('ssm', region_name=cluster_region)
-        commands = f"""
-set -ex
+        commands = dedent(f"""set -ex
 
-mount_dest=/opt/slurm/{cluster_name}
+            mount_dest=/opt/slurm/{cluster_name}
 
-# Make sure that the cluster is still mounted and mount is accessible.
-# If the cluster has already been deleted then the mount will be hung and we have to do manual cleanup.
-# Another failure mechanism is if the cluster didn't deploy in which case the mount may not even exist.
-if mount | grep " $mount_dest "; then
-    echo "$mount_dest is mounted."
-    if ! timeout 1s ls $mount_dest; then
-        echo "Mount point ($mount_dest) is hung. Source may have already been deleted."
-        timeout 5s sudo umount -lf $mount_dest
-        timeout 1s rm -rf $mount_dest
-    fi
-fi
+            # Make sure that the cluster is still mounted and mount is accessible.
+            # If the cluster has already been deleted then the mount will be hung and we have to do manual cleanup.
+            # Another failure mechanism is if the cluster didn't deploy in which case the mount may not even exist.
+            if mount | grep " $mount_dest "; then
+                echo "$mount_dest is mounted."
+                if ! timeout 1s ls $mount_dest; then
+                    echo "Mount point ($mount_dest) is hung. Source may have already been deleted."
+                    timeout 5s sudo umount -lf $mount_dest
+                    timeout 1s rm -rf $mount_dest
+                fi
+            fi
 
-script="$mount_dest/config/bin/create_users_groups_json_deconfigure.sh"
-if ! timeout 1s ls $script; then
-    echo "$script doesn't exist or isn't accessible."
-else
-    sudo $script
-fi
+            script="$mount_dest/config/bin/create_users_groups_json_deconfigure.sh"
+            if ! timeout 1s ls $script; then
+                echo "$script doesn't exist or isn't accessible."
+            else
+                sudo $script
+            fi
 
-# Do manual cleanup just in case something above failed.
+            # Do manual cleanup just in case something above failed.
 
-sudo grep -v " $mount_dest " /etc/fstab > /etc/fstab.new
-if diff -q /etc/fstab /etc/fstab.new; then
-    sudo rm -f /etc/fstab.new
-else
-    sudo cp /etc/fstab /etc/fstab.$(date '+%Y-%m-%d@%H:%M:%S~')
-    sudo mv -f /etc/fstab.new /etc/fstab
-fi
+            sudo grep -v " $mount_dest " /etc/fstab > /etc/fstab.new
+            if diff -q /etc/fstab /etc/fstab.new; then
+                sudo rm -f /etc/fstab.new
+            else
+                sudo cp /etc/fstab /etc/fstab.$(date '+%Y-%m-%d@%H:%M:%S~')
+                sudo mv -f /etc/fstab.new /etc/fstab
+            fi
 
-if timeout 1s mountpoint $mount_dest; then
-    echo "$mount_dest is a mountpoint"
-    sudo umount -lf $mount_dest
-fi
+            if timeout 1s mountpoint $mount_dest; then
+                echo "$mount_dest is a mountpoint"
+                sudo umount -lf $mount_dest
+            fi
 
-if timeout 1s ls $mount_dest; then
-    sudo rmdir $mount_dest
-fi
+            if timeout 1s ls $mount_dest; then
+                sudo rmdir $mount_dest
+            fi
 
-true
-        """
+            true
+            """)
         logger.info(f"Submitting SSM command")
         send_command_response = ssm_client.send_command(
             DocumentName = 'AWS-RunShellScript',
             InstanceIds = [domain_joined_instance_id],
             Parameters = {'commands': [commands]},
-            Comment = f"Deconfigure {environment_name} users and groups for {cluster_name}"
+            Comment = f"Deconfigure users and groups for {cluster_name}"
         )
         command_id = send_command_response['Command']['CommandId']
         logger.info(f"Sent SSM command {command_id}")
@@ -185,7 +186,7 @@ true
         cfnresponse.send(event, context, cfnresponse.FAILED, {'error': str(e)}, physicalResourceId=cluster_name)
         sns_client = boto3.client('sns')
         sns_client.publish(
-            TopicArn = environ['ErrorSnsTopicArn'],
+            TopicArn = error_sns_topic_arn,
             Subject = f"{cluster_name} DeconfigureRESUsersGroupsJson failed",
             Message = str(e)
         )
