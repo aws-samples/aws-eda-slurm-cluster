@@ -5,8 +5,10 @@ By default, ParallelCluster will use pre-built AMIs for the OS that you select.
 The exception is Rocky 8 and 9, for which ParallelCluster does not provide pre-built AMIs.
 To use Rocky Linux, you must first build a custom AMI and specify it in your config file at **slurm/ParallelClusterConfig/Os/CustomAmi**.
 
-The easiest way is to start an EC2 instance, update it with your changes, and create a new AMI from that instance.
-You can then add the new AMI to your configuration file.
+The easiest way to create a new AMI is to start an EC2 instance with an existing ParallelCluster AMI, update it with your changes, and create a new AMI from that instance.
+You can find the official ParallelCluster AMIs using the ParallelCluster UI.
+Click on **Images** and the list of **Official Images** will be listed.
+After you create the a new AMI, you can then add it to your configuration file.
 
 ParallelCluster can also automate this process for you using EC2 ImageBuilder.
 When you build your cluster, example ParallelCluster build configuration files
@@ -49,6 +51,8 @@ charges when run on AWS EC2 instances to develop FPGA images that can be run on 
 
 First subscribe to the FPGA developer AMI in the [AWS Marketplace](https://us-east-1.console.aws.amazon.com/marketplace/home?region=us-east-1#/landing).
 There are 2 versions, one for [CentOS 7](https://aws.amazon.com/marketplace/pp/prodview-gimv3gqbpe57k?ref=cns_1clkPro) and the other for [Amazon Linux 2](https://aws.amazon.com/marketplace/pp/prodview-iehshpgi7hcjg?ref=cns_1clkPro).
+
+**Note**: The FPGA Developer AMI hasn't been ported to the latest OS versions, so it will not show up in the build file templates.
 
 ## Deploy or update the Cluster
 
