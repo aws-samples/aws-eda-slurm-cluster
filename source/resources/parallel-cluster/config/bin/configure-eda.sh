@@ -69,6 +69,7 @@ if ! [ -e $submitter_config_dir ]; then
         rm -rf $PLAYBOOKS_PATH
         mkdir -p $PLAYBOOKS_PATH
         pushd $PLAYBOOKS_PATH
+        yum -y install unzip
         unzip $PLAYBOOKS_ZIP_PATH
         chmod -R 0700 $ANSIBLE_PATH
         popd

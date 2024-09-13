@@ -414,14 +414,41 @@ class SlurmPlugin:
     def get_instance_families(self, region):
         return sorted(self.instance_type_and_family_info[region]['instance_families'].keys())
 
+    def get_instance_families_info(self, region):
+        return self.instance_type_and_family_info[region]['instance_families']
+
+    def get_instance_family_info(self, region, instance_family):
+        return self.instance_type_and_family_info[region]['instance_families'][instance_family]
+
     def get_max_instance_type(self, region, instance_family):
         return self.instance_type_and_family_info[region]['instance_families'][instance_family]['MaxInstanceType']
 
     def get_instance_types(self, region):
         return sorted(self.instance_type_and_family_info[region]['instance_types'].keys())
 
+    def get_instance_types_info(self, region):
+        return self.instance_type_and_family_info[region]['instance_types']
+
+    def get_instance_type_info(self, region, instance_type):
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]
+
     def get_architecture(self, region, instance_type):
         return self.instance_type_and_family_info[region]['instance_types'][instance_type]['architecture']
+
+    def get_physical_processor(self, region, instance_type):
+        return self.instance_type_and_family_info[region]['instance_types'][instance_type]['physicalProcessor']
+
+    def get_cpu_vendor(self, region, instance_type):
+        physical_processor = self.get_physical_processor(region, instance_type)
+        if 'AMD' in physical_processor:
+            cpu_vendor = 'amd'
+        elif 'Graviton' in physical_processor:
+            cpu_vendor = 'aws'
+        elif 'Intel' in physical_processor:
+            cpu_vendor = 'intel'
+        else:
+            cpu_vendor = None
+        return cpu_vendor
 
     def get_SustainedClockSpeedInGhz(self, region, instance_type):
         return self.instance_type_and_family_info[region]['instance_types'][instance_type]['SustainedClockSpeedInGhz']

@@ -6,5 +6,7 @@
   roles:
     - all
     - ParallelClusterHeadNode
+    - role: exostellar_infrastructure_optimizer
+      when: xio_mgt_ip is defined
     - security_updates
     - bug_fixes

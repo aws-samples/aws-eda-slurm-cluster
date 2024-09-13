@@ -358,37 +358,60 @@ filesystem_lifecycle_policies = [
     'AFTER_90_DAYS'
     ]
 
-# By default I've chosen to exclude *7i instance types because they have 50% of the cores as *7z instances with the same memory.
-default_included_eda_instance_families = [
-    'c7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+default_included_instance_families = []
 
+default_included_instance_types = []
+
+default_excluded_instance_families = []
+
+default_excluded_instance_types = []
+
+old_eda_instance_familes = [
     'c7g',               # AWS Graviton3 Processor 2.6 GHz
-    # 'c7gd',              # AWS Graviton3 Processor 2.6 GHz
-    # 'c7gn',              # AWS Graviton3 Processor 2.6 GHz
-
-    # 'c7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
-
-    #'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
+    'c7gd',              # AWS Graviton3 Processor 2.6 GHz
+    'c7gn',              # AWS Graviton3 Processor 2.6 GHz
 
     'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
 
+    'm7g',               # AWS Graviton3 Processor 2.6 GHz
+    'm7gd',              # AWS Graviton3 Processor 2.6 GHz
+
+    'r7g',               # AWS Graviton3 Processor 2.6 GHz
+    'r7gd',              # AWS Graviton3 Processor 2.6 GHz
+
+    'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
+]
+
+# By default I've chosen to exclude *7i instance types because they have 50% of the cores as *7a instances with the same memory.
+default_included_eda_instance_families = [
+    # Some of these will be excluded to reduce the number of instance types
+    # arm64: 72 instance types
+    # x86_64:
+
+    'c7a',               # AMD EPYC 9R14 Processor 3.7 GHz
+
+    'c8g',               # AWS Graviton4 Processor 2.8 GHz
+
+    'c7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+
+    # Don't make F1 a default because based on older instance type and is a specialty instance.
+    # 'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
+
     'm7a',               # AMD EPYC 9R14 Processor 3.7 GHz
 
-    # 'm7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+    'm7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
 
-    'm7g',               # AWS Graviton3 Processor 2.6 GHz
-    # 'm7gd',               # AWS Graviton3 Processor 2.6 GHz
+    'm8g',               # AWS Graviton4 Processor 2.8 GHz
 
     'r7a',               # AMD EPYC 9R14 Processor 3.7 GHz
 
-    'r7g',               # AWS Graviton3 Processor 2.6 GHz
-    # 'r7gd',               # AWS Graviton3 Processor 2.6 GHz
+    'r8g',               # AWS Graviton4 Processor 2.8 GHz
 
-    # 'r7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+    'r7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
 
     'r7iz',              # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
 
-    'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
+    'x8g',               # AWS Graviton4 Processor 2.8 GHz
 
     'x2idn',             # Intel Xeon Scalable (Icelake) 3.5 GHz 2 TB
 
@@ -396,26 +419,20 @@ default_included_eda_instance_families = [
 
     'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
 
-    'u.*',
+    # Don't include u instances by default because older CPU family
+    # If someone really needs this amount of memory they will manually include it in their config.
+    #'u.*',
     #'u-6tb1',            # Intel Xeon Scalable (Skylake) 6 TB
     #'u-9tb1',            # Intel Xeon Scalable (Skylake) 9 TB
     #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
 ]
 
-default_included_instance_families = []
+default_included_eda_instance_types = {
+    'on_demand_and_spot': [],
+    'on_demand_or_spot': []
+}
 
-default_included_eda_instance_types = [
-    #'c5\.(l|x|2|4|9|18).*',  # Intel Xeon Platinum 8124M 3.4 GHz
-    #'c5\.(12|24).*',         # Intel Xeon Platinum 8275L 3.6 GHz
-    #'c5d\.(l|x|2|4|9|18).*', # Intel Xeon Platinum 8124M 3.4 GHz
-    #'c5d\.(12|24).*',        # Intel Xeon Platinum 8275L 3.6 GHz
-]
-
-default_included_instance_types = []
-
-default_excluded_instance_families = []
-
-default_excluded_eda_instance_families = [
+old_instance_families = [
     'a1',   # Graviton 1
     'c4',   # Replaced by c5
     'd2',   # SSD optimized
@@ -434,88 +451,269 @@ default_excluded_eda_instance_families = [
     'x1e',
 ]
 
-default_excluded_instance_types = []
+default_excluded_eda_instance_families = {
+    'on_demand_and_spot': old_instance_families + [
+    ],
+    'on_demand_or_spot': old_instance_families + [
+    ]
+}
 
-default_excluded_eda_instance_types = [
-    '.*\.metal.*',
+default_excluded_eda_instance_types = {
+    'on_demand_and_spot': [
+        '.*\.metal.*',
 
-    # Reduce the number of selected instance types to 25.
-    # Exclude larger core counts for each memory size
-    # 2 GB:
-    'c7a.medium',
-    'c7g.medium',
-    # 4 GB: m7a.medium, m7g.medium
-    'c7a.large',
-    'c7g.large',
-    # 8 GB: r7a.medium, r7g.medium
-    'm5zn.large',
-    'm7a.large',
-    'm7g.large',
-    'c7a.xlarge',
-    'c7g.xlarge',
-    # 16 GB: r7a.large, x2gd.medium, r7g.large
-    'r7iz.large',
-    'm5zn.xlarge',
-    'm7a.xlarge',
-    'm7g.xlarge',
-    'c7a.2xlarge',
-    'c7g.2xlarge',
-    # 32 GB: r7a.xlarge, x2gd.large, r7g.xlarge
-    'r7iz.xlarge',
-    'm5zn.2xlarge',
-    'm7a.2xlarge',
-    'm7g.2xlarge',
-    'c7a.4xlarge',
-    'c7g.4xlarge',
-    # 64 GB: r7a.2xlarge, x2gd.xlarge, r7g.2xlarge
-    'r7iz.2xlarge',
-    'm7a.4xlarge',
-    'm7g.4xlarge',
-    'c7a.8xlarge',
-    'c7g.8xlarge',
-    # 96 GB:
-    'm5zn.6xlarge',
-    'c7a.12xlarge',
-    'c7g.12xlarge',
-    # 128 GB: x2iedn.xlarge, r7iz.4xlarge, x2gd.2xlarge, r7g.4xlarge
-    'r7a.4xlarge',
-    'm7a.8xlarge',
-    'm7g.8xlarge',
-    'c7a.16xlarge',
-    'c7g.8xlarge',
-    # 192 GB: m5zn.12xlarge, m7a.12xlarge, m7g.12xlarge
-    'c7a.24xlarge',
-    # 256 GB: x2iedn.2xlarge, x2iezn.2xlarge, x2gd.4xlarge, r7g.8xlarge
-    'r7iz.8xlarge',
-    'r7a.8xlarge',
-    'm7a.16xlarge',
-    'm7g.16xlarge',
-    'c7a.32xlarge',
-    # 384 GB: 'r7iz.12xlarge', r7g.12xlarge
-    'r7a.12xlarge',
-    'm7a.24xlarge',
-    'c7a.48xlarge',
-    # 512 GB: x2iedn.4xlarge, x2iezn.4xlarge, x2gd.8xlarge, r7g.16xlarge
-    'r7iz.16xlarge',
-    'r7a.16xlarge',
-    'm7a.32xlarge',
-    # 768 GB: r7a.24xlarge, x2gd.12xlarge
-    'x2iezn.6xlarge',
-    'm7a.48xlarge',
-    # 1024 GB: x2iedn.8xlarge, x2iezn.8xlarge, x2gd.16xlarge
-    'r7iz.32xlarge',
-    'r7a.32xlarge',
-    # 1536 GB: x2iezn.12xlarge, x2idn.24xlarge
-    'r7a.48xlarge',
-    # 2048 GB: x2iedn.16xlarge
-    'x2idn.32xlarge',
-    # 3072 GB: 'x2iedn.24xlarge',
-    # 4096 GB: x2iedn.32xlarge
-]
+        # Reduce the number of selected instance types to 25.
+        # Exclude larger core counts for each memory size
+        # 2 GB:
+
+        # 4 GB:
+        #     1 core
+        'm7a.medium',
+        #     2 cores
+        'c7a.large',
+        'c8g.large',
+
+        # 8 GB:
+        #     1 core
+        'r7a.medium',
+
+        #     2 cores
+        'c7i.xlarge',
+        'm7a.large',
+        'm8g.large',
+        #     4 cores
+        'c7a.xlarge',
+        'c8g.xlarge',
+
+        # 16 GB:
+        #     1 core
+        'r7iz.large',
+        #     2 cores
+        'm7i.xlarge',
+        'r7a.large',
+        #     4 cores
+        'c7i.2xlarge',
+        'm7a.xlarge',
+        'm8g.xlarge',
+        #     8 cores
+        'c7a.2xlarge',
+        'c8g.2xlarge',
+
+        # 32 GB:
+        #     2 cores
+        'r7iz.2xlarge',
+        #     4 core(s):
+        'm7i.2xlarge',
+        'r7a.xlarge',
+        #     8 core(s): ['m8g.2xlarge']
+        'c7i.4xlarge',
+        'm7a.2xlarge',
+        'm8g.2xlarge',
+        #     16 core(s): ['c8g.4xlarge']
+        'c7a.4xlarge',
+        'c8g.4xlarge',
+
+        # 64 GB: r7a.2xlarge, x2gd.xlarge
+        #     8 core(s):
+        'm7i.4xlarge',
+        'r7a.2xlarge',
+        #     16 core(s): ['m8g.4xlarge']
+        'c7i.8xlarge',
+        'm7a.4xlarge',
+        'm8g.4xlarge',
+        #     32 core(s): ['c8g.8xlarge']
+        'c7a.8xlarge',
+        'c8g.8xlarge',
+
+        # 96 GB:
+        'm5zn.6xlarge',
+        'c7a.12xlarge',
+
+        # 128 GB:
+        #     2 cores
+        'x2iedn.xlarge',
+        #     16 cores
+        'm7i.8xlarge',
+        'r7a.4xlarge',
+        #     32 cores
+        'c7i.16xlarge',
+        'm7a.8xlarge',
+        #     64 cores
+        'c7a.16xlarge',
+
+        # 192 GB:
+        #     48 cores
+        'c7i.24xlarge',
+        'm7a.12xlarge',
+        #     96 cores
+        'c7a.24xlarge',
+
+        # 256 GB:
+        #     4 cores
+        'x2iedn.2xlarge',
+        #     32 cores
+        'm7i.16xlarge',
+        'r7a.8xlarge',
+        #     64 cores
+        'm7a.16xlarge',
+        #     128 cores
+        'c7a.32xlarge',
+
+        # 384 GB:
+        #     48 cores
+        'm7i.24xlarge',
+        'r7a.12xlarge',
+        #     96 cores
+        'c7i.48xlarge',
+        'm7a.24xlarge',
+        #     192 cores
+        'c7a.48xlarge',
+
+        # 512 GB:
+        #     8 cores
+        'x2iedn.4xlarge',
+        #     64 cores
+        'r7a.16xlarge',
+        #     128 cores
+        'm7a.32xlarge',
+
+        # 768 GB:
+        #     96 cores
+        'm7i.48xlarge',
+        'r7a.24xlarge',
+        #     192 cores
+        'm7a.48xlarge',
+
+        # 1024 GB:
+        #     16 cores
+        'x2iedn.8xlarge',
+        #     32 cores
+        'x2idn.16xlarge',
+
+        # 1536 GB:
+        #     48 cores
+        'x2idn.24xlarge',
+        # 2048 GB: x2iedn.16xlarge
+        'x2idn.32xlarge',
+        # 3072 GB: 'x2iedn.24xlarge',
+        # 4096 GB: x2iedn.32xlarge
+    ],
+    'on_demand_or_spot': [
+        '.*\.metal.*',
+
+        # Reduce the number of selected instance types to 50.
+        # Exclude larger core counts for each memory size
+        # 2 GB:
+        #     3 instance type with   1 core(s): ['c8g.medium']
+        # 4 GB:
+        #     1 core(s): ['m8g.medium']
+        #     2 core(s): ['c8g.large']
+        'c7a.large',
+        'c8g.large',
+        # 8 GB:
+        #     1 core(s): ['r8g.medium']
+        #     2 core(s):
+        'c7i.xlarge',
+        'm7a.large',
+        'm8g.large',
+        #     4 core(s):
+        'c7a.xlarge',
+        'c8g.xlarge',
+
+        # 16 GB:
+        #     2 core(s):
+        #     4 core(s): ['m8g.xlarge']
+        'm8g.xlarge',
+        #     8 core(s): ['c8g.2xlarge']
+        'c8g.2xlarge',
+
+        # 32 GB:
+        #     4 core(s): ['r8g.xlarge']
+        'm7i.2xlarge',
+        #     8 core(s): ['m8g.2xlarge']
+        'c7i.4xlarge',
+        'm7a.2xlarge',
+        'm8g.2xlarge',
+        #     16 core(s): ['c8g.4xlarge']
+        'c7a.4xlarge',
+        'c8g.4xlarge',
+
+        # 64 GB
+        #     8 core(s):
+        'm7i.4xlarge',
+        #     16 core(s): ['m8g.4xlarge']
+        'c7i.8xlarge',
+        'm7a.4xlarge',
+        'm8g.4xlarge',
+        #     32 core(s): ['c8g.8xlarge']
+        'c7a.8xlarge',
+        'c8g.8xlarge',
+
+        # 128 GB
+        #     2 cores
+        'x2iedn.xlarge',
+        #     16 cores
+        'm7i.8xlarge',
+        #     32 cores
+        'c7i.16xlarge',
+        'm7a.8xlarge',
+        #     64 cores
+        'c7a.16xlarge',
+        # 192 GB
+        #     48 cores
+        'c7i.24xlarge',
+        #     96 cores
+        'm7a.24xlarge',
+        # 256 GB
+        #     4 cores
+        'x2iedn.2xlarge',
+        #     32 cores
+        'm7i.16xlarge',
+        #     64 cores
+        'm7a.16xlarge',
+        #     128 cores
+        'c7a.32xlarge',
+        # 384 GB
+        #     48 cores
+        'm7i.24xlarge',
+        #     96 cores
+        'c7i.48xlarge',
+        'm7a.24xlarge',
+        #     192 cores
+        'c7a.48xlarge',
+        # 512 GB
+        #     8 cores
+        'x2iedn.4xlarge',
+        #     128 cores
+        'm7a.32xlarge',
+        # 768 GB
+        #     96 cores
+        'm7i.48xlarge',
+        #     192 cores
+        'm7a.48xlarge',
+        # 1024 GB
+        #     16 cores
+        'x2iedn.8xlarge',
+        #     32 cores
+        'x2idn.16xlarge',
+        # 1536 GB
+        #     48 cores
+        'x2idn.24xlarge',
+        # 2048 GB
+        #     64 cores
+        'x2idn.32xlarge',
+    ]
+}
 
 architectures = [
     'arm64',
     'x86_64'
+]
+
+cpu_vendors = [
+    'amd',
+    'aws',
+    'intel'
 ]
 
 os_distributions = [
@@ -524,6 +722,387 @@ os_distributions = [
     'CentOS',
     'RedHat',
     'Rocky'
+]
+
+xio_cpu_vendors = [
+    'amd',
+    'intel'
+]
+
+default_xio_profiles= [
+    {
+        'ProfileName': 'amd',
+        'CpuVendor': 'amd',
+        'NodeGroupName': 'amd',
+        'MaxControllers': 10,
+        'InstanceTypes': [
+            'c5a',
+            'c5ad',
+            'c6a',
+            'c7a',
+            'm5a',
+            'm5ad',
+            'm6a',
+            'm7a',
+            'r5a',
+            'r5ad',
+            'r6a',
+            'r7a',
+            'hpc6a',
+            'hpc7a',
+        ],
+        'SpotFleetTypes': [
+            'c5a',
+            'c5ad',
+            'c6a',
+            'c7a',
+            'm5a',
+            'm5ad',
+            'm6a',
+            'm7a',
+            'r5a',
+            'r5ad',
+            'r6a',
+            'r7a',
+        ],
+        'EnableHyperthreading': False,
+    },
+    {
+        'ProfileName': 'intel',
+        'CpuVendor': 'intel',
+        'NodeGroupName': 'intel',
+        'MaxControllers': 10,
+        'InstanceTypes': [
+            'c5',
+            'c5d',
+            'c5n',
+            'c6i',
+            'c6id',
+            'c6in',
+            'c7i',
+            'm5',
+            'm5d',
+            'm5dn',
+            'm5n',
+            'm5zn',
+            'm6i',
+            'm6id',
+            'm6idn',
+            'm6in',
+            'm7i',
+            'r5',
+            'r5b',
+            'r5d',
+            'r5dn',
+            'r5n',
+            'r6i',
+            'r6id',
+            'r6idn',
+            'r6in',
+            'r7i',
+            'r7iz',
+            'x2idn',
+            'x2iedn',
+            'z1d',
+        ],
+        'SpotFleetTypes': [
+            'c5',
+            'c5d',
+            'c5n',
+            'c6i',
+            'c6id',
+            'c6in',
+            'c7i',
+            'm5',
+            'm5d',
+            'm5dn',
+            'm5n',
+            'm5zn',
+            'm6i',
+            'm6id',
+            'm6idn',
+            'm6in',
+            'm7i',
+            'r5',
+            'r5b',
+            'r5d',
+            'r5dn',
+            'r5n',
+            'r6i',
+            'r6id',
+            'r6idn',
+            'r6in',
+            'r7i',
+            'r7iz',
+            'x2idn',
+            'x2iedn',
+            'z1d',
+        ],
+        'EnableHyperthreading': False
+    }
+]
+
+default_xio_pools = [
+    {
+        'PoolName': 'amd-4-gb-1-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 1,
+        'MaxMemory': 3891,
+    },
+    {
+        'PoolName': 'amd-8-gb-1-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 1,
+        'MaxMemory': 7782,
+    },
+    {
+        'PoolName': 'amd-16-gb-2-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 2,
+        'MaxMemory': 15565,
+    },
+    {
+        'PoolName': 'amd-32-gb-4-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 4,
+        'MaxMemory': 31230,
+    },
+    {
+        'PoolName': 'amd-64-gb-8-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 8,
+        'MaxMemory': 62259,
+    },
+    {
+        'PoolName': 'amd-128-gb-16-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 16,
+        'MaxMemory': 124518,
+    },
+    {
+        'PoolName': 'amd-256-gb-32-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 32,
+        'MaxMemory': 249037,
+    },
+    {
+        'PoolName': 'amd-384-gb-48-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 48,
+        'MaxMemory': 373555,
+    },
+    {
+        'PoolName': 'amd-512-gb-64-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 64,
+        'MaxMemory': 498074,
+    },
+    {
+        'PoolName': 'amd-768-gb-96-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 96,
+        'MaxMemory': 747110,
+    },
+    {
+        'PoolName': 'amd-1024-gb-128-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 128,
+        'MaxMemory': 996147,
+    },
+    {
+        'PoolName': 'amd-1536-gb-192-cores',
+        'ProfileName': 'amd',
+        'PoolSize': 10,
+        'CPUs': 192,
+        'MaxMemory': 1494221,
+    },
+    {
+
+        'PoolName': 'intel-4-gb-1-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 1,
+        'MaxMemory': 3891,
+    },
+    {
+        'PoolName': 'intel-8-gb-1-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 1,
+        'MaxMemory': 7782,
+    },
+    {
+        'PoolName': 'intel-16-gb-1-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 1,
+        'MaxMemory': 15565,
+    },
+    {
+        'PoolName': 'intel-16-gb-2-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 2,
+        'MaxMemory': 15565,
+    },
+    {
+        'PoolName': 'intel-32-gb-4-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 4,
+        'MaxMemory': 31230,
+    },
+    {
+        'PoolName': 'intel-48-gb-6-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 6,
+        'MaxMemory': 46694,
+    },
+    {
+        'PoolName': 'intel-64-gb-8-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 8,
+        'MaxMemory': 62259,
+    },
+    {
+        'PoolName': 'intel-128-gb-2-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 2,
+        'MaxMemory': 124518,
+    },
+    {
+        'PoolName': 'intel-128-gb-8-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 8,
+        'MaxMemory': 124518,
+    },
+    {
+        'PoolName': 'intel-192-gb-24-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 24,
+        'MaxMemory': 186778,
+    },
+    {
+        'PoolName': 'intel-192-gb-48-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 48,
+        'MaxMemory': 186778,
+    },
+    {
+        'PoolName': 'intel-256-gb-4-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 4,
+        'MaxMemory': 249037,
+    },
+    {
+        'PoolName': 'intel-384-gb-24-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 24,
+        'MaxMemory': 373555,
+    },
+    {
+        'PoolName': 'intel-512-gb-8-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 8,
+        'MaxMemory': 498074,
+    },
+    {
+        'PoolName': 'intel-768-gb-96-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 96,
+        'MaxMemory': 747110,
+    },
+    {
+        'PoolName': 'intel-1024-gb-16-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 16,
+        'MaxMemory': 996147,
+    },
+    {
+        'PoolName': 'intel-1024-gb-32-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 32,
+        'MaxMemory': 996147,
+    },
+    {
+        'PoolName': 'intel-1536-gb-48-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 48,
+        'MaxMemory': 1494221,
+    },
+    {
+        'PoolName': 'intel-2048-gb-32-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 32,
+        'MaxMemory': 1992294,
+    },
+    {
+        'PoolName': 'intel-3072-gb-48-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 48,
+        'MaxMemory': 2988442,
+    },
+    {
+        'PoolName': 'intel-3072-gb-112-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 112,
+        'MaxMemory': 2988442,
+    },
+    {
+        'PoolName': 'intel-4096-gb-64-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 64,
+        'MaxMemory': 3984589,
+    },
+    {
+        'PoolName': 'intel-6144-gb-224-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 224,
+        'MaxMemory': 5976883,
+    },
+    {
+        'PoolName': 'intel-9216-gb-224-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 224,
+        'MaxMemory': 8965325,
+    },
+    {
+        'PoolName': 'intel-12288-gb-224-cores',
+        'ProfileName': 'intel',
+        'PoolSize': 10,
+        'CPUs': 224,
+        'MaxMemory': 11953766,
+    }
 ]
 
 # The config file is used in the installer and the CDK app.
@@ -699,6 +1278,9 @@ def get_config_schema(config):
                 # UseSpot:
                 #     Configure spot instances
                 Optional('UseSpot', default=True): bool,
+                Optional('CpuVendor', default=cpu_vendors): [
+                    And(str, lambda s: s in cpu_vendors)
+                ],
                 # Include*/Exclude*:
                 #     Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
                 #     Exclude patterns are processed first and take precedence over any includes.
@@ -736,6 +1318,46 @@ def get_config_schema(config):
                     'CIDR': str,
                     Optional('Partition', default='onprem'): str,
                 }
+            },
+            Optional('Xio'): {
+                Optional('ManagementServerStackName'): str,
+                Optional('ManagementServerIp'): str,
+                'PartitionName': str,
+                Optional('DefaultImageName'): str,
+                Optional('Profiles', default=default_xio_profiles): [
+                    {
+                        'ProfileName': str,
+                        'CpuVendor': And(str, lambda s: s in ['amd', 'intel']),
+                        'NodeGroupName': str,
+                        'MaxControllers': int,
+                        'InstanceTypes': [
+                            str
+                        ],
+                        'SpotFleetTypes': [
+                            str
+                        ],
+                        'EnableHyperthreading': bool
+                    }
+                ],
+                Optional('Pools', default=default_xio_pools): [
+                    {
+                        'PoolName': str,
+                        'ProfileName': str,
+                        'PoolSize': int,
+                        'CPUs': int,
+                        Optional('ImageName'): str,
+                        Optional('MinMemory', default=0): int,
+                        'MaxMemory': int,
+                        Optional('VolumeSize', default=10): int,
+                        Optional('Weight'): int
+                    }
+                ],
+                Optional('ManagementServerImageId'): str,
+                Optional('AvailabilityZone'): str,
+                Optional('ControllerSecurityGroupIds'): [ str ],
+                Optional('ControllerImageId'): str,
+                Optional('WorkerSecurityGroupIds'): [ str ],
+                Optional('WorkerImageId'): str,
             },
             Optional('SlurmUid', default=401): int,
             Optional('storage'): {

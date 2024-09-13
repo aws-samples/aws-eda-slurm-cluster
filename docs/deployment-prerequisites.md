@@ -6,7 +6,7 @@ This page shows common prerequisites that need to be done before deployment.
 
 The deployment process was developed and tested using Amazon Linux 2.
 It has also been tested on RHEL 8 and RHEL 9.
-An easy way to create a deployment instance is to use an AWS Cloud 9 desktop.
+An easy way to create a deployment instance is to use AWS CloudShell.
 This will give you a code editor IDE and shell environment that you can use to deploy the cluster.
 
 If the required packages aren't installed then you will need sudo or root access on the instance.
@@ -20,7 +20,7 @@ You will needs AWS credentials that provide admin access to deploy the cluster.
 Clone or download the aws-eda-slurm-cluster repository to your system.
 
 ```
-git clone git@github.com:aws-samples/aws-eda-slurm-cluster.git
+git clone https://github.com/aws-samples/aws-eda-slurm-cluster.git
 ```
 
 ## Create SNS Topic for Error Notifications (Optional but recommended)
@@ -228,6 +228,11 @@ when you create the file system.
 
 If the file system already exists, then attach the appropriate security group to the network interfaces of
 the file systems.
+
+## Create Exostellar Management Server
+
+If you're going to use Exostellar Infrastructure Optimizer (XIO) then you will need to deploy the Exostellar management server.
+See the [XIO page](../exostellar-infrastructure-optimizer) for details.
 
 ## Create Configuration File
 
