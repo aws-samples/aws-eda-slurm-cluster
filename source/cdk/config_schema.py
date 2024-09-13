@@ -737,6 +737,45 @@ def get_config_schema(config):
                     Optional('Partition', default='onprem'): str,
                 }
             },
+            Optional('Xio'): {
+                Optional('ManagementServerStackName'): str,
+                Optional('ManagementServerIp'): str,
+                'PartitionName': str,
+                'Profiles': [
+                    {
+                        'ProfileName': str,
+                        'CpuVendor': And(str, lambda s: s in ['amd', 'intel']),
+                        'NodeGroupName': str,
+                        'MaxControllers': int,
+                        'InstanceTypes': [
+                            str
+                        ],
+                        'SpotFleetTypes': [
+                            str
+                        ],
+                        'EnableHyperthreading': bool
+                    }
+                ],
+                'Pools': [
+                    {
+                        'PoolName': str,
+                        'ProfileName': str,
+                        'PoolSize': int,
+                        'CPUs': int,
+                        'ImageName': str,
+                        Optional('MinMemory', default=0): int,
+                        'MaxMemory': int,
+                        Optional('VolumeSize', default=10): int,
+                        Optional('Weight'): int
+                    }
+                ],
+                Optional('ManagementServerImageId'): str,
+                Optional('AvailabilityZone'): str,
+                Optional('ControllerSecurityGroupIds'): [ str ],
+                Optional('ControllerImageId'): str,
+                Optional('WorkerSecurityGroupIds'): [ str ],
+                Optional('WorkerImageId'): str,
+            },
             Optional('SlurmUid', default=401): int,
             Optional('storage'): {
                 #
