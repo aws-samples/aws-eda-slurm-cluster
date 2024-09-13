@@ -1,0 +1,155 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create IAM roles and policies for Controllers and Workers
+
+Resources:
+  ExostellarControllerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ExostellarControllerPolicy
+          PolicyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:RunInstances",
+                    "ec2:StopInstances",
+                    "ec2:DescribeSpotPriceHistory",
+                    "ec2:DescribeInstances",
+                    "ec2:DescribeInstanceTypes",
+                    "ec2:DescribeTags",
+                    "ec2:CreateTags",
+                    "ec2:CreateFleet",
+                    "ec2:CreateLaunchTemplate",
+                    "ec2:DeleteLaunchTemplate",
+                    "ec2:TerminateInstances",
+                    "ec2:AssignPrivateIpAddresses",
+                    "ec2:UnassignPrivateIpAddresses",
+                    "ec2:AttachNetworkInterface",
+                    "ec2:DetachNetworkInterface",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:ModifyNetworkInterfaceAttribute",
+                    "ec2:DescribeRegions",
+                    "ec2:CreateVolume",
+                    "ec2:DescribeVolumes",
+                    "ec2:AttachVolume",
+                    "ec2:ModifyInstanceAttribute",
+                    "ec2:DetachVolume",
+                    "ec2:DeleteVolume",
+                    "ec2:CreateInstanceExportTask",
+                    "ec2:DescribeExportTasks",
+                    "ec2:RebootInstances",
+                    "ec2:CreateSnapshot",
+                    "ec2:DescribeSnapshots",
+                    "iam:CreateServiceLinkedRole",
+                    "iam:ListRoles",
+                    "iam:ListInstanceProfiles",
+                    "iam:PassRole",
+                    "iam:GetRole",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeImages",
+                    "ec2:DescribeKeyPairs",
+                    "ec2:DescribeInstanceTypeOfferings",
+                    "iam:GetInstanceProfile",
+                    "iam:SimulatePrincipalPolicy",
+                    "sns:Publish",
+                    "ssm:GetParameters",
+                    "ssm:GetParametersByPath"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "eks:DescribeCluster"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-controller-role"
+
+  ExostellarControllerProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref ExostellarControllerRole
+
+  ExostellarWorkerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: ExostellarWorkerPolicy
+          PolicyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Deny",
+                  "Action": [
+                    "ec2:UnassignPrivateIpAddresses"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:ModifyInstanceMetadataOptions",
+                    "eks:DescribeCluster"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-worker-role"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        - "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+        - "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+        - "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+
+  ExostellarWorkerProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref ExostellarWorkerRole
+
+Outputs:
+  ExostellarControllerRoleARN:
+    Description: ARN of the Controller IAM Role. This will be used in the ConfigMap.
+    Value: !GetAtt ExostellarControllerRole.Arn
+
+  ExostellarControllerRoleInstanceProfileARN:
+    Description: Instance Profile ARN of the Controller IAM Role. This will be used in the Profile Configuration.
+    Value: !GetAtt ExostellarControllerProfile.Arn
+
+  ExostellarWorkerRoleARN:
+    Description: ARN of the Exostellar Worker Role. This will be used in the ConfigMap.
+    Value: !GetAtt ExostellarWorkerRole.Arn
+
+  ExostellarWorkerRoleInstanceProfileARN:
+    Description: Instance Profile ARN of the Worker IAM Role. This will be used in the Profile Configuration.
+    Value: !GetAtt ExostellarWorkerProfile.Arn
