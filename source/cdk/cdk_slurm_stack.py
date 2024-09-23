@@ -735,7 +735,7 @@ class CdkSlurmStack(Stack):
             # parameter SharedHomeFileSystemId
             logger.setLevel(logging.DEBUG)
             logger.debug(f"Searching for RES /home file system")
-            res_shared_storage_stack_name = f"{self.res_environment_name}"
+            res_shared_storage_stack_name = res_stack_name
             if res_shared_storage_stack_name not in stack_statuses:
                 message = f"CloudFormation RES stack named {res_shared_storage_stack_name} not found. Existing stacks:"
                 for stack_name in sorted(stack_statuses):
