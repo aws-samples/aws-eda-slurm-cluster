@@ -1,0 +1,15 @@
+---
+# APC 3.11.0 added the pyxis Slurm Spank plugin
+# This needs to also be built on login nodes.
+# Currently, I am not doing that so until then, disable the Spank plugin by
+# renaming plugstack.conf
+
+- name: Rename plugstack.conf to plugstack.conf.back
+  shell:
+    cmd: |
+      set -ex
+
+      plugstack_conf=/opt/slurm/etc/plugstack.conf
+      if [[ -e  $plugstack_conf ]]; then
+          mv $plugstack_conf ${plugstack_conf}.back
+      fi
