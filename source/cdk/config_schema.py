@@ -87,6 +87,9 @@ logger.setLevel(logging.INFO)
 #     * Upgrade Python to 3.9.19 (from 3.9.17).
 # 3.10.1:
 #     * Build fix for China regions
+# 3.11.0:
+#     * Add support for ap-southeast-3
+#     * login node enhancements
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
 # Update source/resources/default_config.yml with latest version when this is updated.
 PARALLEL_CLUSTER_VERSIONS = [
@@ -102,6 +105,7 @@ PARALLEL_CLUSTER_VERSIONS = [
     '3.9.3',
     '3.10.0',
     '3.10.1',
+    '3.11.0',
 ]
 PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/sources
@@ -118,6 +122,7 @@ PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.9.3':   '0.5.15', # confirmed
     '3.10.0':  '0.5.16', # confirmed
     '3.10.1':  '0.5.16', # confirmed
+    '3.11.0':  '0.5.16', #
 }
 PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/pyenv/versions
@@ -133,6 +138,7 @@ PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     '3.9.3':   '3.9.17', # confirmed
     '3.10.0':  '3.9.19', # confirmed
     '3.10.1':  '3.9.19', # confirmed
+    '3.11.0':  '3.9.20', #
 }
 PARALLEL_CLUSTER_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -148,6 +154,7 @@ PARALLEL_CLUSTER_SLURM_VERSIONS = {
     '3.9.3':   '23.11.7', # confirmed
     '3.10.0':  '23.11.7', # confirmed
     '3.10.1':  '23.11.7', # confirmed
+    '3.11.0':  '23.11.7', #
 }
 PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -163,6 +170,7 @@ PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     '3.9.3':   '23-11-7-1', # confirmed
     '3.10.0':  '23-11-7-1', # confirmed
     '3.10.1':  '23-11-7-1', # confirmed
+    '3.11.0':  '23-11-10-1', #
 }
 SLURM_REST_API_VERSIONS = {
     '23-02-2-1': '0.0.39',
@@ -173,6 +181,7 @@ SLURM_REST_API_VERSIONS = {
     '23-02-7-1': '0.0.39',
     '23-11-4-1': '0.0.39',
     '23-11-7-1': '0.0.39',
+    '23-11-10-1': '0.0.39',
 }
 
 def get_parallel_cluster_version(config):

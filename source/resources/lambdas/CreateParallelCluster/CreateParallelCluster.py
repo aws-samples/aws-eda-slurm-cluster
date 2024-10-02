@@ -150,8 +150,8 @@ def lambda_handler(event, context):
                 logger.info("Create call succeeded.")
                 logger.info(f"response={response}")
             except Exception as e:
-                logger.exception("ParallelCluster create exception. Ignoring exception so config stack deployment doesn't fail,")
-                message = f"ParallelCluster create exception:\n\n{e}"
+                logger.exception(f"ParallelCluster create exception. Ignoring exception so config stack deployment doesn't fail\n\nException:\n{e}\n\nException dict:\n{e.__dict__}")
+                message = f"ParallelCluster create exception:\n\nException:\n{e}\n\nException dict:\n{e.__dict__}"
                 sns_client.publish(
                     TopicArn = environ['ErrorSnsTopicArn'],
                     Subject = f"{cluster_name} CreateParallelCluster create failed",
