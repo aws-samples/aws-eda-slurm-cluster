@@ -148,3 +148,25 @@
     group: root
     mode: 0644
     force: yes
+
+- name: Install enroot
+  when rhel8 or rhel8clone
+  cmd: |
+      arch=$(uname -m)
+      yum -y install -y https://github.com/NVIDIA/enroot/releases/download/v{{ enroot_version }}-1/enroot-{{ enroot_version }}-1.el8.${arch}.rpm
+      yum -y install -y https://github.com/NVIDIA/enroot/releases/download/v{{ enroot_version }}-1/enroot+caps-{{ enroot_version }}-1.el8.${arch}.rpm # optional
+
+- name: Build and install pyxix
+  when rhel8 or rhel8clone
+  cmd: |
+    mkdir /tmp/pyxis
+    cd /tmp/pyxis
+    wget https://github.com/NVIDIA/pyxis/archive/refs/tags/v{{ pyxis_version }}.tar.gz
+    tar xzf v{{ pyxis_version }}.tar.gz
+    cd pyxis-{{ pyxis_version }}
+
+    export CFLAGS='-I /opt/slurm/{{ cluster_name }}/include/'
+    make
+
+    export PLUGINDIR=
+    export CONFDIR=
