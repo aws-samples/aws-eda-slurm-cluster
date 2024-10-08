@@ -1,0 +1,17 @@
+#cloud-config
+runcmd:
+  - [sh, -c, "mkdir -p /xcompute"]
+  - [sh, -c, "mount 172.31.24.5:/xcompute /xcompute"]
+  - [sh, -c, "mkdir -p /home/slurm"]
+  - [sh, -c, "mount 172.31.24.5:/home/slurm /home/slurm"]
+  - [sh, -c, "rm -rf /etc/slurm"]
+  - [sh, -c, "ln -s /xcompute/slurm/ /etc/slurm"]
+  - [sh, -c, "cp /xcompute/slurm/munge.key /etc/munge/munge.key"]
+  - [sh, -c, "systemctl restart munge"]
+  # ALWAYS LAST!
+  - [
+      sh,
+      -c,
+      "echo XSPOT_NODENAME > /var/run/nodename; scontrol update nodename=XSPOT_NODENAME nodeaddr=`hostname -I`",
+    ]
+

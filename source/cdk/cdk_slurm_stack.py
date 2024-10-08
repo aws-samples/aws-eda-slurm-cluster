@@ -255,6 +255,9 @@ class CdkSlurmStack(Stack):
         if 'RESStackName' in self.config:
             self.update_config_for_res()
 
+        if 'Xio' in self.config['slurm']:
+            self.update_config_for_exostellar()
+
         if 'ErrorSnsTopicArn' not in self.config:
             logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
 
@@ -467,6 +470,11 @@ class CdkSlurmStack(Stack):
             logger.error(f"Configured SlurmCtl instance type ({slurmctl_instance_type}) has {slurmctl_memory_in_gb} GB and needs at least 4.")
             config_errors += 1
 
+        if 'Xio' in self.config['slurm']:
+            if self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
+                logger.error("Xio is only supported on x86_64 architecture, not {self.config['slurm']['ParallelClusterConfig']['Architecture']}")
+                config_errors += 1
+
         if config_errors:
             exit(1)
 
@@ -618,16 +626,16 @@ class CdkSlurmStack(Stack):
                 message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
             logger.error(message)
             exit(1)
-        res_dcv_security_group_id = None
+        self.res_dcv_security_group_id = None
         list_stack_resources_paginator = cloudformation_client.get_paginator('list_stack_resources')
         for stack_resource_summaries in list_stack_resources_paginator.paginate(StackName=res_vdc_stack_name):
             for stack_resource_summary_dict in stack_resource_summaries['StackResourceSummaries']:
                 if stack_resource_summary_dict['LogicalResourceId'].startswith('vdcdcvhostsecuritygroup'):
-                    res_dcv_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
+                    self.res_dcv_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
                     break
-            if res_dcv_security_group_id:
+            if self.res_dcv_security_group_id:
                 break
-        if not res_dcv_security_group_id:
+        if not self.res_dcv_security_group_id:
             logger.error(f"RES VDI security group not found.")
             exit(1)
 
@@ -766,7 +774,7 @@ class CdkSlurmStack(Stack):
                 }
             )
 
-            res_home_mount_sg_id = res_dcv_security_group_id
+            res_home_mount_sg_id = self.res_dcv_security_group_id
             if 'AdditionalSecurityGroups' not in self.config['slurm']['SlurmCtl']:
                 self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups'] = []
             if res_home_mount_sg_id in self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups']:
@@ -782,6 +790,123 @@ class CdkSlurmStack(Stack):
             else:
                 self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups'].append(res_home_mount_sg_id)
                 logger.info(f"Added slurm/InstanceConfig/AdditionalSecurityGroups={res_home_mount_sg_id}")
+
+    def update_config_for_exostellar(self):
+        '''
+        Update config with information from RES stacks
+
+        Add login node security groups.
+        Configure /home file system.
+        '''
+        logger.info(f"Updating configuration for Exostellar")
+        ems_stack_name = self.config['slurm']['Xio']['ManagementServerStackName']
+        logger.info(f"    stack: {ems_stack_name}")
+
+        # Get RES environment name from stack parameters.
+        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
+        ems_stack_name_found = False
+        stack_statuses = {}
+        stack_dicts = {}
+        list_stacks_paginator = cloudformation_client.get_paginator('list_stacks')
+        list_stacks_kwargs = {
+            'StackStatusFilter': [
+                'CREATE_COMPLETE',
+                'ROLLBACK_COMPLETE',
+                'UPDATE_COMPLETE',
+                'UPDATE_ROLLBACK_COMPLETE',
+                'IMPORT_COMPLETE',
+                'IMPORT_ROLLBACK_COMPLETE'
+            ]
+        }
+        for list_stacks_response in list_stacks_paginator.paginate(**list_stacks_kwargs):
+            for stack_dict in list_stacks_response["StackSummaries"]:
+                stack_name = stack_dict['StackName']
+                if stack_name == ems_stack_name:
+                    ems_stack_name_found = True
+                    # Don't break here so get all of the stack names
+                stack_status = stack_dict['StackStatus']
+                stack_statuses[stack_name] = stack_status
+                stack_dicts[stack_name] = stack_dict
+        if not ems_stack_name_found:
+            message = f"CloudFormation EMS stack named {ems_stack_name} not found. Existing stacks:"
+            for stack_name in sorted(stack_statuses):
+                message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
+            logger.error(message)
+            exit(1)
+
+        # Get values from stack parameters
+        stack_parameters = cloudformation_client.describe_stacks(StackName=ems_stack_name)['Stacks'][0]['Parameters']
+        ems_vpc_id = None
+        ems_subnet_id = None
+        for stack_parameter_dict in stack_parameters:
+            if stack_parameter_dict['ParameterKey'] == 'VPCId':
+                ems_vpc_id = stack_parameter_dict['ParameterValue']
+            elif stack_parameter_dict['ParameterKey'] == 'SubnetId':
+                ems_subnet_id = stack_parameter_dict['ParameterValue']
+        if not ems_vpc_id:
+            logger.error(f"VPCId parameter not found in {ems_stack_name} EMS stack.")
+            exit(1)
+        if not ems_subnet_id:
+            logger.error(f"SubnetId parameter not found in {ems_stack_name} EMS stack.")
+            exit(1)
+        if self.config['VpcId'] != ems_vpc_id:
+            logger.error(f"Config file VpcId={self.config['VpcId']} is not the same as EMS {ems_stack_name} VPCId={ems_vpc_id}.")
+            exit(1)
+
+        # Get values from stack resources
+        exostellar_role = None
+        exostellar_instance_profile = None
+        exostellar_security_group = None
+        list_stack_resources_paginator = cloudformation_client.get_paginator('list_stack_resources')
+        for stack_resource_summaries in list_stack_resources_paginator.paginate(StackName=ems_stack_name):
+            for stack_resource_summary_dict in stack_resource_summaries['StackResourceSummaries']:
+                if stack_resource_summary_dict['LogicalResourceId'] == 'ExostellarRole':
+                    exostellar_role = stack_resource_summary_dict['PhysicalResourceId']
+                elif stack_resource_summary_dict['LogicalResourceId'] == 'ExostellarInstanceProfile':
+                    exostellar_instance_profile = stack_resource_summary_dict['PhysicalResourceId']
+                elif stack_resource_summary_dict['LogicalResourceId'] == 'ExostellarSecurityGroup':
+                    exostellar_security_group = stack_resource_summary_dict['PhysicalResourceId']
+                if exostellar_role and exostellar_instance_profile and exostellar_security_group:
+                    break
+            if exostellar_role and exostellar_instance_profile and exostellar_security_group:
+                break
+        if not exostellar_role:
+            logger.error(f"ExostellarRole resource not found in {ems_stack_name} EMS stack")
+            exit(1)
+        if not exostellar_instance_profile:
+            logger.error(f"ExostellarInstanceProfile resource not found in {ems_stack_name} EMS stack")
+            exit(1)
+        if not exostellar_security_group:
+            logger.error(f"ExostellarSecurityGroup resource not found in {ems_stack_name} EMS stack")
+            exit(1)
+        # @BUG This doesn't work because PARTITION and ACCOUNT_ID are tokens that aren't resolved here.
+        # self.config['slurm']['Xio']['ControllerIdentityRole'] = f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:instance-profile/{exostellar_instance_profile}"
+        # self.config['slurm']['Xio']['WorkerIdentityRole'] = f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:instance-profile/{exostellar_instance_profile}"
+        if 'ControllerSecurityGroupIds' not in self.config['slurm']['Xio']:
+            self.config['slurm']['Xio']['ControllerSecurityGroupIds'] = []
+        if 'WorkerSecurityGroupIds' not in self.config['slurm']['Xio']:
+            self.config['slurm']['Xio']['WorkerSecurityGroupIds'] = []
+        if exostellar_security_group not in self.config['slurm']['Xio']['ControllerSecurityGroupIds']:
+            self.config['slurm']['Xio']['ControllerSecurityGroupIds'].append(exostellar_security_group)
+        if exostellar_security_group not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
+            self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(exostellar_security_group)
+        if self.slurm_compute_node_sg_id:
+            if self.slurm_compute_node_sg_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
+                self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.slurm_compute_node_sg_id)
+        if self.res_dcv_security_group_id:
+            if self.res_dcv_security_group_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
+                self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.res_dcv_security_group_id)
+
+        # Get values from stack outputs
+        ems_ip_address = None
+        stack_output_dicts = cloudformation_client.describe_stacks(StackName=ems_stack_name)['Stacks'][0]['Outputs']
+        for stack_output_dict in stack_output_dicts:
+            if stack_output_dict['OutputKey'] == '2ExostellarMgmtServerPrivateIP':
+                ems_ip_address = stack_output_dict['OutputValue']
+        if not ems_ip_address:
+            logger.error(f"2ExostellarMgmtServerPrivateIP output not found in {ems_stack_name} EMS stack.")
+            exit(1)
+        self.config['slurm']['Xio']['ManagementServerIp'] = ems_ip_address
 
     def create_parallel_cluster_assets(self):
         # Create a secure hash of all of the assets so that changes can be easily detected to trigger cluster updates.
@@ -966,6 +1091,7 @@ class CdkSlurmStack(Stack):
             'config/bin/on_compute_node_configured.sh',
             'config/bin/submitter_configure.sh',
             'config/bin/submitter_deconfigure.sh',
+            'config/bin/xio-compute-node-ami-configure.sh',
             'config/users_groups.json',
         ]
         self.custom_action_s3_urls = {}
@@ -1984,6 +2110,7 @@ class CdkSlurmStack(Stack):
             instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
             instance_template_vars['parallel_cluster_python_version'] = get_PARALLEL_CLUSTER_PYTHON_VERSION(self.config)
             instance_template_vars['primary_controller'] = True
+            instance_template_vars['slurm_uid'] = self.config['slurm']['SlurmUid']
             instance_template_vars['slurmctld_port'] = self.slurmctld_port
             instance_template_vars['slurmctld_port_min'] = self.slurmctld_port_min
             instance_template_vars['slurmctld_port_max'] = self.slurmctld_port_max
@@ -1993,6 +2120,17 @@ class CdkSlurmStack(Stack):
             instance_template_vars['slurmrestd_socket_dir'] = '/opt/slurm/com'
             instance_template_vars['slurmrestd_socket'] = f"{instance_template_vars['slurmrestd_socket_dir']}/slurmrestd.socket"
             instance_template_vars['slurmrestd_uid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
+            if 'Xio' in self.config['slurm']:
+                instance_template_vars['xio_mgt_ip'] = self.config['slurm']['Xio']['ManagementServerIp']
+                instance_template_vars['xio_availability_zone'] = self.config['slurm']['Xio']['AvailabilityZone']
+                instance_template_vars['xio_controller_identity_role'] = self.config['slurm']['Xio']['ControllerIdentityRole']
+                instance_template_vars['xio_controller_security_group_ids'] = self.config['slurm']['Xio']['ControllerSecurityGroupIds']
+                instance_template_vars['subnet_id'] = self.config['SubnetId']
+                instance_template_vars['xio_controller_image_id'] = self.config['slurm']['Xio']['ControllerImageId']
+                instance_template_vars['xio_worker_identity_role'] = self.config['slurm']['Xio']['WorkerIdentityRole']
+                instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['WorkerSecurityGroupIds']
+                instance_template_vars['xio_worker_image_id'] = self.config['slurm']['Xio']['WorkerImageId']
+                instance_template_vars['xio_config'] = self.config['slurm']['Xio']
         elif instance_role == 'ParallelClusterSubmitter':
             instance_template_vars['slurm_version']                  = get_SLURM_VERSION(self.config)
             instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)

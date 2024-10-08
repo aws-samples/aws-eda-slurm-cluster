@@ -76,6 +76,7 @@ config_scripts=(\
     on_compute_node_configured.sh \
     submitter_configure.sh \
     submitter_deconfigure.sh \
+    xio-compute-node-ami-configure.sh \
 )
 for config_script in ${config_scripts[*]}; do
     dest=$config_bin_dir/$config_script
