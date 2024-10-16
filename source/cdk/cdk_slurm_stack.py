@@ -78,7 +78,7 @@ from yaml.scanner import ScannerError
 
 sys.path.append(f"{dirname(__file__)}/../resources/playbooks/roles/SlurmCtl/files/opt/slurm/cluster/bin")
 from EC2InstanceTypeInfoPkg.EC2InstanceTypeInfo import EC2InstanceTypeInfo
-from SlurmPlugin import SlurmPlugin
+from SlurmPlugin import logger as SlurmPlugin_logger, SlurmPlugin
 
 pp = PrettyPrinter()
 
@@ -460,6 +460,22 @@ class CdkSlurmStack(Stack):
                         logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
                         config_errors += 1
 
+        # If no instance config has been set then choose EDA defaults
+        if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Exclude'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Exclude']:
+            self.config['slurm']['InstanceConfig']['Include']['InstanceFamilies'] = config_schema.default_included_eda_instance_families
+            self.config['slurm']['InstanceConfig']['Include']['InstanceTypes'] = config_schema.default_included_eda_instance_types
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceFamilies'] = config_schema.default_excluded_eda_instance_families
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceTypes'] = config_schema.default_excluded_eda_instance_types
+        # Set non-eda defaults
+        if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Include']:
+            self.config['slurm']['InstanceConfig']['Include']['InstanceFamilies'] = config_schema.default_included_instance_families
+        if 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Include']:
+            self.config['slurm']['InstanceConfig']['Include']['InstanceTypes'] = config_schema.default_included_instance_types
+        if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Exclude']:
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceFamilies'] = config_schema.default_excluded_instance_families
+        if 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Exclude']:
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceTypes'] = config_schema.default_excluded_instance_types
+
         # Check to make sure controller instance type has at least 4 GB of memmory.
         slurmctl_instance_type = self.config['slurm']['SlurmCtl']['instance_type']
         slurmctl_memory_in_gb = int(self.get_instance_type_info(slurmctl_instance_type)['MemoryInMiB'] / 1024)
@@ -733,7 +749,6 @@ class CdkSlurmStack(Stack):
         else:
             # RES takes the shared file system for /home as a parameter; it is not created by RES.
             # parameter SharedHomeFileSystemId
-            logger.setLevel(logging.DEBUG)
             logger.debug(f"Searching for RES /home file system")
             res_shared_storage_stack_name = res_stack_name
             if res_shared_storage_stack_name not in stack_statuses:
@@ -1146,6 +1161,7 @@ class CdkSlurmStack(Stack):
         self.plugin = SlurmPlugin(slurm_config_file=None, region=self.cluster_region)
         self.plugin.instance_type_and_family_info = self.eC2InstanceTypeInfo.instance_type_and_family_info
 
+        logger.debug(f"Getting instance types from config")
         self.region_instance_types = self.plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], [self.cluster_region], self.eC2InstanceTypeInfo)
         self.instance_types = []
         region_instance_types = self.region_instance_types[self.cluster_region]
@@ -1158,6 +1174,7 @@ class CdkSlurmStack(Stack):
         self.instance_types = sorted(self.instance_types)
 
         # Filter the instance types by architecture due to PC limitation to 1 architecture
+        # Also require at least 2 GB of memory.
         cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
         logger.info(f"ParallelCluster Architecture: {cluster_architecture}")
         filtered_instance_types = []
@@ -1165,6 +1182,10 @@ class CdkSlurmStack(Stack):
             instance_architecture = self.plugin.get_architecture(self.cluster_region, instance_type)
             if instance_architecture != cluster_architecture:
                 logger.warning(f"Excluding {instance_type} because architecture ({instance_architecture}) != {cluster_architecture}")
+                continue
+            mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
+            if mem_gb < 2:
+                logger.warning(f"Excluding {instance_type} because has less than 2 GiB of memory.")
                 continue
             filtered_instance_types.append(instance_type)
         self.instance_types = filtered_instance_types
@@ -2402,9 +2423,9 @@ class CdkSlurmStack(Stack):
         # We are limited to MAX_NUMBER_OF_QUEUES queues and MAX_NUMBER_OF_COMPUTE_RESOURCES compute resources.
         # First analyze the selected instance types to make sure that these limits aren't exceeded.
         # The fundamental limit is the limit on the number of compute resources.
-        # Each compute resource maps to a NodeName and I want instance type to be selected using a constraint.
+        # Each compute resource maps to a NodeName and I want instance type to be able to be selected using a constraint.
         # This means that each compute resource can only contain a single instance type.
-        # This limits the number of instance type to MAX_NUMBER_OF_COMPUTE_RESOURCES or MAX_NUMBER_OF_COMPUTE_RESOURCES/2 if you configure spot instances.
+        # This limits the number of instance types to MAX_NUMBER_OF_COMPUTE_RESOURCES or MAX_NUMBER_OF_COMPUTE_RESOURCES/2 if you configure spot instances.
         #
         # We could possible support more instance types by putting instance types with the same amount of cores and memory into the same compute resource.
         # The problem with doing this is that you can wind up with very different instance types in the same compute node.
@@ -2415,14 +2436,17 @@ class CdkSlurmStack(Stack):
         # If the user configures too many instance types, then flag an error and print out the configured instance
         # types and suggest instance types to exclude.
 
-        purchase_options = ['ONDEMAND']
+        purchase_options = []
+        if self.config['slurm']['InstanceConfig']['UseOnDemand']:
+            purchase_options.append('ONDEMAND')
         if self.config['slurm']['InstanceConfig']['UseSpot']:
             purchase_options.append('SPOT')
-            MAX_NUMBER_OF_INSTANCE_TYPES = int(MAX_NUMBER_OF_COMPUTE_RESOURCES / 2)
-        else:
-            MAX_NUMBER_OF_INSTANCE_TYPES = MAX_NUMBER_OF_COMPUTE_RESOURCES
+        if not len(purchase_options):
+            logger.error(f"Must specify either slurm/InstanceConfig/UseOnDemand or UseSpot.")
+            exit(1)
+        MAX_NUMBER_OF_INSTANCE_TYPES = int(MAX_NUMBER_OF_COMPUTE_RESOURCES / len(purchase_options))
 
-            # Create list of instance types by number of cores and amount of memory
+        # Create list of instance types by number of cores and amount of memory
         instance_types_by_core_memory = {}
         # Create list of instance types by amount of memory and number of cores
         instance_types_by_memory_core = {}
@@ -2468,34 +2492,46 @@ class CdkSlurmStack(Stack):
             exit(1)
 
 
-        nodesets = {}
+        # partition_nodesets is a dictionary indexed by partition name and containing a list of nodesets.
+        partition_nodesets = {}
         number_of_queues = 0
         number_of_compute_resources = 0
-        for purchase_option in purchase_options:
-            nodesets[purchase_option] = []
 
         # Create 1 queue and compute resource for each instance type and purchase option.
         for purchase_option in purchase_options:
             for instance_type in self.instance_types:
+                logger.debug(f"Creating queue for {purchase_option} {instance_type}")
                 efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
+                mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
                 if purchase_option == 'ONDEMAND':
                     queue_name_prefix = "od"
                     allocation_strategy = 'lowest-price'
                     price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['OnDemand']
+                    purchase_option_partition = "on-demand"
                 else:
                     queue_name_prefix = "sp"
                     allocation_strategy = 'capacity-optimized'
-                    price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot']['max']
+                    price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot'].get('max', None)
+                    purchase_option_partition = "spot"
                 queue_name = f"{queue_name_prefix}-{instance_type}"
                 queue_name = queue_name.replace('.', '-')
                 queue_name = queue_name.replace('large', 'l')
                 queue_name = queue_name.replace('medium', 'm')
+                if not price:
+                    logger.warning(f"Skipping {queue_name} because {instance_type} doesn't have spot pricing")
+                    continue
                 logger.info(f"Configuring {queue_name} queue:")
                 if number_of_queues >= MAX_NUMBER_OF_QUEUES:
                     logger.error(f"Can't create {queue_name} queue because MAX_NUMBER_OF_QUEUES=={MAX_NUMBER_OF_QUEUES} and have {number_of_queues} queues.")
                     exit(1)
                 nodeset = f"{queue_name}_nodes"
-                nodesets[purchase_option].append(nodeset)
+                if purchase_option_partition not in partition_nodesets:
+                    partition_nodesets[purchase_option_partition] = []
+                partition_nodesets[purchase_option_partition].append(nodeset)
+                mem_partition = f"{queue_name_prefix}-{mem_gb}-gb"
+                if mem_partition not in partition_nodesets:
+                    partition_nodesets[mem_partition] = []
+                partition_nodesets[mem_partition].append(nodeset)
                 parallel_cluster_queue = self.create_queue_config(queue_name, allocation_strategy, purchase_option)
                 number_of_queues += 1
 
@@ -2534,6 +2570,7 @@ class CdkSlurmStack(Stack):
                     compute_resource['StaticNodePriority'] = int(price *  1000)
                     compute_resource['DynamicNodePriority'] = int(price * 10000)
                 parallel_cluster_queue['ComputeResources'].append(compute_resource)
+                number_of_compute_resources += 1
                 self.parallel_cluster_config['Scheduling']['SlurmQueues'].append(parallel_cluster_queue)
 
         logger.info(f"Created {number_of_queues} queues with {number_of_compute_resources} compute resources")
@@ -2556,25 +2593,14 @@ class CdkSlurmStack(Stack):
                 self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].append(slurm_settings_dict)
 
         # Create custom partitions based on those created by ParallelCluster
-        if 'ONDEMAND' in nodesets:
+        for partition in partition_nodesets:
             self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].extend(
                 [
                     {
-                        'PartitionName': 'on-demand',
+                        'PartitionName': partition,
                         'Default': 'NO',
                         'PriorityTier': '1',
-                        'Nodes': ','.join(nodesets['ONDEMAND']),
-                    }
-                ]
-            )
-        if 'SPOT' in nodesets:
-            self.parallel_cluster_config['Scheduling']['SlurmSettings']['CustomSlurmSettings'].extend(
-                [
-                    {
-                        'PartitionName': 'spot',
-                        'Default': 'NO',
-                        'PriorityTier': '10',
-                        'Nodes': ','.join(nodesets['SPOT']),
+                        'Nodes': ','.join(partition_nodesets[partition]),
                     }
                 ]
             )
