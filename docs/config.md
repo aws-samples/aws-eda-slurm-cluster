@@ -614,9 +614,32 @@ List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be
 
 ### InstanceConfig
 
-Configure the instances used by the cluster.
+Configure the instances used by the cluster for compute nodes.
 
-A partition will be created for each combination of Base OS, Architecture, and Spot.
+ParallelCluster is limited to a total of 50 compute resources and
+we only put 1 instance type in each compute resource.
+This limits you to a total of 50 instance types per clusters.
+If you need more instance types than that, then you will need to create multiple clusters.
+If you configure both on-demand and spot instances, then the limit is effectively 25 instance types because 2 compute resources will be created for each instance type.
+
+If you configure more than 50 instance types then the installer will fail with an error.
+You will then need to modify your configuration to either include fewer instance types or
+exclude instance types from the configuration.
+
+If no Include and Exclude parameters are specified then default EDA instance types
+will be configured.
+The defaults will include the latest generation instance families in the c, m, r, x, and u families.
+Older instance families are excluded.
+Metal instance types are also excluded.
+Specific instance types are also excluded to keep the total number of instance types under 50.
+If multiple instance types have the same amount of memory, then the instance types with the highest core counts are excluded.
+This is because EDA workloads are typically memory limited, not core limited.
+
+If any Include or Exclude parameters are specified, then minimal defaults will be used for the parameters that
+aren't specified.
+By default, all instance families are included and no specific instance types are included.
+By default, the a1 (Graviton 1) instance family is excluded.
+By default, all micro and nano instance sizes are excluded because they don't have enough memory for a Slurm compute node.
 
 #### UseSpot
 

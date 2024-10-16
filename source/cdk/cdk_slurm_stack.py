@@ -460,6 +460,22 @@ class CdkSlurmStack(Stack):
                         logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
                         config_errors += 1
 
+        # If no instance config has been set then choose EDA defaults
+        if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Exclude'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Exclude']:
+            self.config['slurm']['InstanceConfig']['Include']['InstanceFamilies'] = config_schema.default_included_eda_instance_families
+            self.config['slurm']['InstanceConfig']['Include']['InstanceTypes'] = config_schema.default_included_eda_instance_types
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceFamilies'] = config_schema.default_excluded_eda_instance_families
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceTypes'] = config_schema.default_excluded_eda_instance_types
+        # Set non-eda defaults
+        if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Include']:
+            self.config['slurm']['InstanceConfig']['Include']['InstanceFamilies'] = config_schema.default_instance_families
+        if 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Include']:
+            self.config['slurm']['InstanceConfig']['Include']['InstanceTypes'] = config_schema.default_included_instance_types
+        if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Exclude']:
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceFamilies'] = config_schema.default_excluded_instance_families
+        if 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Exclude']:
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceTypes'] = config_schema.default_excluded_instance_types
+
         # Check to make sure controller instance type has at least 4 GB of memmory.
         slurmctl_instance_type = self.config['slurm']['SlurmCtl']['instance_type']
         slurmctl_memory_in_gb = int(self.get_instance_type_info(slurmctl_instance_type)['MemoryInMiB'] / 1024)
@@ -2402,9 +2418,9 @@ class CdkSlurmStack(Stack):
         # We are limited to MAX_NUMBER_OF_QUEUES queues and MAX_NUMBER_OF_COMPUTE_RESOURCES compute resources.
         # First analyze the selected instance types to make sure that these limits aren't exceeded.
         # The fundamental limit is the limit on the number of compute resources.
-        # Each compute resource maps to a NodeName and I want instance type to be selected using a constraint.
+        # Each compute resource maps to a NodeName and I want instance type to be able to be selected using a constraint.
         # This means that each compute resource can only contain a single instance type.
-        # This limits the number of instance type to MAX_NUMBER_OF_COMPUTE_RESOURCES or MAX_NUMBER_OF_COMPUTE_RESOURCES/2 if you configure spot instances.
+        # This limits the number of instance types to MAX_NUMBER_OF_COMPUTE_RESOURCES or MAX_NUMBER_OF_COMPUTE_RESOURCES/2 if you configure spot instances.
         #
         # We could possible support more instance types by putting instance types with the same amount of cores and memory into the same compute resource.
         # The problem with doing this is that you can wind up with very different instance types in the same compute node.
@@ -2422,7 +2438,7 @@ class CdkSlurmStack(Stack):
         else:
             MAX_NUMBER_OF_INSTANCE_TYPES = MAX_NUMBER_OF_COMPUTE_RESOURCES
 
-            # Create list of instance types by number of cores and amount of memory
+        # Create list of instance types by number of cores and amount of memory
         instance_types_by_core_memory = {}
         # Create list of instance types by amount of memory and number of cores
         instance_types_by_memory_core = {}
