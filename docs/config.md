@@ -93,6 +93,7 @@ This project creates a ParallelCluster configuration file that is documented in 
         <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-Imds">Imds</a>:
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#yaml-HeadNode-Imds-Secured">Secured</a>: bool
     <a href="#instanceconfig">InstanceConfig</a>:
+        <a href="#useondemand">UseOnDemand</a>: str
         <a href="#usespot">UseSpot</a>: str
         <a href="#exclude">Exclude</a>:
             <a href="#exclude-instancefamilies">InstanceFamilies</a>:
@@ -614,9 +615,154 @@ List of Amazon Resource Names (ARNs) of IAM policies for Amazon EC2 that will be
 
 ### InstanceConfig
 
-Configure the instances used by the cluster.
+Configure the instances used by the cluster for compute nodes.
 
-A partition will be created for each combination of Base OS, Architecture, and Spot.
+ParallelCluster is limited to a total of 50 compute resources and
+we only put 1 instance type in each compute resource.
+This limits you to a total of 50 instance types per cluster.
+If you need more instance types than that, then you will need to create multiple clusters.
+If you configure both on-demand and spot instances, then the limit is effectively 25 instance types because 2 compute resources will be created for each instance type.
+
+If you configure more than 50 instance types then the installer will fail with an error.
+You will then need to modify your configuration to either include fewer instance types or
+exclude instance types from the configuration.
+
+If no Include and Exclude parameters are specified then default EDA instance types
+will be configured.
+The defaults will include the latest generation instance families in the c, m, r, x, and u families.
+Older instance families are excluded.
+Metal instance types are also excluded.
+Specific instance types are also excluded to keep the total number of instance types under 50.
+If multiple instance types have the same amount of memory, then the instance types with the highest core counts are excluded.
+This is because EDA workloads are typically memory limited, not core limited.
+
+If any Include or Exclude parameters are specified, then minimal defaults will be used for the parameters that
+aren't specified.
+By default, all instance families are included and no specific instance types are included.
+By default, all instance types with less than 2 GiB of memory are excluded because they don't have enough memory for a Slurm compute node.
+
+If no includes or excludes are provided, the defaults are:
+
+```
+slurm:
+  InstanceConfig:
+    Exclude:
+      InstanceFamilies:
+      - 'a1'   # Graviton 1
+      - 'c4'   # Replaced by c5
+      - 'd2'   # SSD optimized
+      - 'g3'   # Replaced by g4
+      - 'g3s'  # Replaced by g4
+      - 'h1'   # SSD optimized
+      - 'i3'   # SSD optimized
+      - 'i3en' # SSD optimized
+      - 'm4'   # Replaced by m5
+      - 'p2'   # Replaced by p3
+      - 'p3'
+      - 'p3dn'
+      - 'r4'   # Replaced by r5
+      - 't2'   # Replaced by t3
+      - 'x1'
+      - 'x1e'
+      InstanceTypes:
+      - '.*\.metal'
+      # Reduce the number of selected instance types to 25.
+      # Exclude larger core counts for each memory size
+      # 2 GB:
+      - 'c7a.medium'
+      - 'c7g.medium'
+      # 4 GB: m7a.medium, m7g.medium
+      - 'c7a.large'
+      - 'c7g.large'
+      # 8 GB: r7a.medium, r7g.medium
+      - 'm5zn.large'
+      - 'm7a.large'
+      - 'm7g.large'
+      - 'c7a.xlarge'
+      - 'c7g.xlarge'
+      # 16 GB: r7a.large, x2gd.medium, r7g.large
+      - 'r7iz.large'
+      - 'm5zn.xlarge'
+      - 'm7a.xlarge'
+      - 'm7g.xlarge'
+      - 'c7a.2xlarge'
+      - 'c7g.2xlarge'
+      # 32 GB: r7a.xlarge, x2gd.large, r7g.xlarge
+      - 'r7iz.xlarge'
+      - 'm5zn.2xlarge'
+      - 'm7a.2xlarge'
+      - 'm7g.2xlarge'
+      - 'c7a.4xlarge'
+      - 'c7g.4xlarge'
+      # 64 GB: r7a.2xlarge, x2gd.xlarge, r7g.2xlarge
+      - 'r7iz.2xlarge'
+      - 'm7a.4xlarge'
+      - 'm7g.4xlarge'
+      - 'c7a.8xlarge'
+      - 'c7g.8xlarge'
+      # 96 GB:
+      - 'm5zn.6xlarge'
+      - 'c7a.12xlarge'
+      - 'c7g.12xlarge'
+      # 128 GB: x2iedn.xlarge, r7iz.4xlarge, x2gd.2xlarge, r7g.4xlarge
+      - 'r7a.4xlarge'
+      - 'm7a.8xlarge'
+      - 'm7g.8xlarge'
+      - 'c7a.16xlarge'
+      - 'c7g.8xlarge'
+      # 192 GB: m5zn.12xlarge, m7a.12xlarge, m7g.12xlarge
+      - 'c7a.24xlarge'
+      # 256 GB: x2iedn.2xlarge, x2iezn.2xlarge, x2gd.4xlarge, r7g.8xlarge
+      - 'r7iz.8xlarge'
+      - 'r7a.8xlarge'
+      - 'm7a.16xlarge'
+      - 'm7g.16xlarge'
+      - 'c7a.32xlarge'
+      # 384 GB: r7iz.12xlarge, r7g.12xlarge
+      - 'r7a.12xlarge'
+      - 'm7a.24xlarge'
+      - 'c7a.48xlarge'
+      # 512 GB: x2iedn.4xlarge, x2iezn.4xlarge, x2gd.8xlarge, r7g.16xlarge
+      - 'r7iz.16xlarge'
+      - 'r7a.16xlarge'
+      - 'm7a.32xlarge'
+      # 768 GB: r7a.24xlarge, x2gd.12xlarge
+      - 'x2iezn.6xlarge'
+      - 'm7a.48xlarge'
+      # 1024 GB: x2iedn.8xlarge, x2iezn.8xlarge, x2gd.16xlarge
+      - 'r7iz.32xlarge'
+      - 'r7a.32xlarge'
+      # 1536 GB: x2iezn.12xlarge, x2idn.24xlarge
+      - 'r7a.48xlarge'
+      # 2048 GB: x2iedn.16xlarge
+      - 'x2idn.32xlarge'
+      # 3072 GB: x2iedn.24xlarge
+      # 4096 GB: x2iedn.32xlarge
+    Include:
+      InstanceFamilies:
+      - 'c7a'               # AMD EPYC 9R14 Processor 3.7 GHz
+      - 'c7g'               # AWS Graviton3 Processor 2.6 GHz
+      - 'm5zn'              # Intel Xeon Platinum 8252 4.5 GHz
+      - 'm7a'               # AMD EPYC 9R14 Processor 3.7 GHz
+      - 'm7g'               # AWS Graviton3 Processor 2.6 GHz
+      - 'r7a'               # AMD EPYC 9R14 Processor 3.7 GHz
+      - 'r7g'               # AWS Graviton3 Processor 2.6 GHz
+      - 'r7iz'              # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
+      - 'x2gd'              # AWS Graviton2 Processor 2.5 GHz 1TB
+      - 'x2idn'             # Intel Xeon Scalable (Icelake) 3.5 GHz 2 TB
+      - 'x2iedn'            # Intel Xeon Scalable (Icelake) 3.5 GHz 4 TB
+      - 'x2iezn'            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
+      - 'u.*'
+      InstanceTypes: []
+```
+
+#### UseOnDemand
+
+Configure on-demand instances.
+
+type: bool
+
+default: True
 
 #### UseSpot
 
@@ -638,45 +784,13 @@ Instance families and types are regular expressions with implicit '^' and '$' at
 
 Regular expressions with implicit '^' and '$' at the begining and end.
 
-An empty list is the same as '.*'.
-
-Default:
-
-```
-default_excluded_instance_families = [
-    'a1',   # Graviton 1
-    'c4',   # Replaced by c5
-    'd2',   # SSD optimized
-    'g3',   # Replaced by g4
-    'g3s',  # Replaced by g4
-    'h1',   # SSD optimized
-    'i3',   # SSD optimized
-    'i3en', # SSD optimized
-    'm4',   # Replaced by m5
-    'p2',   # Replaced by p3
-    'p3',
-    'p3dn',
-    'r4',   # Replaced by r5
-    't2',   # Replaced by t3
-    'x1',
-    'x1e',
-]
-```
+Default: []
 
 ##### Exclude InstanceTypes
 
 Regular expressions with implicit '^' and '$' at the begining and end.
 
-An empty list is the same as '.*'.
-
-Default:
-
-```
-default_excluded_instance_types = [
-    '.+\.(micro|nano)', # Not enough memory
-    '.*\.metal.*'
-]
-```
+Default: []
 
 #### Include
 
@@ -698,70 +812,13 @@ If MaxSizeOnly is True then only the largest instance type in a family will be i
 
 Regular expressions with implicit '^' and '$' at the begining and end.
 
-An empty list is the same as '.*'.
-
-Default:
-
-```
-default_eda_instance_families = [
-    'c7a',               # AMD EPYC 9R14 Processor 3.7 GHz
-
-    'c7g',               # AWS Graviton3 Processor 2.6 GHz
-    # 'c7gd',              # AWS Graviton3 Processor 2.6 GHz
-    # 'c7gn',              # AWS Graviton3 Processor 2.6 GHz
-
-    # 'c7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
-
-    #'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
-
-    'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
-
-    'm7a',               # AMD EPYC 9R14 Processor 3.7 GHz
-
-    # 'm7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
-
-    'm7g',               # AWS Graviton3 Processor 2.6 GHz
-    # 'm7gd',               # AWS Graviton3 Processor 2.6 GHz
-
-    'r7a',               # AMD EPYC 9R14 Processor 3.7 GHz
-
-    'r7g',               # AWS Graviton3 Processor 2.6 GHz
-    # 'r7gd',               # AWS Graviton3 Processor 2.6 GHz
-
-    # 'r7i',               # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
-
-    'r7iz',              # Intel Xeon Scalable (Sapphire Rapids) 3.2 GHz
-
-    'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
-
-    'x2idn',             # Intel Xeon Scalable (Icelake) 3.5 GHz 2 TB
-
-    'x2iedn',            # Intel Xeon Scalable (Icelake) 3.5 GHz 4 TB
-
-    'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
-
-    #'u-6tb1',            # Intel Xeon Scalable (Skylake) 6 TB
-    #'u-9tb1',            # Intel Xeon Scalable (Skylake) 9 TB
-    #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
-]
-```
+Default: []
 
 ##### Include InstanceTypes
 
 Regular expressions with implicit '^' and '$' at the begining and end.
 
-An empty list is the same as '.*'.
-
-Default:
-
-```
-default_eda_instance_types = [
-    #'c5\.(l|x|2|4|9|18).*',  # Intel Xeon Platinum 8124M 3.4 GHz
-    #'c5\.(12|24).*',         # Intel Xeon Platinum 8275L 3.6 GHz
-    #'c5d\.(l|x|2|4|9|18).*', # Intel Xeon Platinum 8124M 3.4 GHz
-    #'c5d\.(12|24).*',        # Intel Xeon Platinum 8275L 3.6 GHz
-]
-```
+Default: []
 
 #### NodeCounts
 

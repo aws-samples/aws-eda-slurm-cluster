@@ -10,5 +10,5 @@ pytest
 python-hostlist
 pip
 requests
-PyYAML>=5.4.1
+PyYAML>5.4.1
 schema

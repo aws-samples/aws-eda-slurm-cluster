@@ -359,7 +359,7 @@ filesystem_lifecycle_policies = [
     ]
 
 # By default I've chosen to exclude *7i instance types because they have 50% of the cores as *7z instances with the same memory.
-default_eda_instance_families = [
+default_included_eda_instance_families = [
     'c7a',               # AMD EPYC 9R14 Processor 3.7 GHz
 
     'c7g',               # AWS Graviton3 Processor 2.6 GHz
@@ -396,61 +396,26 @@ default_eda_instance_families = [
 
     'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
 
-    'u',
+    'u.*',
     #'u-6tb1',            # Intel Xeon Scalable (Skylake) 6 TB
     #'u-9tb1',            # Intel Xeon Scalable (Skylake) 9 TB
     #'u-12tb1',           # Intel Xeon Scalable (Skylake) 12 TB
 ]
 
-old_eda_instance_families = [
-    'c5',                # Mixed depending on size
-    'c5a',               # AMD EPYC 7R32 3.3 GHz
-    'c5ad',              # AMD EPYC 7R32 3.3 GHz
-    'c6a',
-    'c6ad',
-    'c6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
-    'c6id',
-    'c6g',               # AWS Graviton2 Processor 2.5 GHz
-    'c6gd',              # AWS Graviton2 Processor 2.5 GHz
-    'f1',                # Intel Xeon E5-2686 v4 (Broadwell) 2.3 GHz
-    'm5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    'm5d',               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    'm5a',               # AMD EPYC 7571 2.5 GHz
-    'm5ad',              # AMD EPYC 7571 2.5 GHz
-    'm5zn',              # Intel Xeon Platinum 8252 4.5 GHz
-    'm6a',               # AMD EPYC 7R13 Processor 3.6 GHz
-    'm6ad',
-    'm6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz
-    'm6id',
-    'm6g',               # AWS Graviton2 Processor 2.5 GHz
-    'm6gd',              # AWS Graviton2 Processor 2.5 GHz
-    'r5',                # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    'r5d',               # Intel Xeon Platinum 8175 (Skylake) 3.1 GHz
-    'r5b',               # Intel Xeon Platinum 8259 (Cascade Lake) 3.1 GHz
-    'r5a',               # AMD EPYC 7571 2.5 GHz
-    'r5ad',              # AMD EPYC 7571 2.5 GHz
-    'r6a',
-    'r6i',               # Intel Xeon 8375C (Ice Lake) 3.5 GHz 1TB
-    'r6id',
-    'r6g',               # AWS Graviton2 Processor 2.5 GHz
-    'r6gd',              # AWS Graviton2 Processor 2.5 GHz
-    'x1',                # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 2TB
-    'x1e',               # High Frequency Intel Xeon E7-8880 v3 (Haswell) 2.3 GHz 4TB
-    'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
-    'x2idn',             # Intel Xeon Scalable (Icelake) 3.5 GHz 2 TB
-    'x2iedn',            # Intel Xeon Scalable (Icelake) 3.5 GHz 4 TB
-    'x2iezn',            # Intel Xeon Platinum 8252 4.5 GHz 1.5 TB
-    'z1d',               # Intel Xeon Platinum 8151 4.0 GHz
-]
+default_included_instance_families = []
 
-default_eda_instance_types = [
+default_included_eda_instance_types = [
     #'c5\.(l|x|2|4|9|18).*',  # Intel Xeon Platinum 8124M 3.4 GHz
     #'c5\.(12|24).*',         # Intel Xeon Platinum 8275L 3.6 GHz
     #'c5d\.(l|x|2|4|9|18).*', # Intel Xeon Platinum 8124M 3.4 GHz
     #'c5d\.(12|24).*',        # Intel Xeon Platinum 8275L 3.6 GHz
 ]
 
-default_excluded_instance_families = [
+default_included_instance_types = []
+
+default_excluded_instance_families = []
+
+default_excluded_eda_instance_families = [
     'a1',   # Graviton 1
     'c4',   # Replaced by c5
     'd2',   # SSD optimized
@@ -469,8 +434,9 @@ default_excluded_instance_families = [
     'x1e',
 ]
 
-default_excluded_instance_types = [
-    '.+\.(micro|nano)', # Not enough memory
+default_excluded_instance_types = []
+
+default_excluded_eda_instance_types = [
     '.*\.metal.*',
 
     # Reduce the number of selected instance types to 25.
@@ -727,25 +693,27 @@ def get_config_schema(config):
             #     Configure the instances used by the cluster
             #     A partition will be created for each combination of Base OS, Architecture, and Spot
             'InstanceConfig': {
+                # UseOnDemand:
+                #     Configure on-demand instances
+                Optional('UseOnDemand', default=True): bool,
                 # UseSpot:
                 #     Configure spot instances
                 Optional('UseSpot', default=True): bool,
                 # Include*/Exclude*:
                 #     Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
-                #     Exclude patterns are processed first and take precesdence over any includes.
-                #     An empty list is the same as '.*'.
-                Optional('Exclude', default={'InstanceFamilies': default_excluded_instance_families, 'InstanceTypes': default_excluded_instance_types}): {
-                    Optional('InstanceFamilies', default=default_excluded_instance_families): [str],
-                    Optional('InstanceTypes', default=default_excluded_instance_types): [str]
+                #     Exclude patterns are processed first and take precedence over any includes.
+                Optional('Exclude', default={}): {
+                    Optional('InstanceFamilies'): [str],
+                    Optional('InstanceTypes'): [str]
                 },
-                Optional('Include', default={'MaxSizeOnly': False, 'InstanceFamilies': default_eda_instance_families, 'InstanceTypes': default_eda_instance_types}): {
+                Optional('Include', default={'MaxSizeOnly': False}): {
                     # MaxSizeOnly:
                     #     If MaxSizeOnly is True then only the largest instance type in
                     #     a family will be included unless specific instance types are included.
                     #     Default: false
                     Optional('MaxSizeOnly', default=False): bool,
-                    Optional('InstanceFamilies', default=default_eda_instance_families): [str],
-                    Optional('InstanceTypes', default=default_eda_instance_types): [str]
+                    Optional('InstanceFamilies'): [str],
+                    Optional('InstanceTypes'): [str]
                 },
                 'NodeCounts': {
                     Optional('DefaultMinCount', default=0): And(int, lambda s: s >= 0),
