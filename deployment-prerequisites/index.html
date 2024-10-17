@@ -181,6 +181,22 @@
               <ul class="nav flex-column">
               </ul>
             </li>
+            <li class="nav-item" data-level="3"><a href="#configure-file-systems" class="nav-link">Configure File Systems</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="4"><a href="#lustre" class="nav-link">Lustre</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#ontap" class="nav-link">ONTAP</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="4"><a href="#zfs" class="nav-link">ZFS</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
               </ul>
             </li>
               </ul>
@@ -716,6 +732,47 @@ Users must request a license using the <strong>-L</strong> or <strong>--licenses
       Count: 800
     ansys:
       Count: 1
+</code></pre>
+<h3 id="configure-file-systems">Configure File Systems</h3>
+<p>The Storage/ExtraMounts parameter allows you to configure additional file systems to mount on compute nodes.
+Note that the security groups for the file systems must allow connections from the compute nodes.</p>
+<h4 id="lustre">Lustre</h4>
+<p>The following example shows how to add an FSx for Lustre file system.
+The mount information can be found from the FSx console.</p>
+<pre><code>  storage:
+    ExtraMounts
+      - dest: /lustre
+        src: &lt;FileSystemId&gt;.fsx.&lt;Region&gt;.amazonaws.com@tcp:/&lt;MountName&gt;
+        StorageType: FsxLustre
+        FileSystemId: &lt;FileSystemId&gt;
+        type: lustre
+        options: relatime,flock
+</code></pre>
+<h4 id="ontap">ONTAP</h4>
+<p>The following example shows how to add an FSx for NetApp ONTAP file system.
+The mount information can be found from the FSx console.</p>
+<pre><code>  storage:
+    ExtraMounts
+      - dest: /ontap
+        src: &lt;SvmId&gt;.&lt;FileSystemId&gt;.fsx.&lt;Region&gt;.amazonaws.com:/vol1
+        StorageType: FsxOntap
+        FileSystemId: &lt;FileSystemId&gt;
+        VolumeId: &lt;VolumeId&gt;
+        type: nfs
+        options: default
+</code></pre>
+<h4 id="zfs">ZFS</h4>
+<p>The following example shows how to add an FSx for OpenZFS file system.
+The mount information can be found from the FSx console.</p>
+<pre><code>  storage:
+    ExtraMounts
+      - dest: /zfs
+        src: &lt;FileSystemId&gt;.fsx.&lt;Region&gt;.amazonaws.com:/fsx
+        StorageType: FsxOpenZfs
+        FileSystemId: &lt;FileSystemId&gt;
+        VolumeId: &lt;VolumeId&gt;
+        type: nfs
+        options: noatime,nfsvers=3,sync,nconnect=16,rsize=1048576,wsize=1048576
 </code></pre></div>
             </div>
         </div>
