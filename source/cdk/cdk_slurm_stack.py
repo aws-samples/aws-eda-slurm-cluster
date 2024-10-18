@@ -2497,12 +2497,20 @@ class CdkSlurmStack(Stack):
         number_of_queues = 0
         number_of_compute_resources = 0
 
+        disable_smt = self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading']
+
         # Create 1 queue and compute resource for each instance type and purchase option.
+        # The queue is named after the instance type.
+        # The CR is named after the amount of memory and number of cores.
         for purchase_option in purchase_options:
             for instance_type in self.instance_types:
                 logger.debug(f"Creating queue for {purchase_option} {instance_type}")
                 efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
                 mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
+                core_count = int(self.plugin.get_CoreCount(self.cluster_region, instance_type))
+                threads_per_core = int(self.plugin.get_DefaultThreadsPerCore(self.cluster_region, instance_type))
+                if not disable_smt:
+                    core_count *= threads_per_core
                 if purchase_option == 'ONDEMAND':
                     queue_name_prefix = "od"
                     allocation_strategy = 'lowest-price'
@@ -2524,6 +2532,7 @@ class CdkSlurmStack(Stack):
                 if number_of_queues >= MAX_NUMBER_OF_QUEUES:
                     logger.error(f"Can't create {queue_name} queue because MAX_NUMBER_OF_QUEUES=={MAX_NUMBER_OF_QUEUES} and have {number_of_queues} queues.")
                     exit(1)
+                # ParallelCluster creates a NodeSet for each queue that contains all NodeNames in the queue.
                 nodeset = f"{queue_name}_nodes"
                 if purchase_option_partition not in partition_nodesets:
                     partition_nodesets[purchase_option_partition] = []
@@ -2532,12 +2541,20 @@ class CdkSlurmStack(Stack):
                 if mem_partition not in partition_nodesets:
                     partition_nodesets[mem_partition] = []
                 partition_nodesets[mem_partition].append(nodeset)
+                mem_core_partition = f"{queue_name_prefix}-{mem_gb}-gb-{core_count}-cores"
+                if mem_core_partition not in partition_nodesets:
+                    partition_nodesets[mem_core_partition] = []
+                partition_nodesets[mem_core_partition].append(nodeset)
                 parallel_cluster_queue = self.create_queue_config(queue_name, allocation_strategy, purchase_option)
                 number_of_queues += 1
 
-                compute_resource_name = f"{queue_name_prefix}-{instance_type}".replace('.', '-')
-                compute_resource_name = compute_resource_name.replace('large', 'l')
-                compute_resource_name = compute_resource_name.replace('medium', 'm')
+                if True:
+                    # CR must begin with an alpha character, otherwise don't need the queue_name_prefix
+                    compute_resource_name = f"{queue_name_prefix}-{mem_gb}-gb-{core_count}-cores"
+                else:
+                    compute_resource_name = f"{queue_name_prefix}-{instance_type}".replace('.', '-')
+                    compute_resource_name = compute_resource_name.replace('large', 'l')
+                    compute_resource_name = compute_resource_name.replace('medium', 'm')
                 if number_of_compute_resources >= MAX_NUMBER_OF_COMPUTE_RESOURCES:
                     logger.error(f"Can't create {compute_resource_name} compute resource because MAX_NUMBER_OF_COMPUTE_RESOURCES=={MAX_NUMBER_OF_COMPUTE_RESOURCES} and have {number_of_compute_resources} compute resources")
                     exit(1)
