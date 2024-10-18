@@ -143,6 +143,25 @@
       - requests
       - virtualenv
 
+- name: Install epel from amazon-linux-extras
+  when: distribution == 'Amazon'
+  shell:
+    cmd: amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel from rpm
+  when: rhel8 or rhel9
+  shell:
+    cmd: |
+      yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+
+- name: Install epel from yum
+  when: distribution in ['CentOS', 'RedHat']
+  yum:
+    state: present
+    name:
+      - epel-release
+
 # The amazon repo only has the 64 bit of compat-libstdc++-33 and
 # tools need both the 32 and 64 bit versions.
 # The 32 bit version can be installed from the centos mirror, but it is a different

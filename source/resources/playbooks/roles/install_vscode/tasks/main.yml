@@ -26,7 +26,7 @@
       rhel8clone:     {{ rhel8clone }}
       rhel9clone:     {{ rhel9clone }}
 
-- name: Install vscode key and yum repository:
+- name: Install vscode key and yum repository
   shell:
     cmd: |
       rpm --import https://packages.microsoft.com/keys/microsoft.asc

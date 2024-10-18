@@ -9,6 +9,7 @@ nav:
   - 'config.md'
   - 'res_integration.md'
   - 'soca_integration.md'
+  - 'exostellar-infrastructure-optimizer.md'
   - 'custom-amis.md'
   - 'run_jobs.md'
   - 'job_preemption.md'
