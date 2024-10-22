@@ -2,7 +2,7 @@
 
 This page documents the configuration of security groups that will be used by your clusters.
 
-**Note**: This process has been automated and is described on the [deployment prerequisites page](../deployment-prerequisites#shared-security-groups-for-clusters-and-file-systems).
+**Note**: This process has been automated and is described on the [deployment prerequisites page](deployment-prerequisites.md/#shared-security-groups-for-login-nodes-and-file-systems).
 You can refer to this page to understand the security groups that are created or if you choose to manually create the security groups yourself.
 
 ## Security Groups for Login Nodes

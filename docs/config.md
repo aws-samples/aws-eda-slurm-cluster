@@ -210,7 +210,7 @@ default='US/Central'
 
 ### AdditionalSecurityGroupsStackName
 
-If you followed the [automated process to create security groups for external login nodes and file systems](../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems), then specify the stack name that you deployed and the additional security groups will be configured for the head and compute nodes.
+If you followed the [automated process to create security groups for external login nodes and file systems](deployment-prerequisites.md/#shared-security-groups-for-login-nodes-and-file-systems), then specify the stack name that you deployed and the additional security groups will be configured for the head and compute nodes.
 
 ### RESStackName
 
@@ -218,7 +218,7 @@ If you are deploying the cluster to use from Research and Engineering Studio (RE
 can specify the stack name for the RES environment to automate the integration.
 The virtual desktops automatically get configured to use the cluster.
 
-This requires you to [configure security groups for external login nodes](../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems).
+This requires you to [configure security groups for external login nodes](deployment-prerequisites.md/#shared-security-groups-for-login-nodes-and-file-systems).
 
 The Slurm binaries will be compiled for the OS of the desktops and and environment modulefile will be created
 so that the users just need to load the cluster modulefile to use the cluster.
@@ -383,7 +383,7 @@ Configure the Slurm database to use with the cluster.
 
 This is created independently of the cluster so that the same database can be used with multiple clusters.
 
-See [Create ParallelCluster Slurm Database](../deployment-prerequisites#create-parallelcluster-slurm-database) on the deployment prerequisites page.
+See [Create ParallelCluster Slurm Database](deployment-prerequisites.md/#create-parallelcluster-slurm-database) on the deployment prerequisites page.
 
 If you used the [CloudFormation template provided by ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3), then the easiest way to configure it is to pass
 the name of the stack in slurm/ParallelClusterConfig/Database/[DatabaseStackName](#databasestackname).
@@ -448,7 +448,7 @@ This is created independently of the cluster so that the same database can be us
 
 This is created independently of the cluster so that the same slurmdbd instance can be used with multiple clusters.
 
-See [Create Slurmdbd instance](../deployment-prerequisites#create-slurmdbd-instance) on the deployment prerequisites page.
+See [Create Slurmdbd instance](deployment-prerequisites.md/#create-slurmdbd-instance) on the deployment prerequisites page.
 
 If you used the [CloudFormation template provided by ParallelCluster](https://docs.aws.amazon.com/parallelcluster/latest/ug/external-slurmdb-accounting.html#external-slurmdb-accounting-step1), then the easiest way to configure it is to pass
 the name of the stack in slurm/ParallelClusterConfig/Database/[SlurmdbdStackName](#slurmdbdstackname).
@@ -495,7 +495,7 @@ For an existing secret can be the secret name or the ARN.
 If the secret doesn't exist one will be created, but won't be part of the cloudformation stack so that it won't be deleted when the stack is deleted.
 Required if your login nodes need to use more than 1 cluster.
 
-See [Create Munge Key](../deployment-prerequisites#create-munge-key) for more details.
+See [Create Munge Key](deployment-prerequisites.md/#create-munge-key) for more details.
 
 ### SlurmCtl
 
