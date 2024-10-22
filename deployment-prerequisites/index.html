@@ -54,6 +54,9 @@
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
                             <li class="navitem">
+                                <a href="../exostellar-infrastructure-optimizer/" class="nav-link">Exostellar Infrastructure Optimizer (XIO)</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
                             </li>
                             <li class="navitem">
@@ -167,6 +170,10 @@
               <ul class="nav flex-column">
               </ul>
             </li>
+            <li class="nav-item" data-level="2"><a href="#create-exostellar-management-server" class="nav-link">Create Exostellar Management Server</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
             <li class="nav-item" data-level="2"><a href="#create-configuration-file" class="nav-link">Create Configuration File</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-level="3"><a href="#configure-the-compute-instances" class="nav-link">Configure the Compute Instances</a>
@@ -211,14 +218,14 @@
 <h2 id="deployment-serverinstance-requirements">Deployment Server/Instance Requirements</h2>
 <p>The deployment process was developed and tested using Amazon Linux 2.
 It has also been tested on RHEL 8 and RHEL 9.
-An easy way to create a deployment instance is to use an AWS Cloud 9 desktop.
+An easy way to create a deployment instance is to use AWS CloudShell.
 This will give you a code editor IDE and shell environment that you can use to deploy the cluster.</p>
 <p>If the required packages aren't installed then you will need sudo or root access on the instance.</p>
 <h2 id="configure-aws-cli-credentials">Configure AWS CLI Credentials</h2>
 <p>You will needs AWS credentials that provide admin access to deploy the cluster.</p>
 <h2 id="clone-or-download-the-repository">Clone or Download the Repository</h2>
 <p>Clone or download the aws-eda-slurm-cluster repository to your system.</p>
-<pre><code>git clone git@github.com:aws-samples/aws-eda-slurm-cluster.git
+<pre><code>git clone https://github.com/aws-samples/aws-eda-slurm-cluster.git
 </code></pre>
 <h2 id="create-sns-topic-for-error-notifications-optional-but-recommended">Create SNS Topic for Error Notifications (Optional but recommended)</h2>
 <p>The Slurm cluster allows you to specify an SNS notification that will be notified when an error is detected.
@@ -469,6 +476,9 @@ that meet the needs of EDA workloads.</p>
 when you create the file system.</p>
 <p>If the file system already exists, then attach the appropriate security group to the network interfaces of
 the file systems.</p>
+<h2 id="create-exostellar-management-server">Create Exostellar Management Server</h2>
+<p>If you're going to use Exostellar Infrastructure Optimizer (XIO) then you will need to deploy the Exostellar management server.
+See the <a href="../exostellar-infrastructure-optimizer">XIO page</a> for details.</p>
 <h2 id="create-configuration-file">Create Configuration File</h2>
 <p>Before you deploy a cluster you need to create a configuration file.
 A default configuration file is found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">source/resources/config/default_config.yml</a>.

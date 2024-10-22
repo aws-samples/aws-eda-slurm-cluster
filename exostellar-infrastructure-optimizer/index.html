@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Exostellar Infrastructure Optimizer (XIO) - EDA SLURM Cluster on AWS</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/font-awesome.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+            <div class="container">
+                <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-collapse">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="navitem">
+                                <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../security-groups/" class="nav-link">Security Groups</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../res_integration/" class="nav-link">RES Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                            </li>
+                            <li class="navitem active">
+                                <a href="./" class="nav-link">Exostellar Infrastructure Optimizer (XIO)</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../run_jobs/" class="nav-link">Run Jobs</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../job_preemption/" class="nav-link">Job Preemption</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../rest_api/" class="nav-link">Slurm REST API</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                            </li>
+                            <li class="navitem">
+                                <a href="../debug/" class="nav-link">Debug</a>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ml-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-toggle="modal" data-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../soca_integration/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../custom-amis/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/exostellar-infrastructure-optimizer.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-light navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-level="1"><a href="#exostellar-infrastructure-optimizer-xio" class="nav-link">Exostellar Infrastructure Optimizer (XIO)</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="2"><a href="#xio-configuration" class="nav-link">XIO Configuration</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#deploy-parallelcluster-without-configuring-xio" class="nav-link">Deploy ParallelCluster without configuring XIO</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#install-the-exostellar-management-server-ems" class="nav-link">Install the Exostellar Management Server (EMS)</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#create-xio-configuration" class="nav-link">Create XIO Configuration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#create-xio-profiles" class="nav-link">Create XIO Profiles</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#create-the-application-environment" class="nav-link">Create the Application Environment</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#create-an-xio-parallelcluster-ami" class="nav-link">Create an XIO ParallelCluster AMI</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#update-the-cluster-with-the-xio-iconfiguration" class="nav-link">Update the cluster with the XIO Iconfiguration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#create-an-xio-image-from-the-xio-parallelcluster-ami" class="nav-link">Create an XIO Image from the XIO ParallelCluster AMI</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#test-launching-an-xio-vm" class="nav-link">Test launching an XIO VM</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#run-a-test-job-using-slurm" class="nav-link">Run a test job using Slurm</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="exostellar-infrastructure-optimizer-xio">Exostellar Infrastructure Optimizer (XIO)</h1>
+<p><a href="https://exostellar.io/infrastructureoptimizer-technical-information/">Exostellar Infrastructure Optimizer</a> (XIO) runs applications in virtual machines (VMs) on EC2 instances and can dynamically migrate the VMs between instances based on availability and cost.
+Long-running, stateful jobs are not normally run on spot instances because of the risk of lost work after a spot termination.
+XIO reduces this risk by predicting spot terminations and migrating the VM to another instance with higher availability.
+This could be a different spot instance type or an on-demand instance.
+When spot capacity becomes available again, the VM can be migrated back to a spot instance.
+This allows you to save up to 90% over on-demand pricing by running on spot when capacity is available.
+You increase the potential for savings by configuring as many spot capacity pools as possible.
+This doesn't completely eliminate the risk of the job failing.
+The job will still fail and need to be restarted from the beginning if a spot termination isn't predicted far enough in advance for the job to be migrated or if a new instance cannot be launched to migrate the job to.</p>
+<p><strong>Note</strong>: Job reliability will be increased by following EC2 Spot best practices such as configuring as many capacity pools and instance types as possible.</p>
+<p>XIO runs on an Exostellar Management Server (EMS).
+The EMS runs a web application and launches and manages the instances that run jobs.
+In response to job requests it launches controller nodes that manage pools of worker nodes.
+The controller launches workers and then starts one or more VMs on the workers.
+The controller also determines when VMs need to be migrated, allocates new workers, and manages the VM migrations.</p>
+<p>You create an XIO Application Environment for each Slurm cluster.
+The Application Environment contains the URL for the Slurm head node,
+configures pools of VMs,
+and configures the path to the Slurm binaries and configuration.
+The VM pools define the attributes of the instances including the number of CPUs, VM Image, min and max memory, and an associated XIO Profile.</p>
+<p>You must also create the XIO Profiles that are used by the VM Pools.
+Each profile configures XIO Controllers and XIO Workers.
+The Workers run the XIO VMs.
+The Controller manages the workers and the VMs that run on them.
+The Worker configuration includes the instance types to use for
+on-demand and spot instances.
+It also includes the security groups and tags for the worker instances.</p>
+<p>You must also create XIO Images that are used to create the VMs.
+The Images are created from AWS AMIs and are specified in the VM Pools.</p>
+<p><strong>NOTE:</strong> One current restriction of XIO VMs is that they cannot be created from ParallelCluster AMIs.
+This is because the kernel modules that ParallelCluster installs aren't supported by the XIO hypervisor.</p>
+<h2 id="xio-configuration">XIO Configuration</h2>
+<p>This section will describe the process of configuring XIO to work with ParallelCluster.</p>
+<p>Refer to <a href="https://docs.exostellar.io/latest/Latest/HPC-User/getting-started-installation">Exostellar's documentation</a> to make sure you have the latest instructions.</p>
+<h3 id="deploy-parallelcluster-without-configuring-xio">Deploy ParallelCluster without configuring XIO</h3>
+<p>First deploy your cluster without configuring XIO.
+The cluster deploys ansible playbooks that will be used to create the XIO ParallelCluster AMI.</p>
+<h3 id="install-the-exostellar-management-server-ems">Install the Exostellar Management Server (EMS)</h3>
+<p>The next step is to <a href="https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server">install the Exostellar management server</a>.
+Exostellar will provide a link to a CloudFormation template that
+will deploy the server in your account and will share 3 AMIs that are used by the template to create the EMS, controllers, and workers.</p>
+<h3 id="create-xio-configuration">Create XIO Configuration</h3>
+<p>The next step is to plan and configure your XIO deployment.
+The key decisions that you must make are the instance types that you will use
+and the AMI that you will use for the XIO VM Images.</p>
+<p>XIO currently only supports x86_64 instance types and pools cannot mix AMD and Intel instance types.
+The following XIO configuration for aws-eda-slurm-cluster shows 2 pools that contain Intel and AMD instances.
+Note that we first define the XIO Profiles with instance types with the same manufacturer, number of cores, and amount of memory.
+Then we configure pools for the Application Environment that use the profiles.
+The numbers after the instance type are a priority to bias XIO to use higher priority instance types if they are available.
+We've chosen to prioritize the latest generation instance types so our jobs run faster and configure
+older generation instance types at a lower priority to increase the number of capacity pools so that
+we have a better chance of running on spot and having instances to run our jobs.
+Refer to <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-best-practices.html">Best practices for Amazon EC2 Spot</a> when planning your cluster deployment and creating your configuration.</p>
+<p>It is highly recommended to use <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/work-with-spot-placement-score.html">EC2 Spot placement scores</a> when selecting the region and availability zone for your cluster.
+This will give you an indication of the likelihood of getting desired spot capacity.</p>
+<p>In the following example I've configured a profile for AMD and Intel instance families.
+I've included instance families from the last 3 generations of instances to maximize the number of
+available capacity pools and increase the likelihood of running on spot.</p>
+<p><strong>Note</strong>: The Intel instance families contain more configurations and higher memory instances. They also have high frequency instance types such as m5zn, r7iz, and z1d. They also tend to have more capacity. The AMD instance families include HPC instance types, however, they do not support spot pricing and can only be used for on-demand.</p>
+<pre><code>slurm:
+  Xio:
+    ManagementServerStackName: exostellar-management-server
+    PartitionName: xio
+    AvailabilityZone: us-east-2b
+    Profiles:
+      - ProfileName: amd
+        NodeGroupName: amd
+        MaxControllers: 10
+        InstanceTypes:
+          - c5a
+          - c5ad
+          - c6a
+          - c7a
+          - m5a
+          - m5ad
+          - m6a
+          - m7a
+          - r5a
+          - r5ad
+          - r6a
+          - r7a
+          - hpc6a
+          - hpc7a
+        SpotFleetTypes:
+          - c5a
+          - c5ad
+          - c6a
+          - c7a
+          - m5a
+          - m5ad
+          - m6a
+          - m7a
+          - r5a
+          - r5ad
+          - r6a
+          - r7a
+          - hpc6a
+          - hpc7a
+        EnableHyperthreading: false
+      - ProfileName: intel
+        NodeGroupName: intel
+        MaxControllers: 10
+        InstanceTypes:
+          - c5
+          - c5d
+          - c5n
+          - c6i
+          - c6id
+          - c6in
+          - c7i
+          - m5
+          - m5d
+          - m5dn
+          - m5n
+          - m5zn
+          - m6i
+          - m6id
+          - m6idn
+          - m6in
+          - m7i
+          - r5
+          - r5b
+          - r5d
+          - r5dn
+          - r5n
+          - r6i
+          - r6id
+          - r6idn
+          - r6in
+          - r7i
+          - r7iz
+          - xidn
+          - xiedn
+          - xiezn
+          - z1d
+        SpotFleetTypes:
+          - c5
+          - c5d
+          - c5n
+          - c6i
+          - c6id
+          - c6in
+          - c7i
+          - m5
+          - m5d
+          - m5dn
+          - m5n
+          - m5zn
+          - m6i
+          - m6id
+          - m6idn
+          - m6in
+          - m7i
+          - r5
+          - r5b
+          - r5d
+          - r5dn
+          - r5n
+          - r6i
+          - r6id
+          - r6idn
+          - r6in
+          - r7i
+          - r7iz
+          - xidn
+          - xiedn
+          - xiezn
+          - z1d
+        EnableHyperthreading: false
+      - ProfileName: intel24core350g
+        NodeGroupName: intel24core350g
+        MaxControllers: 10
+        InstanceTypes:
+          - r5.12xlarge:1
+          - r5d.12xlarge:2
+          - r6i.12xlarge:3
+          - r6id.12xlarge:4
+          - r7i.12xlarge:5
+          - r7iz.12xlarge:6
+        SpotFleetTypes:
+          - r5.12xlarge:1
+          - r5d.12xlarge:2
+          - r6i.12xlarge:3
+          - r6id.12xlarge:4
+          - r7i.12xlarge:5
+          - r7iz.12xlarge:6
+        EnableHyperthreading: false
+      - ProfileName: amd24core350g
+        NodeGroupName: amd24core350g
+        MaxControllers: 10
+        InstanceTypes:
+          - r5a.12xlarge:1
+          - r5ad.12xlarge:2
+          - r6a.12xlarge:3
+          - r7a.12xlarge:5
+        SpotFleetTypes:
+          - r5a.12xlarge:1
+          - r5ad.12xlarge:2
+          - r6a.12xlarge:3
+          - r7a.12xlarge:5
+        EnableHyperthreading: false
+    Pools:
+      - PoolName: amd-8-gb-1-cores
+        ProfileName: amd
+        ImageName: res-demo-pc-3-10-1-rhel8-x86
+        PoolSize: 10
+        CPUs: 24
+        MinMemory: 7200
+        MaxMemory: 7200
+      - PoolName: amd-16-gb-2-cores
+        ProfileName: amd
+        ImageName: res-demo-pc-3-10-1-rhel8-x86
+        PoolSize: 10
+        CPUs: 24
+        MinMemory: 15000
+        MaxMemory: 15000
+      - PoolName: amd-32-gb-4-cores
+        ProfileName: amd
+        ImageName: res-demo-pc-3-10-1-rhel8-x86
+        PoolSize: 10
+        CPUs: 24
+        MinMemory: 30000
+        MaxMemory: 30000
+      - PoolName: amd-64-gb-8-cores
+        ProfileName: amd
+        ImageName: res-demo-pc-3-10-1-rhel8-x86
+        PoolSize: 10
+        CPUs: 24
+        MinMemory: 60000
+        MaxMemory: 60000
+      - PoolName: intel-24core-350G
+        ProfileName: intel
+        ImageName: res-demo-pc-3-10-1-rhel8-x86
+        PoolSize: 10
+        CPUs: 24
+        MinMemory: 350000
+        MaxMemory: 350000
+</code></pre>
+<h3 id="create-xio-profiles">Create XIO Profiles</h3>
+<p>In the EMS GUI copy the existing az1 profile to the profiles that you configured.
+The name is all that matters.
+The deployment will update the profile automatically from your configuration.</p>
+<h3 id="create-the-application-environment">Create the Application Environment</h3>
+<p>In the EMS GUI copy the <strong>slurm</strong> Application Environment to a new environment that is the same
+name as your ParallelCluster cluster.
+The deployment will update the application environment from your configuration.</p>
+<h3 id="create-an-xio-parallelcluster-ami">Create an XIO ParallelCluster AMI</h3>
+<p>Launch an instance using the base AMI for your OS.
+For example, launch an instance with a base RHEL 8 or Rocky 8 AMI.</p>
+<p>Mount the ParallelCluster NFS file system at /opt/slurm.</p>
+<p>Run the ansible playbook to configure the instance for XIO.</p>
+<pre><code>/opt/slurm/config/bin/xio-compute-node-ami-configure.sh
+</code></pre>
+<p>Do any additional configuration that you require such as configuring file system mounts and installing
+packages.</p>
+<p>Create an AMI from the instance and wait for it to become available.</p>
+<h3 id="update-the-cluster-with-the-xio-iconfiguration">Update the cluster with the XIO Iconfiguration</h3>
+<p>Update the cluster with the XIO configuration.</p>
+<p>This will update the profiles and environment on the EMS server and configure the cluster for XIO.
+The only remaining step before you can submit jobs is to create the XIO VM image.</p>
+<h3 id="create-an-xio-image-from-the-xio-parallelcluster-ami">Create an XIO Image from the XIO ParallelCluster AMI</h3>
+<p>Connect to the head node and create the XIO Image from the AMI you created.
+The IMAGE-NAME should be the same that you configured in the Pools.</p>
+<pre><code>/opt/slurm/etc/exostellar/parse_helper.sh -a &lt;AMI-ID1&gt; -i &lt;IMAGE-NAME&gt;
+</code></pre>
+<h3 id="test-launching-an-xio-vm">Test launching an XIO VM</h3>
+<p>Connect to the head node and test launching a VM.
+The pool, profile, and image_name should be from your configuration.
+The host name doesn't matter.</p>
+<pre><code>/opt/slurm/etc/exostellar/teste_creasteVm.sh --pool &lt;pool&gt; --profile &lt;profile&gt; -i &lt;image name&gt; -h &lt;host&gt;
+</code></pre>
+<h3 id="run-a-test-job-using-slurm">Run a test job using Slurm</h3>
+<pre><code>srun --pty -p xio-
+</code></pre></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="../js/jquery-3.6.0.min.js"></script>
+        <script src="../js/bootstrap.min.js"></script>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js"></script>
+        <script src="../search/main.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>
