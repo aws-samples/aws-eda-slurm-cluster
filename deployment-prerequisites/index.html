@@ -176,6 +176,10 @@
             </li>
             <li class="nav-item" data-level="2"><a href="#create-configuration-file" class="nav-link">Create Configuration File</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#configure-linux-users-and-groups" class="nav-link">Configure Linux Users and Groups</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
             <li class="nav-item" data-level="3"><a href="#configure-the-compute-instances" class="nav-link">Configure the Compute Instances</a>
               <ul class="nav flex-column">
               </ul>
@@ -296,7 +300,7 @@ The secret is then passed as a parameter to ParallelCluster so that it can use i
 <p>Save the ARN of the secret for when you create the Slurmdbd instance and for when you create the configuration file.</p>
 <p>See the <a href="https://slurm.schedmd.com/authentication.html">Slurm documentation for authentication</a> for more information.</p>
 <p>See the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-MungeKeySecretArn">ParallelCluster documentation for MungeKeySecretArn</a>.</p>
-<p>See the <a href="../config#mungekeysecret">MungeKeySecret configuration parameter</a>.</p>
+<p>See the <a href="../config/#mungekeysecret">MungeKeySecret configuration parameter</a>.</p>
 <h2 id="create-parallelcluster-slurm-database">Create ParallelCluster Slurm Database</h2>
 <p>The Slurm Database is required for configuring Slurm accounts, users, groups, and fair share scheduling.
 It you need these and other features then you will need to create a ParallelCluster Slurm Database.
@@ -385,7 +389,7 @@ This requires that you have already created the slurm database.</p>
 </table>
 <p>The stack name will be used in two places.
 It will be used by the script that creates security groups for you in the following section.
-It will also be used in the slurm/ParallelClusterConfig/<a href="../config#slurmdbdstackname">SlurmdbdStackName</a> configuration parameter when you create your cluster.</p>
+It will also be used in the slurm/ParallelClusterConfig/<a href="../config/#slurmdbdstackname">SlurmdbdStackName</a> configuration parameter when you create your cluster.</p>
 <p>The stack will only take about 3 minutes to deploy.</p>
 <h2 id="shared-security-groups-for-login-nodes-and-file-systems">Shared Security Groups for login nodes and file systems</h2>
 <p>Instances like remote desktops that access the cluster directly are called login nodes.
@@ -393,7 +397,7 @@ If you want to use your own login nodes to access the cluster, then you must def
 several security groups that allow connections between the login nodes, the Slurm head node, and the Slurm compute nodes.
 If you are using shared file servers like FSx file systems, then you also need to configure security
 groups for the file systems that allows the login and slurm nodes to access the file systems.</p>
-<p>The <a href="../security-groups">details</a> are straightforward, but time consuming, so the process has been automated for you.
+<p>The <a href="../security-groups/">details</a> are straightforward, but time consuming, so the process has been automated for you.
 Simply run the following script which will deploy a CloudFormation stack that creates the required
 security groups.</p>
 <pre><code>cd aws-eda-slurm-cluster
@@ -465,7 +469,7 @@ security groups.</p>
 </tr>
 </tbody>
 </table>
-<p>You can pass the name of the stack to the <a href="../config#additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</a> configuration parameter when you create your cluster
+<p>You can pass the name of the stack to the <a href="../config/#additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</a> configuration parameter when you create your cluster
 and it will get the security groups ids for you and configure the cluster to use them.</p>
 <h2 id="create-file-systems">Create File Systems</h2>
 <p>Most EDA workloads require a high performance shared file system.
@@ -478,7 +482,7 @@ when you create the file system.</p>
 the file systems.</p>
 <h2 id="create-exostellar-management-server">Create Exostellar Management Server</h2>
 <p>If you're going to use Exostellar Infrastructure Optimizer (XIO) then you will need to deploy the Exostellar management server.
-See the <a href="../exostellar-infrastructure-optimizer">XIO page</a> for details.</p>
+See the <a href="../exostellar-infrastructure-optimizer/">XIO page</a> for details.</p>
 <h2 id="create-configuration-file">Create Configuration File</h2>
 <p>Before you deploy a cluster you need to create a configuration file.
 A default configuration file is found in <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">source/resources/config/default_config.yml</a>.
@@ -501,69 +505,96 @@ You should save your selections in the config file.</p>
 </thead>
 <tbody>
 <tr>
-<td><a href="../config#stackname">StackName</a></td>
+<td><a href="../config/#stackname">StackName</a></td>
 <td>The cloudformation stack that will deploy the cluster. I prefer to end the name with "-config" .</td>
 <td></td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="../config#clustername">slurm/ClusterName</a></td>
+<td><a href="../config/#clustername">slurm/ClusterName</a></td>
 <td>Name of the Slurm cluster</td>
 <td>Can't be the same as StackName.</td>
 <td>If StackName ends in "-config" then StackName with "-config" stripped off. Otherwise, StackName with "-cl" appended.</td>
 </tr>
 <tr>
-<td><a href="../config#region">Region</a></td>
+<td><a href="../config/#region">Region</a></td>
 <td>Region where VPC is located</td>
 <td></td>
 <td><code>$AWS_DEFAULT_REGION</code></td>
 </tr>
 <tr>
-<td><a href="../config#vpcid">VpcId</a></td>
+<td><a href="../config/#vpcid">VpcId</a></td>
 <td>The vpc where the cluster will be deployed.</td>
 <td>vpc-*</td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="../config#sshkeypair">SshKeyPair</a></td>
+<td><a href="../config/#sshkeypair">SshKeyPair</a></td>
 <td>EC2 Keypair to use for instances</td>
 <td></td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="../config#errorsnstopicarn">ErrorSnsTopicArn</a></td>
+<td><a href="../config/#errorsnstopicarn">ErrorSnsTopicArn</a></td>
 <td>ARN of an SNS topic that will be notified of errors</td>
 <td><code>arn:aws:sns:{{region}}:{AccountId}:{TopicName}</code></td>
 <td>None</td>
 </tr>
 <tr>
-<td><a href="../config#instanceconfig">slurm/InstanceConfig</a></td>
+<td><a href="../config/#instanceconfig">slurm/InstanceConfig</a></td>
 <td>Configure instance types that the cluster can use and number of nodes.</td>
 <td></td>
 <td>See <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/blob/main/source/resources/config/default_config.yml">default_config.yml</a></td>
 </tr>
 <tr>
-<td><a href="../config#additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</a></td>
+<td><a href="../config/#additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</a></td>
 <td>Name of stack that created security groups for external login nodes and file systems.</td>
 <td></td>
 <td></td>
 </tr>
 <tr>
-<td><a href="../config##resstackname">RESStackName</a></td>
+<td><a href="../config/##resstackname">RESStackName</a></td>
 <td>Name of RES environment</td>
 <td></td>
 <td></td>
 </tr>
 <tr>
-<td><a href="../config#extramounts">slurm/storage/ExtraMounts</a></td>
+<td><a href="../config/#extramounts">slurm/storage/ExtraMounts</a></td>
 <td>Extra mount points</td>
 <td></td>
 <td>None</td>
 </tr>
 </tbody>
 </table>
+<h3 id="configure-linux-users-and-groups">Configure Linux Users and Groups</h3>
+<p>The cluster defines a script that can capture the users and groups from your identity provider (IDP) into a json file.
+When a new compute node starts, another script creates local Linux users and groups from the json file.</p>
+<p>The first script gets installed at:</p>
+<p><code>/opt/slurm/{{ cluster_name }}/config/bin/create_users_and_groups_json.py</code></p>
+<p>This script should be run on an instance that is joined to your IDP.
+It first tries to use <code>wbinfo -u</code> and if that fails it uses <code>getent passwd</code> to get the list of users and their userids.
+It uses <code>id</code> to get the uid and gids for the users.
+The json file gets stored at</p>
+<p><code>/opt/slurm/{{ cluster_name }}/config/users_groups.json</code></p>
+<p>The compute node calls:</p>
+<p><code>/opt/slurm/{{ cluster_name }}/config/bin/create_users_groups.py -i /opt/slurm/{{ cluster_name }}/config/users_groups.json</code></p>
+<p>The script calls useradd and groupadd to create local users and groups.</p>
+<p>To enable this mechanism you must configure the EC2 tags of the domain joined instance that will be used to create the json file.
+A Lambda function will create the json file and create a lambda that will refresh it hourly.
+You will also need to provide the security group id of the SlurmExternalLoginNodeSG which will be added to the instance so that it can mount the head node's NFS file system.</p>
+<pre><code>DomainJoinedInstance:
+  Tags:
+    - Key: Name
+      Value: ClusterManager
+  SecurityGroupId: sg-xxxxxxxx
+</code></pre>
+<p>You can provide 1 or more keys and the set will be done on the first instance that matches.</p>
+<p><strong>Note:</strong> You do not have to use this mechanism.
+ParallelCluster supports using Microsoft Active Directory and you can configure that using the <code>slurm/ParallelClusterConfig/ClusterConfig/DirectoryService</code> <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/DirectoryService-v3.html">parameter</a>.
+You can also use custom action scripts that run on your compute nodes that configure domains or users and groups to meet your needs.</p>
+<p><strong>Note:</strong> This is automatically configured for you if you specify the <a href="../config/#resstackname">RESStackName</a> parameter.</p>
 <h3 id="configure-the-compute-instances">Configure the Compute Instances</h3>
-<p>The <a href="../config#instanceconfig">slurm/InstanceConfig</a> configuration parameter configures the base operating systems, CPU architectures, instance families,
+<p>The <a href="../config/#instanceconfig">slurm/InstanceConfig</a> configuration parameter configures the base operating systems, CPU architectures, instance families,
 and instance types that the Slurm cluster should support.
 ParallelCluster currently doesn't support heterogeneous clusters;
 all nodes must have the same architecture and Base OS.</p>
@@ -730,7 +761,7 @@ It will keep track of how many running jobs are using a license and when no more
 then jobs will stay pending in the queue until a job completes and frees up a license.
 Combined with the fairshare algorithm, this can prevent users from monopolizing licenses and preventing others from
 being able to run their jobs.</p>
-<p>Licenses are configured using the <a href="../config#licenses">slurm/Licenses</a> configuration variable.
+<p>Licenses are configured using the <a href="../config/#licenses">slurm/Licenses</a> configuration variable.
 If you are using the Slurm database then these will be configured in the database.
 Otherwise they will be configured in <strong>/opt/slurm/{{ClusterName}}/etc/pcluster/custom_slurm_settings_include_file_slurm.conf</strong>.</p>
 <p>The example configuration shows how the number of licenses can be configured.

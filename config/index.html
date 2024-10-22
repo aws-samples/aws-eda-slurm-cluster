@@ -519,12 +519,12 @@ You can subscribe to the topic so that you are notified for things like script o
 <p>The time zone to use for all EC2 instances in the cluster.</p>
 <p>default='US/Central'</p>
 <h3 id="additionalsecuritygroupsstackname">AdditionalSecurityGroupsStackName</h3>
-<p>If you followed the <a href="../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems">automated process to create security groups for external login nodes and file systems</a>, then specify the stack name that you deployed and the additional security groups will be configured for the head and compute nodes.</p>
+<p>If you followed the <a href="../deployment-prerequisites/#shared-security-groups-for-login-nodes-and-file-systems">automated process to create security groups for external login nodes and file systems</a>, then specify the stack name that you deployed and the additional security groups will be configured for the head and compute nodes.</p>
 <h3 id="resstackname">RESStackName</h3>
 <p>If you are deploying the cluster to use from Research and Engineering Studio (RES) virtual desktops, then you
 can specify the stack name for the RES environment to automate the integration.
 The virtual desktops automatically get configured to use the cluster.</p>
-<p>This requires you to <a href="../deployment-prerequisites#shared-security-groups-for-login-nodes-and-file-systems">configure security groups for external login nodes</a>.</p>
+<p>This requires you to <a href="../deployment-prerequisites/#shared-security-groups-for-login-nodes-and-file-systems">configure security groups for external login nodes</a>.</p>
 <p>The Slurm binaries will be compiled for the OS of the desktops and and environment modulefile will be created
 so that the users just need to load the cluster modulefile to use the cluster.</p>
 <h3 id="externalloginnodes">ExternalLoginNodes</h3>
@@ -628,7 +628,7 @@ All of the instances must have the same CPU architecture and the same OS.</p>
 You cannot have both parameters.</p>
 <p>Configure the Slurm database to use with the cluster.</p>
 <p>This is created independently of the cluster so that the same database can be used with multiple clusters.</p>
-<p>See <a href="../deployment-prerequisites#create-parallelcluster-slurm-database">Create ParallelCluster Slurm Database</a> on the deployment prerequisites page.</p>
+<p>See <a href="../deployment-prerequisites/#create-parallelcluster-slurm-database">Create ParallelCluster Slurm Database</a> on the deployment prerequisites page.</p>
 <p>If you used the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/tutorials_07_slurm-accounting-v3.html#slurm-accounting-db-stack-v3">CloudFormation template provided by ParallelCluster</a>, then the easiest way to configure it is to pass
 the name of the stack in slurm/ParallelClusterConfig/Database/<a href="#databasestackname">DatabaseStackName</a>.
 All of the other parameters will be pulled from the outputs of the stack.</p>
@@ -667,7 +667,7 @@ This password is used together with AdminUserName and Slurm accounting to authen
 The Slurmdbd instance provides access to the shared Slurm database.
 This is created independently of the cluster so that the same database can be used with multiple clusters.</p>
 <p>This is created independently of the cluster so that the same slurmdbd instance can be used with multiple clusters.</p>
-<p>See <a href="../deployment-prerequisites#create-slurmdbd-instance">Create Slurmdbd instance</a> on the deployment prerequisites page.</p>
+<p>See <a href="../deployment-prerequisites/#create-slurmdbd-instance">Create Slurmdbd instance</a> on the deployment prerequisites page.</p>
 <p>If you used the <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/external-slurmdb-accounting.html#external-slurmdb-accounting-step1">CloudFormation template provided by ParallelCluster</a>, then the easiest way to configure it is to pass
 the name of the stack in slurm/ParallelClusterConfig/Database/<a href="#slurmdbdstackname">SlurmdbdStackName</a>.
 All of the other parameters will be pulled from the parameters and outputs of the stack.</p>
@@ -697,7 +697,7 @@ Otherwise add "-cl" to end of StackName.</p>
 For an existing secret can be the secret name or the ARN.
 If the secret doesn't exist one will be created, but won't be part of the cloudformation stack so that it won't be deleted when the stack is deleted.
 Required if your login nodes need to use more than 1 cluster.</p>
-<p>See <a href="../deployment-prerequisites#create-munge-key">Create Munge Key</a> for more details.</p>
+<p>See <a href="../deployment-prerequisites/#create-munge-key">Create Munge Key</a> for more details.</p>
 <h3 id="slurmctl">SlurmCtl</h3>
 <p>Configure the Slurm head node or controller.</p>
 <p>Required, but can be an empty dict to accept all of the defaults.</p>
