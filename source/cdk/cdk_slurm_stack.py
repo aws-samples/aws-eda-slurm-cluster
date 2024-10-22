@@ -118,9 +118,13 @@ class CdkSlurmStack(Stack):
         # Get context variables to override the config
         self.override_config_with_context()
 
-        self.check_config()
-
         self.cluster_region = self.config['Region']
+
+        self.eC2InstanceTypeInfo = self.get_ec2InstanceTypeInfo()
+        self.plugin = SlurmPlugin(slurm_config_file=None, region=self.cluster_region)
+        self.plugin.instance_type_and_family_info = self.eC2InstanceTypeInfo.instance_type_and_family_info
+
+        self.check_config()
 
         self.ec2_client = boto3.client('ec2', region_name=self.cluster_region)
 
@@ -254,6 +258,9 @@ class CdkSlurmStack(Stack):
 
         if 'RESStackName' in self.config:
             self.update_config_for_res()
+
+        if 'Xio' in self.config['slurm']:
+            self.update_config_for_exostellar()
 
         if 'ErrorSnsTopicArn' not in self.config:
             logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
@@ -462,10 +469,16 @@ class CdkSlurmStack(Stack):
 
         # If no instance config has been set then choose EDA defaults
         if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Exclude'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Exclude']:
+            use_on_demand = self.config['slurm']['InstanceConfig']['UseOnDemand']
+            use_spot = self.config['slurm']['InstanceConfig']['UseSpot']
+            if use_on_demand and use_spot:
+                default_key = 'on_demand_and_spot'
+            else:
+                default_key = 'on_demand_or_spot'
             self.config['slurm']['InstanceConfig']['Include']['InstanceFamilies'] = config_schema.default_included_eda_instance_families
-            self.config['slurm']['InstanceConfig']['Include']['InstanceTypes'] = config_schema.default_included_eda_instance_types
-            self.config['slurm']['InstanceConfig']['Exclude']['InstanceFamilies'] = config_schema.default_excluded_eda_instance_families
-            self.config['slurm']['InstanceConfig']['Exclude']['InstanceTypes'] = config_schema.default_excluded_eda_instance_types
+            self.config['slurm']['InstanceConfig']['Include']['InstanceTypes'] = config_schema.default_included_eda_instance_types[default_key]
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceFamilies'] = config_schema.default_excluded_eda_instance_families[default_key]
+            self.config['slurm']['InstanceConfig']['Exclude']['InstanceTypes'] = config_schema.default_excluded_eda_instance_types[default_key]
         # Set non-eda defaults
         if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Include']:
             self.config['slurm']['InstanceConfig']['Include']['InstanceFamilies'] = config_schema.default_included_instance_families
@@ -482,6 +495,11 @@ class CdkSlurmStack(Stack):
         if slurmctl_memory_in_gb < 4:
             logger.error(f"Configured SlurmCtl instance type ({slurmctl_instance_type}) has {slurmctl_memory_in_gb} GB and needs at least 4.")
             config_errors += 1
+
+        if 'Xio' in self.config['slurm']:
+            if self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
+                logger.error("Xio is only supported on x86_64 architecture, not {self.config['slurm']['ParallelClusterConfig']['Architecture']}")
+                config_errors += 1
 
         if config_errors:
             exit(1)
@@ -634,16 +652,16 @@ class CdkSlurmStack(Stack):
                 message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
             logger.error(message)
             exit(1)
-        res_dcv_security_group_id = None
+        self.res_dcv_security_group_id = None
         list_stack_resources_paginator = cloudformation_client.get_paginator('list_stack_resources')
         for stack_resource_summaries in list_stack_resources_paginator.paginate(StackName=res_vdc_stack_name):
             for stack_resource_summary_dict in stack_resource_summaries['StackResourceSummaries']:
                 if stack_resource_summary_dict['LogicalResourceId'].startswith('vdcdcvhostsecuritygroup'):
-                    res_dcv_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
+                    self.res_dcv_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
                     break
-            if res_dcv_security_group_id:
+            if self.res_dcv_security_group_id:
                 break
-        if not res_dcv_security_group_id:
+        if not self.res_dcv_security_group_id:
             logger.error(f"RES VDI security group not found.")
             exit(1)
 
@@ -781,7 +799,7 @@ class CdkSlurmStack(Stack):
                 }
             )
 
-            res_home_mount_sg_id = res_dcv_security_group_id
+            res_home_mount_sg_id = self.res_dcv_security_group_id
             if 'AdditionalSecurityGroups' not in self.config['slurm']['SlurmCtl']:
                 self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups'] = []
             if res_home_mount_sg_id in self.config['slurm']['SlurmCtl']['AdditionalSecurityGroups']:
@@ -797,6 +815,194 @@ class CdkSlurmStack(Stack):
             else:
                 self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups'].append(res_home_mount_sg_id)
                 logger.info(f"Added slurm/InstanceConfig/AdditionalSecurityGroups={res_home_mount_sg_id}")
+
+    def update_config_for_exostellar(self):
+        '''
+        Update config with information from RES stacks
+
+        Add login node security groups.
+        Configure /home file system.
+        '''
+        logger.info(f"Updating configuration for Exostellar")
+        ems_stack_name = self.config['slurm']['Xio']['ManagementServerStackName']
+        logger.info(f"    stack: {ems_stack_name}")
+
+        # Get RES environment name from stack parameters.
+        cloudformation_client = boto3.client('cloudformation', region_name=self.config['Region'])
+        ems_stack_name_found = False
+        stack_statuses = {}
+        stack_dicts = {}
+        list_stacks_paginator = cloudformation_client.get_paginator('list_stacks')
+        list_stacks_kwargs = {
+            'StackStatusFilter': [
+                'CREATE_COMPLETE',
+                'ROLLBACK_COMPLETE',
+                'UPDATE_COMPLETE',
+                'UPDATE_ROLLBACK_COMPLETE',
+                'IMPORT_COMPLETE',
+                'IMPORT_ROLLBACK_COMPLETE'
+            ]
+        }
+        for list_stacks_response in list_stacks_paginator.paginate(**list_stacks_kwargs):
+            for stack_dict in list_stacks_response["StackSummaries"]:
+                stack_name = stack_dict['StackName']
+                if stack_name == ems_stack_name:
+                    ems_stack_name_found = True
+                    # Don't break here so get all of the stack names
+                stack_status = stack_dict['StackStatus']
+                stack_statuses[stack_name] = stack_status
+                stack_dicts[stack_name] = stack_dict
+        if not ems_stack_name_found:
+            message = f"CloudFormation EMS stack named {ems_stack_name} not found. Existing stacks:"
+            for stack_name in sorted(stack_statuses):
+                message += f"\n    {stack_name:32}: status={stack_statuses[stack_name]}"
+            logger.error(message)
+            exit(1)
+
+        # Get values from stack parameters
+        stack_parameters = cloudformation_client.describe_stacks(StackName=ems_stack_name)['Stacks'][0]['Parameters']
+        ems_vpc_id = None
+        ems_subnet_id = None
+        for stack_parameter_dict in stack_parameters:
+            if stack_parameter_dict['ParameterKey'] == 'VPCId':
+                ems_vpc_id = stack_parameter_dict['ParameterValue']
+            elif stack_parameter_dict['ParameterKey'] == 'SubnetId':
+                ems_subnet_id = stack_parameter_dict['ParameterValue']
+        if not ems_vpc_id:
+            logger.error(f"VPCId parameter not found in {ems_stack_name} EMS stack.")
+            exit(1)
+        if not ems_subnet_id:
+            logger.error(f"SubnetId parameter not found in {ems_stack_name} EMS stack.")
+            exit(1)
+        if self.config['VpcId'] != ems_vpc_id:
+            logger.error(f"Config file VpcId={self.config['VpcId']} is not the same as EMS {ems_stack_name} VPCId={ems_vpc_id}.")
+            exit(1)
+
+        # Get values from stack resources
+        exostellar_security_group = None
+        list_stack_resources_paginator = cloudformation_client.get_paginator('list_stack_resources')
+        for stack_resource_summaries in list_stack_resources_paginator.paginate(StackName=ems_stack_name):
+            for stack_resource_summary_dict in stack_resource_summaries['StackResourceSummaries']:
+                if stack_resource_summary_dict['LogicalResourceId'] == 'ExostellarSecurityGroup':
+                    exostellar_security_group = stack_resource_summary_dict['PhysicalResourceId']
+                if exostellar_security_group:
+                    break
+            if exostellar_security_group:
+                break
+        if not exostellar_security_group:
+            logger.error(f"ExostellarSecurityGroup resource not found in {ems_stack_name} EMS stack")
+            exit(1)
+        if 'ControllerSecurityGroupIds' not in self.config['slurm']['Xio']:
+            self.config['slurm']['Xio']['ControllerSecurityGroupIds'] = []
+        if 'WorkerSecurityGroupIds' not in self.config['slurm']['Xio']:
+            self.config['slurm']['Xio']['WorkerSecurityGroupIds'] = []
+        if exostellar_security_group not in self.config['slurm']['Xio']['ControllerSecurityGroupIds']:
+            self.config['slurm']['Xio']['ControllerSecurityGroupIds'].append(exostellar_security_group)
+        if exostellar_security_group not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
+            self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(exostellar_security_group)
+        if self.slurm_compute_node_sg_id:
+            if self.slurm_compute_node_sg_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
+                self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.slurm_compute_node_sg_id)
+        if self.res_dcv_security_group_id:
+            if self.res_dcv_security_group_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
+                self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.res_dcv_security_group_id)
+
+        # Get values from stack outputs
+        ems_ip_address = None
+        stack_output_dicts = cloudformation_client.describe_stacks(StackName=ems_stack_name)['Stacks'][0]['Outputs']
+        for stack_output_dict in stack_output_dicts:
+            if stack_output_dict['OutputKey'] == '2ExostellarMgmtServerPrivateIP':
+                ems_ip_address = stack_output_dict['OutputValue']
+        if not ems_ip_address:
+            logger.error(f"2ExostellarMgmtServerPrivateIP output not found in {ems_stack_name} EMS stack.")
+            exit(1)
+        self.config['slurm']['Xio']['ManagementServerIp'] = ems_ip_address
+
+        # Check that all of the profiles used by the pools are defined
+        WEIGHT_PER_CORE = {
+            'amd':   45,
+            'intel': 78
+        }
+        WEIGHT_PER_GB = {
+            'amd':   3,
+            'intel': 3
+        }
+        number_of_errors = 0
+        xio_profile_configs = {}
+        self.instance_type_info = self.plugin.get_instance_types_info(self.cluster_region)
+        self.instance_family_info = self.plugin.get_instance_families_info(self.cluster_region)
+        for profile_config in self.config['slurm']['Xio']['Profiles']:
+            profile_name = profile_config['ProfileName']
+            if profile_name in xio_profile_configs:
+                logger.error(f"{profile_config['ProfileNmae']} XIO profile already defined")
+                number_of_errors += 1
+                continue
+            xio_profile_configs[profile_name] = profile_config
+            # Check that all instance types and families are from the correct CPU vendor
+            profile_cpu_vendor = profile_config['CpuVendor']
+            for instance_type_or_family_with_weight in profile_config['InstanceTypes']:
+                (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
+                if not instance_type or not instance_family:
+                    logger.error(f"XIO InstanceType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                    number_of_errors += 1
+                    continue
+                instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
+                if instance_type_cpu_vendor != profile_cpu_vendor:
+                    logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
+                    number_of_errors += 1
+
+            for instance_type_or_family_with_weight in profile_config['SpotFleetTypes']:
+                (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
+                if not instance_type or not instance_family:
+                    logger.error(f"Xio SpotFleetType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                    number_of_errors += 1
+                    continue
+                # Check that spot pricing is available for spot pools.
+                price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot'].get('max', None)
+                if not price:
+                    logger.error(f"Xio SpotFleetType {instance_type_or_family_with_weight} does not have spot pricing")
+                    number_of_errors += 1
+                instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
+                if instance_type_cpu_vendor != profile_cpu_vendor:
+                    logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
+                    number_of_errors += 1
+        xio_pool_names = {}
+        for pool_config in self.config['slurm']['Xio']['Pools']:
+            pool_name = pool_config['PoolName']
+            if pool_name in xio_pool_names:
+                logger.error(f"{pool_name} Xio pool already defined")
+                number_of_errors += 1
+                continue
+            profile_name = pool_config['ProfileName']
+            if profile_name not in xio_profile_configs:
+                logger.error(f"Xio pool {pool_name} using undefined profile: {pool_config['ProfileName']}")
+                number_of_errors += 1
+                continue
+            if 'ImageName' not in pool_config:
+                if 'DefaultImageName' not in self.config['slurm']['Xio']:
+                    logger.error(f"Xio pool {pool_name} didn't specify ImageName and Xio DefaultImageName not set.")
+                    number_of_errors += 1
+                else:
+                    pool_config['ImageName'] = self.config['slurm']['Xio']['DefaultImageName']
+            if 'Weight' not in pool_config:
+                profile_config = xio_profile_configs[profile_name]
+                cpu_vendor = profile_config['CpuVendor']
+                pool_config['Weight'] = pool_config['CPUs'] * WEIGHT_PER_CORE[cpu_vendor] + int(pool_config['MaxMemory']/1024 * WEIGHT_PER_GB[cpu_vendor])
+
+        if number_of_errors:
+            exit(1)
+
+    def get_instance_type_and_family_from_xio_config(self, instance_type_or_family_with_weight):
+        instance_type_or_family = instance_type_or_family_with_weight.split(':')[0]
+        if instance_type_or_family in self.instance_family_info:
+            instance_family = instance_type_or_family
+            instance_type = self.plugin.get_max_instance_type(self.cluster_region, instance_family)
+        elif instance_type_or_family in self.instance_type_info:
+            instance_type = instance_type_or_family
+            instance_family = self.plugin.get_instance_family(instance_type)
+        else:
+            return None, None
+        return instance_type, instance_family
 
     def create_parallel_cluster_assets(self):
         # Create a secure hash of all of the assets so that changes can be easily detected to trigger cluster updates.
@@ -981,6 +1187,7 @@ class CdkSlurmStack(Stack):
             'config/bin/on_compute_node_configured.sh',
             'config/bin/submitter_configure.sh',
             'config/bin/submitter_deconfigure.sh',
+            'config/bin/xio-compute-node-ami-configure.sh',
             'config/users_groups.json',
         ]
         self.custom_action_s3_urls = {}
@@ -1156,11 +1363,6 @@ class CdkSlurmStack(Stack):
         '''
         Do this after the VPC object has been created so that we can choose a default SubnetId.
         '''
-        self.eC2InstanceTypeInfo = self.get_ec2InstanceTypeInfo()
-
-        self.plugin = SlurmPlugin(slurm_config_file=None, region=self.cluster_region)
-        self.plugin.instance_type_and_family_info = self.eC2InstanceTypeInfo.instance_type_and_family_info
-
         logger.debug(f"Getting instance types from config")
         self.region_instance_types = self.plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], [self.cluster_region], self.eC2InstanceTypeInfo)
         self.instance_types = []
@@ -1175,6 +1377,7 @@ class CdkSlurmStack(Stack):
 
         # Filter the instance types by architecture due to PC limitation to 1 architecture
         # Also require at least 2 GB of memory.
+        # Also filter by the CPU vendor from the config
         cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
         logger.info(f"ParallelCluster Architecture: {cluster_architecture}")
         filtered_instance_types = []
@@ -1186,6 +1389,10 @@ class CdkSlurmStack(Stack):
             mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
             if mem_gb < 2:
                 logger.warning(f"Excluding {instance_type} because has less than 2 GiB of memory.")
+                continue
+            cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
+            if cpu_vendor not in self.config['slurm']['InstanceConfig']['CpuVendor']:
+                logger.warning(f"Excluding {instance_type} because CPU vendor {cpu_vendor} not in {self.config['slurm']['InstanceConfig']['CpuVendor']}")
                 continue
             filtered_instance_types.append(instance_type)
         self.instance_types = filtered_instance_types
@@ -2005,6 +2212,7 @@ class CdkSlurmStack(Stack):
             instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
             instance_template_vars['parallel_cluster_python_version'] = get_PARALLEL_CLUSTER_PYTHON_VERSION(self.config)
             instance_template_vars['primary_controller'] = True
+            instance_template_vars['slurm_uid'] = self.config['slurm']['SlurmUid']
             instance_template_vars['slurmctld_port'] = self.slurmctld_port
             instance_template_vars['slurmctld_port_min'] = self.slurmctld_port_min
             instance_template_vars['slurmctld_port_max'] = self.slurmctld_port_max
@@ -2014,6 +2222,13 @@ class CdkSlurmStack(Stack):
             instance_template_vars['slurmrestd_socket_dir'] = '/opt/slurm/com'
             instance_template_vars['slurmrestd_socket'] = f"{instance_template_vars['slurmrestd_socket_dir']}/slurmrestd.socket"
             instance_template_vars['slurmrestd_uid'] = self.config['slurm']['SlurmCtl']['SlurmrestdUid']
+            if 'Xio' in self.config['slurm']:
+                instance_template_vars['xio_mgt_ip'] = self.config['slurm']['Xio']['ManagementServerIp']
+                instance_template_vars['xio_availability_zone'] = self.config['slurm']['Xio']['AvailabilityZone']
+                instance_template_vars['xio_controller_security_group_ids'] = self.config['slurm']['Xio']['ControllerSecurityGroupIds']
+                instance_template_vars['subnet_id'] = self.config['SubnetId']
+                instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['WorkerSecurityGroupIds']
+                instance_template_vars['xio_config'] = self.config['slurm']['Xio']
         elif instance_role == 'ParallelClusterSubmitter':
             instance_template_vars['slurm_version']                  = get_SLURM_VERSION(self.config)
             instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)

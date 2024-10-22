@@ -1,0 +1,179 @@
+---
+# tasks file for Exostellar Infrastructure Optimizer
+
+- name: Show variables used by this role
+  debug:
+    msg: |
+      ansible_architecture:       {{ ansible_architecture }}
+      architecture:               {{ architecture }}
+      distribution:               {{ distribution }}
+      distribution_major_version: {{ distribution_major_version }}
+      distribution_version:       {{ distribution_version }}
+
+      amazonlinux2:   {{ amazonlinux2 }}
+      alma:           {{ alma }}
+      alma8:          {{ alma8 }}
+      centos:         {{ centos }}
+      centos7:        {{ centos7 }}
+      rhel:           {{ rhel }}
+      rhel7:          {{ rhel7 }}
+      rhel8:          {{ rhel8 }}
+      rhel9:          {{ rhel9 }}
+      rocky:          {{ rocky }}
+      rocky8:         {{ rocky8 }}
+      rocky9:         {{ rocky9 }}
+      rhelclone:      {{ rhelclone }}
+      rhel8clone:     {{ rhel8clone }}
+      rhel9clone:     {{ rhel9clone }}
+      centos7_5_to_6: {{ centos7_5_to_6 }}
+      centos7_5_to_9: {{ centos7_5_to_9 }}
+      centos7_7_to_9: {{ centos7_7_to_9 }}
+
+      cluster_name:   {{ cluster_name }}
+
+      xio_config:                        {{ xio_config }}
+      xio_mgt_ip:                        {{ xio_mgt_ip }}
+      xio_availability_zone:             {{ xio_availability_zone }}
+      xio_controller_security_group_ids: {{ xio_controller_security_group_ids }}
+      subnet_id:                         {{ subnet_id }}
+
+- name: Set exostellar_dir
+  set_fact:
+    exostellar_dir: "/opt/slurm/{{ cluster_name }}/etc/exostellar"
+
+- name: Install exostellar packages
+  yum:
+    state: present
+    name:
+      - curl
+      - jq
+
+- name: Create {{ exostellar_dir }}
+  file:
+    path: "{{ exostellar_dir }}"
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: 0775
+
+- name: Fix permissions on /var/log/slurm so slurm user can write to it
+  file:
+    path: "/var/log/slurm"
+    state: directory
+    owner: slurm
+    group: slurm
+    mode: '0755'
+
+- name: Create {{ exostellar_dir }}/parse_helper.sh
+  template:
+    dest: "{{ exostellar_dir }}/parse_helper.sh"
+    src: opt/slurm/etc/exostellar/parse_helper.sh
+    owner: slurm
+    group: slurm
+    mode: '0755'
+    force: yes
+
+- name: Create {{ exostellar_dir }}/resume_xspot.sh
+  template:
+    dest: "{{ exostellar_dir }}/resume_xspot.sh"
+    src: opt/slurm/etc/exostellar/resume_xspot.sh
+    owner: slurm
+    group: slurm
+    mode: '0755'
+    force: yes
+
+- name: Create {{ exostellar_dir }}/suspend_xspot.sh
+  template:
+    dest: "{{ exostellar_dir }}/suspend_xspot.sh"
+    src: opt/slurm/etc/exostellar/suspend_xspot.sh
+    owner: slurm
+    group: slurm
+    mode: '0755'
+    force: yes
+
+- name: Create {{ exostellar_dir }}/test_createVm.sh
+  template:
+    dest: "{{ exostellar_dir }}/test_createVm.sh"
+    src: opt/slurm/etc/exostellar/test_createVm.sh
+    owner: slurm
+    group: slurm
+    mode: '0755'
+    force: yes
+
+- name: Create {{ exostellar_dir }}/xspot-vm_custom_user_data.sh
+  template:
+    dest: "{{ exostellar_dir }}/xspot-vm_custom_user_data.sh"
+    src: opt/slurm/etc/exostellar/xspot-vm_custom_user_data.sh
+    owner: slurm
+    group: slurm
+    mode: '0755'
+    force: no
+
+- name: Create {{ exostellar_dir }}/xspot-vm_user_data.sh
+  template:
+    dest: "{{ exostellar_dir }}/xspot-vm_user_data.sh"
+    src: opt/slurm/etc/exostellar/xspot-vm_user_data.sh
+    owner: slurm
+    group: slurm
+    mode: '0755'
+    force: yes
+
+- name: Create {{ exostellar_dir }}/configure_xio.py
+  copy:
+    dest: "{{ exostellar_dir }}/configure_xio.py"
+    src: opt/slurm/etc/exostellar/configure_xio.py
+    owner: slurm
+    group: slurm
+    mode: '0755'
+    force: yes
+
+- name: Patch APC prolog script
+  ansible.builtin.blockinfile:
+    path: /opt/slurm/etc/scripts/prolog.d/90_pcluster_health_check_manager
+    insertafter: 'PCLUSTER_DNA_JSON_PATH="/etc/chef/dna.json"'
+    block: |
+      if ! [[ -e $PCLUSTER_COOKBOOK_VIRTUALENV_PATH ]]; then
+          log_info "Not a ParallelCluster job"
+          exit 0
+      fi
+    backup: false
+
+- name: Configure XIO
+  shell:
+    cmd: |
+      set -ex
+
+      {{ exostellar_dir }}/configure_xio.py
+
+- name: Create {{ exostellar_dir }}/xspot.slurm.conf
+  template:
+    dest: "{{ exostellar_dir }}/xspot.slurm.conf"
+    src: opt/slurm/etc/exostellar/xspot.slurm.conf
+    owner: slurm
+    group: slurm
+    mode: '0644'
+    force: yes
+  register: xspot_slurm_config
+
+- name: Include xspot.slurm.conf in slurm.conf
+  shell:
+    cmd: |
+      set -ex
+
+      cd /opt/slurm/{{ cluster_name }}/etc
+
+      if grep -q 'xspot.slurm.conf' slurm.conf; then
+          exit 0
+      fi
+
+      echo "include exostellar/xspot.slurm.conf" >> slurm.conf
+
+      systemctl restart slurmctld
+      /opt/slurm/bin/scontrol reconfig
+
+- name: Restart slurmctld
+  when: xspot_slurm_config.changed
+  service:
+    name: slurmctld
+    enabled: yes
+    state: restarted

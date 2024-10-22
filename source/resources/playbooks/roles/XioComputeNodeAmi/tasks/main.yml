@@ -1,0 +1,251 @@
+---
+
+- name: Show vars used in this playbook
+  debug:
+    msg: |
+      cluster_name:                   {{ cluster_name }}
+      distribution:                   {{ distribution }}
+      parallel_cluster_munge_version: {{ parallel_cluster_munge_version }}
+      region:                         {{ region }}
+      slurm_base_dir:                 {{ slurm_base_dir }}
+      slurm_config_dir:               {{ slurm_config_dir }}
+      slurm_uid:                      {{ slurm_uid }}
+
+- name: Add /opt/slurm to /etc/fstab
+  mount:
+    path: /opt/slurm
+    src: "head_node.{{ cluster_name }}.pcluster:/opt/slurm"
+    fstype: nfs
+    backup: true
+    state: present # Should already be mounted
+
+- name: Install epel from amazon-linux-extras
+  when: ansible_facts['distribution'] == 'Amazon'
+  shell:
+    cmd: |
+      set -ex
+      amazon-linux-extras install -y epel
+    creates: /etc/yum.repos.d/epel.repo
+
+- name: Install epel from yum
+  when: ansible_facts['distribution'] == 'CentOS'
+  yum:
+    state: present
+    name:
+      - epel-release
+
+- name: Enable codeready-builder-for-rhel-8-rhui-rpms repo
+  when: rhel8
+  shell:
+    cmd: |
+      yum-config-manager --enable codeready-builder-for-rhel-8-rhui-rpms
+
+- name: Enable codeready-builder-for-rhel-9-rhui-rpms repo
+  when: rhel9
+  shell:
+    cmd: |
+      yum-config-manager --enable codeready-builder-for-rhel-9-rhui-rpms
+
+- name: Install epel from rpm
+  when: rhel8 or rhel9
+  shell:
+    cmd: |
+      yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+
+- name: Enable PowerTools repo
+  when: rhel8clone or rhel9clone
+  shell:
+    cmd: yum-config-manager --enable PowerTools || yum-config-manager --enable powertools
+
+- name: Enable rhel-7-server-rhui-optional-rpms
+  when: rhel7
+  shell:
+    cmd: |
+      set -ex
+      yum-config-manager --enable rhel-7-server-rhui-optional-rpms
+      yum-config-manager --enable rhui-REGION-rhel-server-optional
+
+- name: Install slurm packages
+  yum:
+    state: present
+    name:
+      - autoconf # To build libjwt
+      - automake # To build libjwt
+      - bzip2
+      - crudini
+      - emacs
+      - freeipmi-devel
+      - fwknop
+      - gcc
+      - git # To build libjwt
+      - gtk2-devel
+      - http-parser-devel
+      - hwloc-devel
+      - jansson-devel # To build libjwt
+      - json-c-devel
+      - libcurl-devel
+      - libtool # To build libjwt
+      - libyaml-devel
+      - lua-devel
+      - lz4-devel
+      - mailx
+      - make
+      - man2html
+      # munge is built from ParallelCluster version
+      # - munge
+      # - munge-devel
+      # - munge-libs
+      - mysql-devel
+      - numactl-devel
+      - openmpi
+      - openssl-devel # To build libjwt
+      - pam-devel
+      - perl-devel
+      - pmix-devel
+      - python3
+      - readline-devel
+      - rng-tools
+      - rrdtool-devel
+      - wget
+
+- name: Install slurm_submitter packages
+  yum:
+    state: present
+    name:
+      - environment-modules
+      - python3
+      - wget
+      - xz
+
+- name: Remove yum munge package
+  yum:
+    state: absent
+    name:
+      - munge
+
+- name: Create munge user
+  user:
+    name: munge
+    system: yes
+    state: present
+    create_home: no
+
+- name: Get current munge version
+  register: munged_version_output
+  shell: |
+    if ! [ -e /usr/sbin/munged ]; then
+        echo "NONE"
+        exit 0
+    fi
+    /usr/sbin/munged -V | awk '{print $1}'
+
+- set_fact:
+    act_munged_version: "{{ munged_version_output.stdout }}"
+    exp_munged_version: "munge-{{ parallel_cluster_munge_version }}"
+
+- name: Show munged_version
+  debug:
+    msg: |
+      act_munged_version: "{{ act_munged_version }}"
+      exp_munged_version: "{{ exp_munged_version }}"
+
+- name: Build munge version used by ParallelCluster ({{ parallel_cluster_munge_version }})
+  when: act_munged_version != exp_munged_version
+  shell: |
+    set -ex
+
+    cd /usr/local/src
+    mkdir -p munge
+    cd munge
+    rm -f munge-{{ parallel_cluster_munge_version }}.tar.xz
+    rm -f munge-{{ parallel_cluster_munge_version }}.tar
+    rm -rf munge-{{ parallel_cluster_munge_version }}
+    wget https://github.com/dun/munge/releases/download/munge-{{ parallel_cluster_munge_version }}/munge-{{ parallel_cluster_munge_version }}.tar.xz
+    xz -d munge-{{ parallel_cluster_munge_version }}.tar.xz
+    tar -xf munge-{{ parallel_cluster_munge_version }}.tar
+    rm -f munge-{{ parallel_cluster_munge_version }}.tar
+    cd munge-{{ parallel_cluster_munge_version }}
+    ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libdir=/usr/lib64 &> configure.log
+    make
+    make install &> make_install.log
+  register: build_munge
+
+- name: Create /var/log/munge
+  file:
+    path: /var/log/munge
+    owner: munge
+    group: munge
+    mode: 0700
+    state: directory
+
+- name: Create /etc/munge with correct permissions
+  file:
+    path: /etc/munge
+    owner: munge
+    group: munge
+    mode: 0700
+    state: directory
+
+- name: Copy {{ slurm_config_dir }}/munge.key to /etc/munge/munge.key
+  copy:
+    dest: /etc/munge/munge.key
+    src: "{{ slurm_config_dir }}/munge.key"
+    remote_src: true
+    force: true   # Has to be true or won't be copied when they are different.
+    backup: true
+    owner: munge
+    group: munge
+    mode: 0400
+  register: munge_key
+
+- name: Start munge
+  when: build_munge.changed or munge_key.changed
+  service:
+    name: munge
+    enabled: yes
+    state: restarted
+
+- name: Create slurm user
+  user:
+    name: slurm
+    system: yes
+    state: present
+    create_home: no
+    uid: "{{ slurm_uid }}"
+
+- name: Create /etc/profile.d/slurm.sh
+  template:
+    dest: /etc/profile.d/slurm.sh
+    src:   etc/profile.d/slurm.sh
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+
+- name: Create /etc/profile.d/slurm.csh
+  template:
+    dest: /etc/profile.d/slurm.csh
+    src:   etc/profile.d/slurm.csh
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+
+- name: Create slurmd service file
+  template:
+    dest: /etc/systemd/system/slurmd.service
+    src:   etc/systemd/system/slurmd.service
+    owner: root
+    group: root
+    mode: 0644
+    force: yes
+
+- name: Allow nfs home dirs
+  ansible.posix.seboolean:
+    name: use_nfs_home_dirs
+    state: true
+    persistent: true
+
+- name: Disable selinux
+  ansible.posix.selinux:
+    state: disabled
