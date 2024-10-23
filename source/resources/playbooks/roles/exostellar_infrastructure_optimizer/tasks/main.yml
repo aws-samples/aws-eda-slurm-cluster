@@ -143,6 +143,8 @@
     cmd: |
       set -ex
 
+      yum -y install python3.11-pip
+      python3.11 -m pip install requests PyYaml
       {{ exostellar_dir }}/configure_xio.py
 
 - name: Create {{ exostellar_dir }}/xspot.slurm.conf

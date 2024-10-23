@@ -903,9 +903,10 @@ class CdkSlurmStack(Stack):
         if self.slurm_compute_node_sg_id:
             if self.slurm_compute_node_sg_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
                 self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.slurm_compute_node_sg_id)
-        if self.res_dcv_security_group_id:
-            if self.res_dcv_security_group_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
-                self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.res_dcv_security_group_id)
+        if 'RESStackName' in self.config:
+            if self.res_dcv_security_group_id:
+                if self.res_dcv_security_group_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
+                    self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.res_dcv_security_group_id)
 
         # Get values from stack outputs
         ems_ip_address = None
@@ -1376,8 +1377,9 @@ class CdkSlurmStack(Stack):
         self.instance_types = sorted(self.instance_types)
 
         # Filter the instance types by architecture due to PC limitation to 1 architecture
-        # Also require at least 2 GB of memory.
+        # Also require at least 4 GB of memory.
         # Also filter by the CPU vendor from the config
+        MIN_COMPUTE_NODE_GB = 4
         cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
         logger.info(f"ParallelCluster Architecture: {cluster_architecture}")
         filtered_instance_types = []
@@ -1387,7 +1389,7 @@ class CdkSlurmStack(Stack):
                 logger.warning(f"Excluding {instance_type} because architecture ({instance_architecture}) != {cluster_architecture}")
                 continue
             mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
-            if mem_gb < 2:
+            if mem_gb < MIN_COMPUTE_NODE_GB:
                 logger.warning(f"Excluding {instance_type} because has less than 2 GiB of memory.")
                 continue
             cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
@@ -1425,9 +1427,7 @@ class CdkSlurmStack(Stack):
                 aws_lambda.Architecture.X86_64,
             ],
             compatible_runtimes = [
-                aws_lambda.Runtime.PYTHON_3_9,
-                # aws_lambda.Runtime.PYTHON_3_10, # Doesn't work: No module named 'rpds.rpds'
-                # aws_lambda.Runtime.PYTHON_3_11, # Doesn't work: No module named 'rpds.rpds'
+                aws_lambda.Runtime.PYTHON_3_12,
             ],
         )
 
@@ -1437,7 +1437,7 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-CreateBuildFiles",
             description="Create ParallelCluster build configuration files",
             memory_size=2048,
-            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            runtime=aws_lambda.Runtime.PYTHON_3_12,
             architecture=aws_lambda.Architecture.X86_64,
             timeout=Duration.minutes(2),
             log_retention=logs.RetentionDays.INFINITE,
@@ -1499,7 +1499,7 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-CreateParallelClusterConfig",
             description="Create ParallelCluster config",
             memory_size=2048,
-            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            runtime=aws_lambda.Runtime.PYTHON_3_12,
             architecture=aws_lambda.Architecture.X86_64,
             timeout=Duration.minutes(15),
             log_retention=logs.RetentionDays.INFINITE,
@@ -1547,7 +1547,7 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-CreateParallelCluster",
             description="Create ParallelCluster",
             memory_size=2048,
-            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            runtime=aws_lambda.Runtime.PYTHON_3_12,
             architecture=aws_lambda.Architecture.X86_64,
             timeout=Duration.minutes(15),
             log_retention=logs.RetentionDays.INFINITE,
@@ -1846,7 +1846,7 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-CreateHeadNodeARecord",
             description="Create head node A record",
             memory_size=2048,
-            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            runtime=aws_lambda.Runtime.PYTHON_3_12,
             architecture=aws_lambda.Architecture.X86_64,
             timeout=Duration.minutes(15),
             log_retention=logs.RetentionDays.INFINITE,
@@ -1893,7 +1893,7 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-UpdateHeadNode",
             description="Update head node",
             memory_size=2048,
-            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            runtime=aws_lambda.Runtime.PYTHON_3_12,
             architecture=aws_lambda.Architecture.X86_64,
             timeout=Duration.minutes(15),
             log_retention=logs.RetentionDays.INFINITE,
@@ -1935,7 +1935,7 @@ class CdkSlurmStack(Stack):
                 function_name=f"{self.stack_name}-ConfigUsersGroupsJson",
                 description="Configure users and groups json file",
                 memory_size=2048,
-                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                runtime=aws_lambda.Runtime.PYTHON_3_12,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
@@ -1983,7 +1983,7 @@ class CdkSlurmStack(Stack):
                 function_name=f"{self.stack_name}-ConfigExternalLoginNodes",
                 description="Configure external login nodes",
                 memory_size=2048,
-                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                runtime=aws_lambda.Runtime.PYTHON_3_12,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
@@ -2030,7 +2030,7 @@ class CdkSlurmStack(Stack):
                 function_name=f"{self.stack_name}-DeconfigUsersGroupsJson",
                 description="Deconfigure RES users and groups json file",
                 memory_size=2048,
-                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                runtime=aws_lambda.Runtime.PYTHON_3_12,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
@@ -2072,7 +2072,7 @@ class CdkSlurmStack(Stack):
                 function_name=f"{self.stack_name}-DeconfigExternalLoginNodes",
                 description="Deconfigure external login nodes",
                 memory_size=2048,
-                runtime=aws_lambda.Runtime.PYTHON_3_9,
+                runtime=aws_lambda.Runtime.PYTHON_3_12,
                 architecture=aws_lambda.Architecture.X86_64,
                 timeout=Duration.minutes(15),
                 log_retention=logs.RetentionDays.INFINITE,
@@ -2114,7 +2114,7 @@ class CdkSlurmStack(Stack):
             function_name=f"{self.stack_name}-CallSlurmRestApiLambda",
             description="Example showing how to call Slurm REST API",
             memory_size=128,
-            runtime=aws_lambda.Runtime.PYTHON_3_9,
+            runtime=aws_lambda.Runtime.PYTHON_3_12,
             architecture=aws_lambda.Architecture.ARM_64,
             timeout=Duration.minutes(1),
             log_retention=logs.RetentionDays.INFINITE,
