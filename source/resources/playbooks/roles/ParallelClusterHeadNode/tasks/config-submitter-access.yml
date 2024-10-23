@@ -35,12 +35,14 @@
     cmd: |
       set -ex
 
-      conf_files=$(find /opt/slurm -name '*.conf')
+      conf_files=$(find /opt/slurm/etc -name '*.conf')
       backup_suffix=".$(date '+%Y-%m-%dT%H:%M:%S')~"
       num_changed=0
       for conf_file in ${conf_files[*]}; do
-          sed --in-place=$backup_suffix 's%/opt/slurm/etc%/opt/slurm/{{ cluster_name }}/etc%' $conf_file
-          sed --in-place=$backup_suffix 's%/opt/slurm/lib%/opt/slurm/{{ cluster_name }}/lib%' $conf_file
+          sed --in-place=$backup_suffix \
+              -e 's%/opt/slurm/etc%/opt/slurm/{{ cluster_name }}/etc%' \
+              -e 's%/opt/slurm/lib%/opt/slurm/{{ cluster_name }}/lib%' \
+              $conf_file
 
           backup_conf_file="${conf_file}${backup_suffix}"
           if diff -q $backup_conf_file $conf_file; then
@@ -56,6 +58,12 @@
       else
           echo "No conf files changed."
       fi
+  register: change_slurm_conf_result
+
+- name: Show change_slurm_conf_result
+  debug:
+    msg: |
+      {{ change_slurm_conf_result }}
 
 - name: Fix permissions on config dir so users can access it to get the modulefiles
   file:

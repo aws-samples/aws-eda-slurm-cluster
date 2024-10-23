@@ -139,6 +139,10 @@ def lambda_handler(event, context):
             else:
                 raise KeyError(error_message)
 
+        if requestType == 'Delete':
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, physicalResourceId=cluster_name)
+            return
+
         ami_builds = json.loads(environ['AmiBuildsJson'])
         assets_bucket = environ['AssetsBucket']
         assets_base_key = environ['AssetsBaseKey']
