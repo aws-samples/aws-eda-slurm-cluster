@@ -8,12 +8,16 @@ Metadata:
         Parameters:
           - EnvironmentName
           - AdministratorEmail
+          # change
+          - KeycloakInstanceType
+          # endchange
       - Label:
           default: Access Management
         Parameters:
           - Keypair
           - ClientIpCidr
           - InboundPrefixList
+        # change
       - Label:
           default: AD user and group configuration
         Parameters:
@@ -28,6 +32,7 @@ Metadata:
           - VpcCidrPrivateSubnetA
           - VpcCidrPrivateSubnetB
           - VpcCidrPrivateSubnetC
+        # endchange
 
 Parameters:
 
@@ -40,8 +45,10 @@ Parameters:
     Description: Provide name of the RES Environment. Must be unique for your account and AWS Region.
     Type: String
     Default: res-demo
+    # change
     MinLength: 5
     MaxLength: 11
+    # endchange
     AllowedPattern: ^res-[A-Za-z\-\_0-9]{0,7}$
     ConstraintDescription: EnvironmentName must start with "res-" and should be less than or equal to 11 characters.
 
@@ -49,9 +56,14 @@ Parameters:
     Type: String
     AllowedPattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
 
+  # change
+  KeycloakInstanceType:
+    Type: String
+    Default: m7a.medium
+  # endchange
+
   ClientIpCidr:
     Description: Default IP(s) allowed to directly access the Web UI, SSH into the bastion host, and access the Windows AD admin host. We recommend that you restrict it with your own IP/subnet (x.x.x.x/32 for your own ip or x.x.x.x/24 for range. Replace x.x.x.x with your own PUBLIC IP. You can get your public IP using tools such as https://ifconfig.co/)
-    Default: 0.0.0.0/0
     Type: String
     AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
     ConstraintDescription: Value must be a valid IP or network range of the form x.x.x.x/x.
@@ -63,6 +75,7 @@ Parameters:
     AllowedPattern: ^(pl-[a-z0-9]{8,20})?$
     ConstraintDescription: Must be a valid VPC Prefix List ID, which begins with `pl-` or be empty.
 
+  # change
   LDIFS3Path:
     Description: An S3 Path (without the s3://) to an LDIF file that will be used during stack creation.
     Type: String
@@ -109,6 +122,7 @@ Parameters:
     Default: 10.3.160.0/20
     Description: VPC CIDR Block for the Private Subnet C
     Type: String
+  # endchange
 
 Conditions:
   UseEnvironmentName: !Not [!Equals [!Ref EnvironmentName, ""]]
@@ -149,6 +163,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+        # change
         LDIFS3Path : !Ref LDIFS3Path
         VpcCidrBlock: !Ref VpcCidrBlock
         VpcCidrPublicSubnetA: !Ref VpcCidrPublicSubnetA
@@ -157,6 +172,7 @@ Resources:
         VpcCidrPrivateSubnetA: !Ref VpcCidrPrivateSubnetA
         VpcCidrPrivateSubnetB: !Ref VpcCidrPrivateSubnetB
         VpcCidrPrivateSubnetC: !Ref VpcCidrPrivateSubnetC
+        # endchange
         PortalDomainName: ""
         Keypair: !Ref Keypair
         EnvironmentName: !If [UseEnvironmentName, !Ref EnvironmentName, ""]
@@ -165,8 +181,10 @@ Resources:
         ClientIpCidr: !Ref ClientIpCidr
         ClientPrefixList: !Ref InboundPrefixList
         RetainStorageResources: "False"
+      # change
       #TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/bi.yaml
       TemplateURL: https://{{TemplateBucket}}.s3.amazonaws.com/{{TemplateBaseKey}}/bi.yaml
+      # endchange
 
   RES:
     Type: AWS::CloudFormation::Stack
@@ -194,11 +212,9 @@ Resources:
         LDAPBase: !GetAtt [ RESExternal, Outputs.LDAPBase ]
         LDAPConnectionURI: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
         SudoersGroupName: RESAdministrators
-        ServiceAccountUsername: !GetAtt [ RESExternal, Outputs.ServiceAccountUsername ]
-        ServiceAccountPasswordSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountPasswordSecretArn ]
+        ServiceAccountCredentialsSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
         UsersOU: !GetAtt [ RESExternal, Outputs.UsersOU ]
         GroupsOU: !GetAtt [ RESExternal, Outputs.GroupsOU ]
-        SudoersOU: !GetAtt [ RESExternal, Outputs.SudoersOU ]
         ComputersOU: !GetAtt [ RESExternal, Outputs.ComputersOU ]
         SharedHomeFileSystemId: !GetAtt [ RESExternal, Outputs.SharedHomeFilesystemId ]
         InfrastructureHostAMI: ""
@@ -213,15 +229,21 @@ Resources:
     DependsOn: RES
     Properties:
       Parameters:
+        # change
+        InstanceType: !Ref KeycloakInstanceType
+        # endchange
         EnvironmentName: !Ref EnvironmentName
         Keypair: !Ref Keypair
-        ServiceAccountPasswordSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountPasswordSecretArn ]
+        ServiceAccountCredentialsSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
         VpcId: !GetAtt [ RESExternal, Outputs.VpcId ]
         PublicSubnet: !Select [0, !Split [",", !GetAtt RESExternal.Outputs.PublicSubnets]]
         ServiceAccountUserDN: !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ]
         UsersDN: !GetAtt [ RESExternal, Outputs.LDAPBase ]
         LDAPConnectionURI: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
-      TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/res-sso-keycloak.yaml
+      # change
+      #TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/res-sso-keycloak.yaml
+      TemplateURL: https://{{TemplateBucket}}.s3.amazonaws.com/{{TemplateBaseKey}}/res-sso-keycloak.yaml
+      # endchange
 
   InvokeDeleteSharedStorageSecurityGroupRole:
     Type: 'AWS::IAM::Role'
@@ -310,6 +332,139 @@ Resources:
     Type: Custom::DeleteSharedStorageSecurityGroup
     Properties:
       ServiceToken: !GetAtt InvokeDeleteSharedSecurityGroupHandlerFunction.Arn
+
+  # change
+  RESPostDeploymentConfigurationFunctionRole:
+  # endchange
+    Type: 'AWS::IAM::Role'
+    DependsOn: RES
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: LogOutput
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+        - PolicyName: DynamoDBReadWritePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource:
+                    - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}.cluster-settings
+                    - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}.cluster-settings/stream/*
+                Condition:
+                  ForAllValues:StringLike:
+                    dynamodb:LeadingKeys:
+                      - shared-storage.*
+
+  # change
+  RESPostDeploymentConfigurationFunction:
+  # endchange
+      Type: 'AWS::Lambda::Function'
+      DependsOn:
+      - RES
+      # change
+      - RESPostDeploymentConfigurationFunctionRole
+      # endchange
+      Properties:
+        Description: 'Post configuration of RES for demo purposes'
+        # change
+        FunctionName: !Sub ${EnvironmentName}-RESPostDeploymentConfigurationFunction-${AWS::StackName}
+        # endchange
+        Timeout: 60
+        # change
+        Role: !GetAtt RESPostDeploymentConfigurationFunctionRole.Arn
+        # endchange
+        Handler: index.handler
+        Runtime: python3.11
+        Code:
+          ZipFile: |
+            import boto3
+            import os
+            import logging
+            import cfnresponse
+
+            logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
+
+            def handler(event, context):
+              logger.info(f"Received event: {event}")
+              response = {}
+
+              if event["RequestType"] == "Create":
+                try:
+                  dynamodb = boto3.resource('dynamodb')
+                  cluster_settings_table = dynamodb.Table(f"{os.environ['ENVIRONMENT_NAME']}.cluster-settings")
+
+                  demo_config = {
+                    'shared-storage.enable_file_browser': True
+                  }
+
+                  for key, value in demo_config.items():
+                    item_response = cluster_settings_table.get_item(
+                        Key={
+                            'key': key
+                        }
+                    )
+
+                    if 'Item' in item_response:
+                        logger.info(f"Item found: {item_response['Item']}")
+
+                        # Update the item
+                        update_response = cluster_settings_table.update_item(
+                            Key={
+                                'key': key
+                            },
+                            UpdateExpression="SET #val = :val",
+                            ExpressionAttributeNames={
+                                '#val': 'value'
+                            },
+                            ExpressionAttributeValues={
+                                ':val': value
+                            },
+                            ReturnValues="UPDATED_NEW"
+                        )
+
+                        logger.info(f"Item updated: {update_response['Attributes']}")
+                    else:
+                        logger.info(f"Item with key '{key}' not found")
+
+                  response['Output'] = 'RES demo environment has been pre-configured.'
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+                except Exception as e:
+                  logger.error(f"Error: Unable to pre-configure RES demo environment: {e}")
+                  response['Output'] = f"Error: Unable to pre-configure RES demo environment: {e}"
+                  cfnresponse.send(event, context, cfnresponse.FAILED, response)
+              else:
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+        Environment:
+          Variables:
+            ENVIRONMENT_NAME: !Ref EnvironmentName
+
+  # change
+  RESPostDeploymentConfiguration:
+    Type: Custom::RESPostDeploymentConfiguration
+  # endchange
+    Properties:
+      # change
+      ServiceToken: !GetAtt RESPostDeploymentConfigurationFunction.Arn
+      # endchange
 
 Outputs:
   KeycloakUrl:

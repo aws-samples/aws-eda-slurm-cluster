@@ -31,7 +31,7 @@ import logging
 import os
 import os.path
 from os.path import dirname, realpath
-from shutil import copy
+from shutil import copy, rmtree
 import sys
 
 script_path = os.path.dirname(os.path.abspath(__file__))
@@ -74,10 +74,17 @@ class UploadRESTemplates():
         src_dir = 'res-demo-with-cidr'
         dst_dir = 'rendered_templates'
         template_files = [
+            'bi.yaml',
+            'keycloak.yaml',
+            'res-bi-only.yaml',
             'res-demo-stack.yaml',
-            'bi.yaml'
+            'res-only.yaml',
+            'res-sso-keycloak.yaml',
             ]
-        os.makedirs(dst_dir, exist_ok=True)
+        if os.path.exists(dst_dir):
+            rmtree(dst_dir)
+        os.makedirs(dst_dir)
+
         for template_file in template_files:
             src_file = f"{src_dir}/{template_file}"
             dst_file = f"{dst_dir}/{template_file}"
@@ -100,7 +107,13 @@ class UploadRESTemplates():
                 )
 
         logger.info("")
+        logger.info("Use the following link to deploy RES BI using CloudFormation.")
+        logger.info(f"https://console.aws.amazon.com/cloudformation/home?region={args.region}#/stacks/quickcreate?templateURL=https://{args.s3_bucket}.s3.amazonaws.com/{args.s3_base_key}/res-bi-only.yaml")
+        logger.info("")
         logger.info("Use the following link to deploy RES using CloudFormation.")
+        logger.info(f"https://console.aws.amazon.com/cloudformation/home?region={args.region}#/stacks/quickcreate?templateURL=https://{args.s3_bucket}.s3.amazonaws.com/{args.s3_base_key}/res-only.yaml")
+        logger.info("")
+        logger.info("Use the following link to deploy RES BI + RES using CloudFormation.")
         logger.info(f"https://console.aws.amazon.com/cloudformation/home?region={args.region}#/stacks/quickcreate?templateURL=https://{args.s3_bucket}.s3.amazonaws.com/{args.s3_base_key}/res-demo-stack.yaml")
 
 if __name__ == "__main__":
