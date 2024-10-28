@@ -307,6 +307,19 @@ This will will be used to create the initial ParallelCluster configuration and o
 
 This exists to enable further customization of ParallelCluster beyond what this configuration supports.
 
+The [cluster configuration format](https://docs.aws.amazon.com/parallelcluster/latest/ug/cluster-configuration-file-v3.html) is documented in the ParallelCluster User Guide.
+
+For example, if you want to change the [ScaledownIdletime](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-ScaledownIdletime), you would add the following to your config file.
+
+```
+slurm:
+  ParallelClusterConfig:
+    ClusterConfig:
+      Scheduling:
+        SlurmSettings:
+          ScaledownIdletime: 20
+```
+
 #### Image
 
 The OS and AMI to use for the head node and compute nodes.
