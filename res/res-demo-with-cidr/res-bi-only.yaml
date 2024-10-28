@@ -1,0 +1,513 @@
+Description: Research and Engineering Studio Batteries Included (BI). Can be used by the res-only.yml to create 1 or more RES stacks.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          # change
+          default: RES shared storage configuration
+          # endchange
+        Parameters:
+          - EnvironmentName
+          # change
+          # - AdministratorEmail
+          # - KeycloakInstanceType
+          # endchange
+      - Label:
+          default: Access Management
+        Parameters:
+          - Keypair
+          - ClientIpCidr
+          - InboundPrefixList
+      - Label:
+          default: AD user and group configuration
+        Parameters:
+          - LDIFS3Path
+      - Label:
+          default: Optional network configuration
+        Parameters:
+          - VpcCidrBlock
+          - VpcCidrPublicSubnetA
+          - VpcCidrPublicSubnetB
+          - VpcCidrPublicSubnetC
+          - VpcCidrPrivateSubnetA
+          - VpcCidrPrivateSubnetB
+          - VpcCidrPrivateSubnetC
+
+Parameters:
+
+  Keypair:
+    Description: EC2 Keypair to access management instance.
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ""
+
+  EnvironmentName:
+    # change
+    Description: Provide name of the RES Environment for the BI stack. Must be unique for your account and AWS Region. Used to tag the file system. Suggest using the StackName.
+    # endchange
+    Type: String
+    # change
+    Default: res-bi
+    # endchange
+    MinLength: 5
+    MaxLength: 11
+    AllowedPattern: ^res-[A-Za-z\-\_0-9]{0,7}$
+    ConstraintDescription: EnvironmentName must start with "res-" and should be less than or equal to 11 characters.
+
+  # change
+  # AdministratorEmail:
+  #   Type: String
+  #   AllowedPattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+
+  # KeycloakInstanceType:
+  #   Type: String
+  #   Default: m7a.medium
+  # endchange
+
+  ClientIpCidr:
+    Description: Default IP(s) allowed to directly access the Web UI, SSH into the bastion host, and access the Windows AD admin host. We recommend that you restrict it with your own IP/subnet (x.x.x.x/32 for your own ip or x.x.x.x/24 for range. Replace x.x.x.x with your own PUBLIC IP. You can get your public IP using tools such as https://ifconfig.co/)
+    Type: String
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Value must be a valid IP or network range of the form x.x.x.x/x.
+
+  InboundPrefixList:
+    Description: (Optional) VPC Prefix List controlling inbound access to Web UI, bastion host, and Windows AD admin host.
+    Default: ""
+    Type: String
+    AllowedPattern: ^(pl-[a-z0-9]{8,20})?$
+    ConstraintDescription: Must be a valid VPC Prefix List ID, which begins with `pl-` or be empty.
+
+  LDIFS3Path:
+    Description: An S3 Path (without the s3://) to an LDIF file that will be used during stack creation.
+    Type: String
+    Default: {{ LDIFS3Path }}
+
+  VpcCidrBlock:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.3.0.0/16
+    Description: VPC CIDR Block (eg 10.3.0.0/16)
+    Type: String
+
+  VpcCidrPublicSubnetA:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.3.0.0/20
+    Description: VPC CIDR Block for the Public Subnet A
+    Type: String
+
+  VpcCidrPublicSubnetB:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.3.16.0/20
+    Description: VPC CIDR Block for the Public Subnet B
+    Type: String
+
+  VpcCidrPublicSubnetC:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.3.32.0/20
+    Description: VPC CIDR Block for the Public Subnet C
+    Type: String
+
+  VpcCidrPrivateSubnetA:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.3.128.0/20
+    Description: VPC CIDR Block for the Private Subnet A
+    Type: String
+
+  VpcCidrPrivateSubnetB:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.3.144.0/20
+    Description: VPC CIDR Block for the Private Subnet B
+    Type: String
+
+  VpcCidrPrivateSubnetC:
+    AllowedPattern: '((\d{1,3})\.){3}\d{1,3}/\d{1,2}'
+    Default: 10.3.160.0/20
+    Description: VPC CIDR Block for the Private Subnet C
+    Type: String
+
+Conditions:
+  UseEnvironmentName: !Not [!Equals [!Ref EnvironmentName, ""]]
+
+Resources:
+
+  AdminPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Active Directory Administrator Account Password.
+      Name: !Sub [ "res-AdminPassword-${StackName}-${StackId}", {StackName: !Select [1, !Split ['/', !Ref 'AWS::StackId']], StackId: !Select [2, !Split ['/', !Ref 'AWS::StackId']]}]
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "Admin"}'
+        GenerateStringKey: "password"
+        ExcludePunctuation: true
+      Tags:
+        - Key: res:Deployment
+          Value: "true"
+        - Key: res:EnvironmentName
+          Value: !Ref EnvironmentName
+
+  ServiceAccountPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Active Directory Service Account Password.
+      Name: !Sub [ "res-ServiceAccountPassword-${StackName}-${StackId}", {StackName: !Select [1, !Split ['/', !Ref 'AWS::StackId']], StackId: !Select [2, !Split ['/', !Ref 'AWS::StackId']]}]
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "ServiceAccount"}'
+        GenerateStringKey: "password"
+        ExcludePunctuation: true
+      Tags:
+        - Key: res:Deployment
+          Value: "true"
+        - Key: res:EnvironmentName
+          Value: !Ref EnvironmentName
+
+  RESExternal:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        LDIFS3Path : !Ref LDIFS3Path
+        VpcCidrBlock: !Ref VpcCidrBlock
+        VpcCidrPublicSubnetA: !Ref VpcCidrPublicSubnetA
+        VpcCidrPublicSubnetB: !Ref VpcCidrPublicSubnetB
+        VpcCidrPublicSubnetC: !Ref VpcCidrPublicSubnetC
+        VpcCidrPrivateSubnetA: !Ref VpcCidrPrivateSubnetA
+        VpcCidrPrivateSubnetB: !Ref VpcCidrPrivateSubnetB
+        VpcCidrPrivateSubnetC: !Ref VpcCidrPrivateSubnetC
+        PortalDomainName: ""
+        Keypair: !Ref Keypair
+        EnvironmentName: !If [UseEnvironmentName, !Ref EnvironmentName, ""]
+        AdminPassword: !Ref AdminPassword
+        ServiceAccountPassword: !Ref ServiceAccountPassword
+        ClientIpCidr: !Ref ClientIpCidr
+        ClientPrefixList: !Ref InboundPrefixList
+        RetainStorageResources: "False"
+      #TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/bi.yaml
+      TemplateURL: https://{{TemplateBucket}}.s3.amazonaws.com/{{TemplateBaseKey}}/bi.yaml
+
+  # change
+  # RES:
+  #   Type: AWS::CloudFormation::Stack
+  #   DependsOn: InvokeDeleteSharedStorageSecurityGroup
+  #   Properties:
+  #     Parameters:
+  #       EnvironmentName: !Ref EnvironmentName
+  #       AdministratorEmail: !Ref AdministratorEmail
+  #       SSHKeyPair: !Ref Keypair
+  #       ClientIp: !Ref ClientIpCidr
+  #       ClientPrefixList: !Ref InboundPrefixList
+  #       CustomDomainNameforWebApp: ""
+  #       ACMCertificateARNforWebApp: ""
+  #       CustomDomainNameforVDI: ""
+  #       PrivateKeySecretARNforVDI: ""
+  #       CertificateSecretARNforVDI: ""
+  #       DomainTLSCertificateSecretArn: ""
+  #       VpcId: !GetAtt [ RESExternal, Outputs.VpcId ]
+  #       LoadBalancerSubnets: !GetAtt [ RESExternal, Outputs.PublicSubnets ]
+  #       InfrastructureHostSubnets: !GetAtt [ RESExternal, Outputs.PrivateSubnets ]
+  #       VdiSubnets: !GetAtt [ RESExternal, Outputs.PrivateSubnets ]
+  #       IsLoadBalancerInternetFacing: "true"
+  #       ActiveDirectoryName: !GetAtt [ RESExternal, Outputs.ActiveDirectoryName ]
+  #       ADShortName: !GetAtt [ RESExternal, Outputs.ADShortName ]
+  #       LDAPBase: !GetAtt [ RESExternal, Outputs.LDAPBase ]
+  #       LDAPConnectionURI: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
+  #       SudoersGroupName: RESAdministrators
+  #       ServiceAccountCredentialsSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
+  #       UsersOU: !GetAtt [ RESExternal, Outputs.UsersOU ]
+  #       GroupsOU: !GetAtt [ RESExternal, Outputs.GroupsOU ]
+  #       ComputersOU: !GetAtt [ RESExternal, Outputs.ComputersOU ]
+  #       SharedHomeFileSystemId: !GetAtt [ RESExternal, Outputs.SharedHomeFilesystemId ]
+  #       InfrastructureHostAMI: ""
+  #       EnableLdapIDMapping: "True"
+  #       IAMPermissionBoundary: ""
+  #       DisableADJoin: "False"
+  #       ServiceAccountUserDN: !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ]
+  #     TemplateURL: https://research-engineering-studio-us-east-1.s3.amazonaws.com/releases/latest/ResearchAndEngineeringStudio.template.json
+
+  # RESSsoKeycloak:
+  #   Type: AWS::CloudFormation::Stack
+  #   DependsOn: RES
+  #   Properties:
+  #     Parameters:
+  #       EnvironmentName: !Ref EnvironmentName
+  #       Keypair: !Ref Keypair
+  #       ServiceAccountCredentialsSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
+  #       VpcId: !GetAtt [ RESExternal, Outputs.VpcId ]
+  #       PublicSubnet: !Select [0, !Split [",", !GetAtt RESExternal.Outputs.PublicSubnets]]
+  #       ServiceAccountUserDN: !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ]
+  #       UsersDN: !GetAtt [ RESExternal, Outputs.LDAPBase ]
+  #       LDAPConnectionURI: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
+  #     TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/res-sso-keycloak.yaml
+  # endchange
+
+  InvokeDeleteSharedStorageSecurityGroupRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: InvokeConfigureSSOLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-delete_shared_storage_security_group
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DeleteSecurityGroup
+                  - ec2:DescribeNetworkInterfaces
+                Resource: '*'
+
+  InvokeDeleteSharedSecurityGroupHandlerFunction:
+      Type: 'AWS::Lambda::Function'
+      DependsOn:
+      - InvokeDeleteSharedStorageSecurityGroupRole
+      Properties:
+        Description: 'Deletes the shared storage security group when the stack is deleted.'
+        FunctionName: !Sub InvokeDeleteSharedSecurityGroupHandlerFunction-${AWS::StackName}
+        Timeout: 360 # 6 minutes
+        Role: !GetAtt InvokeDeleteSharedStorageSecurityGroupRole.Arn
+        Handler: index.handler
+        Runtime: python3.11
+        Code:
+          ZipFile: |
+            import boto3
+            import os
+            import logging
+            import cfnresponse
+
+            logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
+
+            def handler(event, context):
+              logger.info(f"Received event: {event}")
+              response = {}
+
+              if event["RequestType"] == "Delete":
+                try:
+                  ec2 = boto3.client("ec2")
+                  sgResponse = ec2.describe_security_groups(
+                    Filters=[
+                      {
+                        'Name': 'group-name',
+                        'Values': [
+                          f"{os.environ['ENVIRONMENT_NAME']}-shared-storage-security-group",
+                        ]
+                      }
+                    ]
+                  )
+
+                  if len(sgResponse['SecurityGroups']) == 0:
+                    response['Output'] = "Shared storage security group not found."
+                  else:
+                    ec2.delete_security_group(GroupId=sgResponse['SecurityGroups'][0]['GroupId'])
+                    response['Output'] = "Shared storage security group deleted."
+
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+                except Exception as e:
+                  logger.error(f"Error: Unable to delete shared storage security group: {e}")
+                  response['Output'] = f"Error: Unable to delete shared storage security group: {e}"
+                  cfnresponse.send(event, context, cfnresponse.FAILED, response)
+              else:
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+        Environment:
+          Variables:
+            ENVIRONMENT_NAME: !Ref EnvironmentName
+
+  InvokeDeleteSharedStorageSecurityGroup:
+    Type: Custom::DeleteSharedStorageSecurityGroup
+    Properties:
+      ServiceToken: !GetAtt InvokeDeleteSharedSecurityGroupHandlerFunction.Arn
+
+  # change
+  # RESPostDeploymentConfiguationFunctionRole:
+  #   Type: 'AWS::IAM::Role'
+  #   DependsOn: RES
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: 'sts:AssumeRole'
+  #     Policies:
+  #       - PolicyName: LogOutput
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource: '*'
+  #       - PolicyName: DynamoDBReadWritePolicy
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - dynamodb:GetItem
+  #                 - dynamodb:UpdateItem
+  #               Resource:
+  #                   - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}.cluster-settings
+  #                   - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}.cluster-settings/stream/*
+  #               Condition:
+  #                 ForAllValues:StringLike:
+  #                   dynamodb:LeadingKeys:
+  #                     - shared-storage.*
+
+  # RESPostDeploymentConfiguationFunction:
+  #     Type: 'AWS::Lambda::Function'
+  #     DependsOn:
+  #     - RES
+  #     - RESPostDeploymentConfiguationFunctionRole
+  #     Properties:
+  #       Description: 'Post configuration of RES for demo purposes'
+  #       FunctionName: !Sub ${EnvironmentName}-RESPostDeploymentConfiguationFunction-${AWS::StackName}
+  #       Timeout: 60
+  #       Role: !GetAtt RESPostDeploymentConfiguationFunctionRole.Arn
+  #       Handler: index.handler
+  #       Runtime: python3.11
+  #       Code:
+  #         ZipFile: |
+  #           import boto3
+  #           import os
+  #           import logging
+  #           import cfnresponse
+
+  #           logger = logging.getLogger()
+  #           logger.setLevel(logging.INFO)
+
+  #           def handler(event, context):
+  #             logger.info(f"Received event: {event}")
+  #             response = {}
+
+  #             if event["RequestType"] == "Create":
+  #               try:
+  #                 dynamodb = boto3.resource('dynamodb')
+  #                 cluster_settings_table = dynamodb.Table(f"{os.environ['ENVIRONMENT_NAME']}.cluster-settings")
+
+  #                 demo_config = {
+  #                   'shared-storage.enable_file_browser': True
+  #                 }
+
+  #                 for key, value in demo_config.items():
+  #                   item_response = cluster_settings_table.get_item(
+  #                       Key={
+  #                           'key': key
+  #                       }
+  #                   )
+
+  #                   if 'Item' in item_response:
+  #                       logger.info(f"Item found: {item_response['Item']}")
+
+  #                       # Update the item
+  #                       update_response = cluster_settings_table.update_item(
+  #                           Key={
+  #                               'key': key
+  #                           },
+  #                           UpdateExpression="SET #val = :val",
+  #                           ExpressionAttributeNames={
+  #                               '#val': 'value'
+  #                           },
+  #                           ExpressionAttributeValues={
+  #                               ':val': value
+  #                           },
+  #                           ReturnValues="UPDATED_NEW"
+  #                       )
+
+  #                       logger.info(f"Item updated: {update_response['Attributes']}")
+  #                   else:
+  #                       logger.info(f"Item with key '{key}' not found")
+
+  #                 response['Output'] = 'RES demo environment has been pre-configured.'
+  #                 cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+  #               except Exception as e:
+  #                 logger.error(f"Error: Unable to pre-configure RES demo environment: {e}")
+  #                 response['Output'] = f"Error: Unable to pre-configure RES demo environment: {e}"
+  #                 cfnresponse.send(event, context, cfnresponse.FAILED, response)
+  #             else:
+  #               cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
+  #       Environment:
+  #         Variables:
+  #           ENVIRONMENT_NAME: !Ref EnvironmentName
+
+  # RESPostDeploymentConfiguation:
+  #   Type: Custom::RESPostDeploymentConfiguation
+  #   Properties:
+  #     ServiceToken: !GetAtt RESPostDeploymentConfiguationFunction.Arn
+  # endchange
+
+Outputs:
+  # change
+  VpcId:
+    Description: VPC id
+    Value: !GetAtt [ RESExternal, Outputs.VpcId ]
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
+  PublicSubnets:
+    Description: Public subnets
+    Value: !GetAtt [ RESExternal, Outputs.PublicSubnets ]
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnets"
+  PrivateSubnets:
+    Description: Private subnets
+    Value: !GetAtt [ RESExternal, Outputs.PrivateSubnets ]
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnets"
+  ActiveDirectoryName:
+    Description: Fully Qualified Domain Name (FQDN) for your Active Directory
+    Value: !GetAtt [ RESExternal, Outputs.ActiveDirectoryName ]
+    Export:
+      Name: !Sub "${AWS::StackName}-ActiveDirectoryName"
+  ADShortName:
+    Description: Please provide the short name in Active directory
+    Value: !GetAtt [ RESExternal, Outputs.ADShortName ]
+    Export:
+      Name: !Sub "${AWS::StackName}-ADShortName"
+  LDAPBase:
+    Value: !GetAtt [ RESExternal, Outputs.LDAPBase ]
+    Export:
+      Name: !Sub "${AWS::StackName}-LDAPBase"
+  LDAPConnectionURI:
+    Value: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
+    Export:
+      Name: !Sub "${AWS::StackName}-LDAPConnectionURI"
+  ServiceAccountCredentialsSecretArn:
+    Value: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceAccountCredentialsSecretArn"
+  UsersOU:
+    Description: The OU for all users who might join the system. The value provided here is based off of a supplied LDIF file.
+    Value: !GetAtt [ RESExternal, Outputs.UsersOU ]
+    Export:
+      Name: !Sub "${AWS::StackName}-UsersOU"
+  GroupsOU:
+    Description: The OU for groups that users belong to who might join the system. The value provided here is based off of a supplied LDIF file.
+    Value: !GetAtt [ RESExternal, Outputs.GroupsOU ]
+    Export:
+      Name: !Sub "${AWS::StackName}-GroupsOU"
+  ComputersOU:
+    Description: The OU for computers that join the AD. The value provided here is based off of a supplied LDIF file.
+    Value: !GetAtt [ RESExternal, Outputs.ComputersOU ]
+    Export:
+      Name: !Sub "${AWS::StackName}-ComputersOU"
+  SharedHomeFilesystemId:
+    Value: !GetAtt [ RESExternal, Outputs.SharedHomeFilesystemId ]
+    Export:
+      Name: !Sub "${AWS::StackName}-SharedHomeFilesystemId"
+  ServiceAccountUserDN:
+    Description: The Distinguished Name (DN) of the ServiceAccount user in your Active Directory
+    Value: !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ]
+    Export:
+      Name: !Sub "${AWS::StackName}-ServiceAccountUserDN"
+  # endchange
+
