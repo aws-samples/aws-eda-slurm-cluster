@@ -16,6 +16,9 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
+from aws_cdk import (
+    aws_lambda as aws_lambda
+)
 import boto3
 from botocore.client import ClientError
 import json
@@ -317,6 +320,14 @@ def PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY(parallel_cluster_version):
 PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT_VERSION = parse_version('3.8.0')
 def PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(parallel_cluster_version):
     return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT_VERSION
+
+# Version 3.11.0
+
+def get_PARALLEL_CLUSTER_LAMBDA_RUNTIME(parallel_cluster_version):
+    if parallel_cluster_version < parse_version('3.11.1'):
+        return aws_lambda.Runtime.PYTHON_3_9
+    else:
+        return aws_lambda.Runtime.PYTHON_3_12
 
 # Determine all AWS regions available on the account.
 default_region = environ.get("AWS_DEFAULT_REGION", "us-east-1")
