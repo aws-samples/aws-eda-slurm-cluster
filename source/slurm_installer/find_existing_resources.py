@@ -348,7 +348,7 @@ class FindExistingResource:
         except Exception as err:
             raise
 
-    def get_submitter_security_groups(self, vpc_id, config_key, config_value, args_value, prompt):
+    def get_external_login_node_security_groups(self, vpc_id, config_key, config_value, args_value, prompt):
         if args_value:
             if config_value:
                 print(f"{config_key} overridden on command line from {config_value} to {args_value}")
@@ -401,7 +401,7 @@ class FindExistingResource:
                 return specified_value
             choice = 1
             while choice != 0:
-                print(f"\nChoose Submitter Security Groups")
+                print(f"\nChoose External Login Node Security Groups")
                 index = 0
                 options = {}
                 for security_group_name in sorted(unchosen_security_group_names.keys()):

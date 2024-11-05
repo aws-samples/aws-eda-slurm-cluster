@@ -52,10 +52,10 @@ slurm_conf:            "{{ slurm_etc_dir }}/slurm.conf"
 
 modulefiles_base_dir: "{{ slurm_base_dir }}/modules/modulefiles"
 
-pc_modulefiles_base_dir:        "{{ slurm_config_dir }}/modules/modulefiles"
-submitter_slurm_base_dir:       "{{ slurm_base_dir }}/{{ cluster_name }}"
-submitter_slurm_config_dir:     "{{ submitter_slurm_base_dir }}/config"
-submitter_modulefiles_base_dir: "{{ submitter_slurm_config_dir} }/modules/modulefiles"
+pc_modulefiles_base_dir:                  "{{ slurm_config_dir }}/modules/modulefiles"
+external_login_node_slurm_base_dir:       "{{ slurm_base_dir }}/{{ cluster_name }}"
+external_login_node_slurm_config_dir:     "{{ external_login_node_slurm_base_dir }}/config"
+external_login_node_modulefiles_base_dir: "{{ external_login_node_slurm_config_dir} }/modules/modulefiles"
 
 supported_distributions:
 - AlmaLinux/8/arm64

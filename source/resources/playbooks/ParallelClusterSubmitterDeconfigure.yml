@@ -1,7 +1,0 @@
----
-- name: Deconfigure ParallelCluster Submitter
-  hosts: ParallelClusterSubmitter
-  become_user: root
-  become: yes
-  roles:
-    - ParallelClusterSubmitterDeconfigure

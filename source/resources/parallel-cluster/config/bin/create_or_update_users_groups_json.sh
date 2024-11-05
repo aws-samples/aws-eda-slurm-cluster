@@ -11,7 +11,7 @@ base_script=$(basename $full_script)
 date
 echo "Started create_or_update_users_groups_json.sh: $full_script"
 
-config_dir={{SubmitterSlurmConfigDir}}
+config_dir={{ ExternalLoginNodeSlurmConfigDir }}
 config_bin_dir=$config_dir/bin
 
 $config_bin_dir/create_users_groups_json.py -o $config_dir/users_groups.json.new

@@ -131,7 +131,7 @@ def lambda_handler(event, context):
                 fi
             fi
 
-            script="$mount_dest/config/bin/submitter_deconfigure.sh"
+            script="$mount_dest/config/bin/external_login_node_deconfigure.sh"
             if ! timeout 1s ls $script; then
                 echo "$script doesn't exist"
             else
@@ -209,7 +209,7 @@ def lambda_handler(event, context):
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
-            Subject = f"{cluster_name} DeconfigureRESSubmitters failed",
+            Subject = f"{cluster_name} DeconfigureExternalLoginNodes failed",
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")

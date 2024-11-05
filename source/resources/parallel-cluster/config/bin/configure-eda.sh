@@ -44,9 +44,9 @@ if ! yum list installed ansible &> /dev/null; then
     yum install -y ansible || amazon-linux-extras install -y ansible2
 fi
 
-submitter_config_dir=/opt/slurm/${ClusterName}/config
-if [ -e $submitter_config_dir ]; then
-    config_dir=$submitter_config_dir
+external_login_node_config_dir=/opt/slurm/${ClusterName}/config
+if [ -e $external_login_node_config_dir ]; then
+    config_dir=$external_login_node_config_dir
 else
     config_dir=/opt/slurm/config
 fi
@@ -55,12 +55,12 @@ ANSIBLE_PATH=$config_dir/ansible
 PLAYBOOKS_PATH=$ANSIBLE_PATH/playbooks
 PLAYBOOKS_ZIP_PATH=$ANSIBLE_PATH/playbooks.zip
 
-if ! [ -e $submitter_config_dir ]; then
+if ! [ -e $external_login_node_config_dir ]; then
     mkdir -p $config_bin_dir
 
     ansible_head_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_head_node_vars.yml"
     ansible_compute_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_compute_node_vars.yml"
-    ansible_submitter_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_submitter_vars.yml"
+    ansible_external_login_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_external_login_node_vars.yml"
 
     # Download ansible playbooks
     aws s3 cp $playbooks_s3_url ${PLAYBOOKS_ZIP_PATH}.new
@@ -79,7 +79,7 @@ if ! [ -e $submitter_config_dir ]; then
 
     aws s3 cp $ansible_compute_node_vars_yml_s3_url /opt/slurm/config/ansible/ansible_compute_node_vars.yml
 
-    aws s3 cp $ansible_submitter_vars_yml_s3_url /opt/slurm/config/ansible/ansible_submitter_vars.yml
+    aws s3 cp $ansible_external_login_node_vars_yml_s3_url /opt/slurm/config/ansible/ansible_external_login_node_vars.yml
 fi
 
 pushd $PLAYBOOKS_PATH

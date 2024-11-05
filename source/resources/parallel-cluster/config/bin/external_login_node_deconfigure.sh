@@ -7,11 +7,11 @@ script_dir=$(dirname $full_script)
 base_script=$(basename $full_script)
 
 date
-echo "Started submitter_deconfigure.sh: $full_script"
+echo "Started external_login_node_deconfigure.sh: $full_script"
 
-ErrorSnsTopicArn={{ErrorSnsTopicArn}}
+ErrorSnsTopicArn={{ ErrorSnsTopicArn }}
 
-config_dir={{SubmitterSlurmConfigDir}}
+config_dir={{ ExternalLoginNodeSlurmConfigDir }}
 config_bin_dir=$config_dir/bin
 
 temp_config_dir=/tmp/{{ClusterName}}_config
@@ -31,14 +31,14 @@ ANSIBLE_PATH=$temp_config_dir/ansible
 PLAYBOOKS_PATH=$ANSIBLE_PATH/playbooks
 
 pushd $PLAYBOOKS_PATH
-ansible-playbook $PLAYBOOKS_PATH/ParallelClusterSubmitterDeconfigure.yml \
+ansible-playbook $PLAYBOOKS_PATH/ParallelClusterExternalLoginNodeDeconfigure.yml \
     -i inventories/local.yml \
-    -e @$ANSIBLE_PATH/ansible_submitter_vars.yml
+    -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
 popd
 
 rm -rf $temp_config_dir
 
 date
-echo "Finished submitter_deconfigure.sh: $full_script"
+echo "Finished external_login_node_deconfigure.sh: $full_script"
 
 exit 0

@@ -1,0 +1,7 @@
+---
+- name: Compile slurm for ParallelCluster ExternalLoginNode
+  hosts: ParallelClusterExternalLoginNode
+  become_user: root
+  become: yes
+  roles:
+    - install_slurm

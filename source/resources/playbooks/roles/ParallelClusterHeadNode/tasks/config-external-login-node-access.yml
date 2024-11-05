@@ -20,8 +20,8 @@
 
 - name: Create /opt/slurm/{{ cluster_name }} symbolic link
   # All head nodes are originally configured to use /opt/slurm
-  # This doesn't work for submitter nodes that need to access more than one cluster because they can't all be mounted at /opt/slurm.
-  # So create a path, /opt/slurm/{{ cluster_name }} that can exist both on the Head node and the submitter node
+  # This doesn't work for external login nodes that need to access more than one cluster because they can't all be mounted at /opt/slurm.
+  # So create a path, /opt/slurm/{{ cluster_name }} that can exist both on the Head node and the external login node
   file:
     path: "/opt/slurm/{{ cluster_name }}"
     src:  "/opt/slurm"

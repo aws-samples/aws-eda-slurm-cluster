@@ -14,7 +14,7 @@ ParallelClusterHeadNode:
     local:
       ansible_host: 127.0.0.1
       ansible_connection: local
-ParallelClusterSubmitter:
+ParallelClusterExternalLoginNode:
   hosts:
     local:
       ansible_host: 127.0.0.1
@@ -44,7 +44,7 @@ SlurmNodeAmi:
     local:
       ansible_host: 127.0.0.1
       ansible_connection: local
-SlurmSubmitter:
+SlurmExternalLoginNode:
   hosts:
     local:
       ansible_host: 127.0.0.1

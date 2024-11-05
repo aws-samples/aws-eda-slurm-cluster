@@ -33,7 +33,6 @@ This project creates a ParallelCluster configuration file that is documented in 
             <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/Image-v3.html#yaml-Image-CustomAmi">CustomAmi</a>: str
         <a href="#architecture">Architecture</a>: str
         <a href="#computenodeami">ComputeNodeAmi</a>: str
-        <a href="#disablesimultaneousmultithreading">DisableSimultaneousMultithreading</a>: str
         <a href="#enableefa">EnableEfa</a>: bool
         <a href="#database">Database</a>:
             <a href="#databasestackname">DatabaseStackName</a>: str
@@ -95,6 +94,7 @@ This project creates a ParallelCluster configuration file that is documented in 
     <a href="#instanceconfig">InstanceConfig</a>:
         <a href="#useondemand">UseOnDemand</a>: str
         <a href="#usespot">UseSpot</a>: str
+        <a href="#disablesimultaneousmultithreading">DisableSimultaneousMultithreading</a>: str
         <a href="#exclude">Exclude</a>:
             <a href="#exclude-instancefamilies">InstanceFamilies</a>:
             - str
@@ -104,8 +104,16 @@ This project creates a ParallelCluster configuration file that is documented in 
             <a href="#maxsizeonly">MaxSizeOnly</a>: bool
             <a href="#include-instancefamilies">InstanceFamilies</a>:
             - str
+            - str:
+                useOnDemand: bool
+                UseSpot: bool
+                DisableSimultaneousMultithreading: bool
             <a href="#include-instancetypes">InstanceTypes</a>:
             - str
+            - str:
+                UseOnDemand: bool
+                UseSpot: bool
+                DisableSimultaneousMultithreading: bool
         <a href="#nodecounts">NodeCounts</a>:
             <a href="#defaultmincount">DefaultMinCount</a>: str
             <a href="#defaultmaxcount">DefaultMaxCount</a>: str
@@ -358,22 +366,6 @@ AMI to use for compute nodes.
 All compute nodes will use the same AMI.
 
 The default AMI is selected by the [Image](#image) parameters.
-
-#### DisableSimultaneousMultithreading
-
-type: bool
-
-default=True
-
-Disable SMT on the compute nodes.
-
-If true, multithreading on the compute nodes is disabled.
-
-Not all instance types can disable multithreading. For a list of instance types that support disabling multithreading, see CPU cores and threads for each CPU core per instance type in the Amazon EC2 User Guide for Linux Instances.
-
-Update policy: The compute fleet must be stopped for this setting to be changed for an update.
-
-[ParallelCluster documentation](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmQueues-ComputeResources-DisableSimultaneousMultithreading)
 
 #### EnableEfa
 
@@ -634,14 +626,14 @@ ParallelCluster is limited to a total of 50 compute resources and
 we only put 1 instance type in each compute resource.
 This limits you to a total of 50 instance types per cluster.
 If you need more instance types than that, then you will need to create multiple clusters.
-If you configure both on-demand and spot instances, then the limit is effectively 25 instance types because 2 compute resources will be created for each instance type.
+If you configure both on-demand and spot for each instance type, then the limit is effectively 25 instance types because 2 compute resources will be created for each instance type.
 
 If you configure more than 50 instance types then the installer will fail with an error.
 You will then need to modify your configuration to either include fewer instance types or
 exclude instance types from the configuration.
 
 If no Include and Exclude parameters are specified then default EDA instance types
-will be configured.
+will be configured with both On-Demand and Spot Instances configured..
 The defaults will include the latest generation instance families in the c, m, r, x, and u families.
 Older instance families are excluded.
 Metal instance types are also excluded.
@@ -652,7 +644,7 @@ This is because EDA workloads are typically memory limited, not core limited.
 If any Include or Exclude parameters are specified, then minimal defaults will be used for the parameters that
 aren't specified.
 By default, all instance families are included and no specific instance types are included.
-By default, all instance types with less than 2 GiB of memory are excluded because they don't have enough memory for a Slurm compute node.
+By default, all instance types with less than 4 GiB of memory are excluded because they don't have enough memory for a Slurm compute node.
 
 If no includes or excludes are provided, the defaults are:
 
@@ -772,6 +764,8 @@ slurm:
 #### UseOnDemand
 
 Configure on-demand instances.
+This sets the default for all included instance types.
+It can be overridden for included instance families and by instance types.
 
 type: bool
 
@@ -780,16 +774,35 @@ default: True
 #### UseSpot
 
 Configure spot instances.
+This sets the default for all included instance types.
+It can be overridden for included instance families and by instance types.
 
 type: bool
 
 default: True
 
+#### DisableSimultaneousMultithreading
+
+type: bool
+
+default=True
+
+Disable SMT on the compute nodes.
+If true, multithreading on the compute nodes is disabled.
+This sets the default for all included instance types.
+It can be overridden for included instance families and by instance types.
+
+Not all instance types can disable multithreading. For a list of instance types that support disabling multithreading, see CPU cores and threads for each CPU core per instance type in the Amazon EC2 User Guide for Linux Instances.
+
+Update policy: The compute fleet must be stopped for this setting to be changed for an update.
+
+[ParallelCluster documentation](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmQueues-ComputeResources-DisableSimultaneousMultithreading)
+
 #### Exclude
 
 Instance families and types to exclude.
 
-Exclude patterns are processed first and take precesdence over any includes.
+Exclude patterns are processed first and take precedence over any includes.
 
 Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
 
@@ -809,9 +822,38 @@ Default: []
 
 Instance families and types to include.
 
-Exclude patterns are processed first and take precesdence over any includes.
+Exclude patterns are processed first and take precedence over any includes.
 
 Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
+
+Each element in the array can be either a regular expression string or a dictionary where the only key
+is the regular expression string and that has overrides **UseOnDemand**, **UseSpot**, and **DisableSimultaneousMultithreading** for the matching instance families or instance types.
+
+The settings for instance families overrides the defaults, and the settings for instance types override the others.
+
+For example, the following configuration defaults to only On-Demand instances with SMT disabled.
+It includes all of the r7a, r7i, and r7iz instance types.
+The r7a instances will only have On-Demand instances.
+The r7i and r7iz instance types will have spot instances except for the r7i.48xlarge which has spot disabled.
+
+This allows you to control these attributes of the compute resources with whatever level of granularity that you need.
+
+```
+slurm:
+  InstanceConfig:
+    UseOnDemand: true
+    UseSpot: false
+    DisableSimultaneousMultithreading: true
+    Exclude:
+      InstanceTypes:
+        - .*\.metal
+    Include:
+      InstanceFamilies:
+        - r7a.*
+        - r7i.*: {UseSpot: true}
+      InstanceTypes:
+        - r7i.48xlarge: {UseSpot: false}
+```
 
 ##### MaxSizeOnly
 

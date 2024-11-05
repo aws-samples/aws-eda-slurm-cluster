@@ -12,7 +12,7 @@ base_script=$(basename $full_script)
 date
 echo "Started create_users_groups_json_deconfigure.sh: $full_script"
 
-config_dir={{SubmitterSlurmConfigDir}}
+config_dir={{ ExternalLoginNodeSlurmConfigDir }}
 config_bin_dir=$config_dir/bin
 
 temp_config_dir=/tmp/{{ClusterName}}_config
@@ -34,7 +34,7 @@ PLAYBOOKS_PATH=$ANSIBLE_PATH/playbooks
 pushd $PLAYBOOKS_PATH
 ansible-playbook $PLAYBOOKS_PATH/ParallelClusterCreateUsersGroupsJsonDeconfigure.yml \
     -i inventories/local.yml \
-    -e @$ANSIBLE_PATH/ansible_submitter_vars.yml
+    -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
 popd
 
 rm -rf $temp_config_dir

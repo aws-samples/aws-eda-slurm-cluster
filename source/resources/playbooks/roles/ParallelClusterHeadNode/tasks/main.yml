@@ -2,7 +2,7 @@
 
 - { include_tasks: config-users-groups.yml,    tags: users-groups }
 - { include_tasks: config-high-throughput.yml, tags: high-throughput }
-- { include_tasks: config-submitter-access.yml, tags: submitter }
+- { include_tasks: config-external-login-node-access.yml, tags: external-login-node }
 - { include_tasks: config-sshd.yml, tags: sshd }
 - { include_tasks: config-slurmrestd.yml, tags: slurmrestd }
 - { include_tasks: config-licenses.yml, tags: licenses }
