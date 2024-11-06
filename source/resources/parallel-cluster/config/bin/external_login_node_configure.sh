@@ -9,12 +9,12 @@ script_name=$(basename $full_script)
 echo "$(date): Started ${script_name}"
 
 # Jinja2 template variables
-assets_bucket={{assets_bucket}}
-assets_base_key={{assets_base_key}}
-export AWS_DEFAULT_REGION={{Region}}
-ClusterName={{ClusterName}}
-config_dir={{SubmitterSlurmConfigDir}}
-ErrorSnsTopicArn={{ErrorSnsTopicArn}}
+assets_bucket={{ assets_bucket }}
+assets_base_key={{ assets_base_key }}
+export AWS_DEFAULT_REGION={{ Region }}
+ClusterName={{ ClusterName }}
+config_dir={{ ExternalLoginNodeSlurmConfigDir }}
+ErrorSnsTopicArn={{ ErrorSnsTopicArn }}
 
 # Notify user of errors
 function on_exit {
@@ -41,9 +41,9 @@ ANSIBLE_PATH=$config_dir/ansible
 PLAYBOOKS_PATH=$ANSIBLE_PATH/playbooks
 
 pushd $PLAYBOOKS_PATH
-ansible-playbook $PLAYBOOKS_PATH/ParallelClusterSubmitterConfigure.yml \
+ansible-playbook $PLAYBOOKS_PATH/ParallelClusterExternalLoginNodeConfigure.yml \
     -i inventories/local.yml \
-    -e @$ANSIBLE_PATH/ansible_submitter_vars.yml
+    -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
 popd
 
 modulefile_profile=/etc/profile.d/slurm_${ClusterName}_modulefiles.sh
@@ -60,9 +60,9 @@ if [ -z $modulefile ]; then
 fi
 if ! [ -e $modulefile ]; then
     pushd $PLAYBOOKS_PATH
-    ansible-playbook $PLAYBOOKS_PATH/ParallelClusterSubmitterInstallSlurm.yml \
+    ansible-playbook $PLAYBOOKS_PATH/ParallelClusterExternalLoginNodeInstallSlurm.yml \
         -i inventories/local.yml \
-        -e @$ANSIBLE_PATH/ansible_submitter_vars.yml
+        -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
     popd
 fi
 

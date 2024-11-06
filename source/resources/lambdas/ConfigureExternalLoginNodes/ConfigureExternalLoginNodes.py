@@ -111,7 +111,7 @@ def lambda_handler(event, context):
                 sudo mount head_node.{cluster_name}.pcluster:/opt/slurm /opt/slurm/{cluster_name} || true
             fi
 
-            script="/opt/slurm/{cluster_name}/config/bin/submitter_configure.sh"
+            script="/opt/slurm/{cluster_name}/config/bin/external_login_node_configure.sh"
             if ! [ -e $script ]; then
                 echo "$script doesn't exist"
                 exit 1
@@ -136,7 +136,7 @@ def lambda_handler(event, context):
         sns_client = boto3.client('sns')
         sns_client.publish(
             TopicArn = environ['ErrorSnsTopicArn'],
-            Subject = f"{cluster_name} ConfigureRESSubmitters failed",
+            Subject = f"{cluster_name} ConfigureExternalLoginNodes failed",
             Message = str(e)
         )
         logger.info(f"Published error to {environ['ErrorSnsTopicArn']}")

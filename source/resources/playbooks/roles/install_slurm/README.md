@@ -1,7 +1,7 @@
 install_slurm
 =========
 
-Compile and install slurm on ParallelCluster NFS share using the Submitter host if the submitter's OS is different than the cluster.
+Compile and install slurm on ParallelCluster NFS share using the external login node host if the external login nodes's OS is different than the cluster.
 
 Requirements
 ------------

@@ -34,7 +34,7 @@
     name:
       - epel-release
 
-- name: Install slurm_submitter packages
+- name: Install external_login_node packages
   yum:
     state: present
     name:

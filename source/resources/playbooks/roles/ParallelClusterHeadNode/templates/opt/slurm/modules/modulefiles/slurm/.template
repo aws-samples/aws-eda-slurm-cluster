@@ -27,7 +27,7 @@ setenv LOCALDOMAIN "ec2.internal {{ cluster_name }}.pcluster"
 
 prepend-path PATH {{ slurm_os_dir }}/bin
 
-setenv SLURM_CONF {{ submitter_slurm_base_dir }}/etc/slurm.conf
+setenv SLURM_CONF {{ external_login_node_slurm_base_dir }}/etc/slurm.conf
 
 setenv SLURM_CLUSTER_NAME {{ cluster_name }}
 

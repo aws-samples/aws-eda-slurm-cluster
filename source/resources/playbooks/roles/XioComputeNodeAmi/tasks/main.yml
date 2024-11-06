@@ -108,7 +108,7 @@
       - rrdtool-devel
       - wget
 
-- name: Install slurm_submitter packages
+- name: Install slurm packages
   yum:
     state: present
     name:

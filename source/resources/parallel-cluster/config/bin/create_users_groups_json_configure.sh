@@ -12,7 +12,7 @@ base_script=$(basename $full_script)
 date
 echo "Started create_users_groups_json_configure.sh: $full_script"
 
-config_dir={{SubmitterSlurmConfigDir}}
+config_dir={{ ExternalLoginNodeSlurmConfigDir }}
 config_bin_dir=$config_dir/bin
 
 # Configure using ansible
@@ -26,7 +26,7 @@ PLAYBOOKS_PATH=$ANSIBLE_PATH/playbooks
 pushd $PLAYBOOKS_PATH
 ansible-playbook $PLAYBOOKS_PATH/ParallelClusterCreateUsersGroupsJsonConfigure.yml \
     -i inventories/local.yml \
-    -e @$ANSIBLE_PATH/ansible_submitter_vars.yml
+    -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
 popd
 
 date

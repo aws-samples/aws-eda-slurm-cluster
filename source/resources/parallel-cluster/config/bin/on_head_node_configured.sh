@@ -83,7 +83,7 @@ ansible-playbook $PLAYBOOKS_PATH/ParallelClusterHeadNode.yml \
     -e @$ANSIBLE_PATH/ansible_head_node_vars.yml
 popd
 
-# Notify SNS topic that trigger configuration of cluster manager and submitters
+# Notify SNS topic that triggers configuration of cluster manager and external login nodes
 ConfigureUsersGroupsJsonSnsTopicArnParameter={{ConfigureUsersGroupsJsonSnsTopicArnParameter}}
 if ! [[ -z "$ConfigureUsersGroupsJsonSnsTopicArnParameter" ]]; then
     ConfigureUsersGroupsJsonSnsTopicArn=$(aws ssm get-parameter --name $ConfigureUsersGroupsJsonSnsTopicArnParameter --query 'Parameter.Value' --output text)

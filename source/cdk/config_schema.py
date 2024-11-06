@@ -404,7 +404,6 @@ old_eda_instance_familes = [
     'x2gd',              # AWS Graviton2 Processor 2.5 GHz 1TB
 ]
 
-# By default I've chosen to exclude *7i instance types because they have 50% of the cores as *7a instances with the same memory.
 default_included_eda_instance_families = [
     # Some of these will be excluded to reduce the number of instance types
     # arm64: 72 instance types
@@ -474,10 +473,8 @@ old_instance_families = [
 ]
 
 default_excluded_eda_instance_families = {
-    'on_demand_and_spot': old_instance_families + [
-    ],
-    'on_demand_or_spot': old_instance_families + [
-    ]
+    'on_demand_and_spot': old_instance_families + [],
+    'on_demand_or_spot': old_instance_families + []
 }
 
 default_excluded_eda_instance_types = {
@@ -523,7 +520,7 @@ default_excluded_eda_instance_types = {
 
         # 32 GB:
         #     2 cores
-        'r7iz.2xlarge',
+        'r7iz.xlarge',
         #     4 core(s):
         'm7i.2xlarge',
         'r7a.xlarge',
@@ -536,6 +533,8 @@ default_excluded_eda_instance_types = {
         'c8g.4xlarge',
 
         # 64 GB: r7a.2xlarge, x2gd.xlarge
+        #     4 core(s):
+        'r7iz.2xlarge',
         #     8 core(s):
         'm7i.4xlarge',
         'r7a.2xlarge',
@@ -572,7 +571,8 @@ default_excluded_eda_instance_types = {
 
         # 256 GB:
         #     4 cores
-        'x2iedn.2xlarge',
+        'x2iedn.2xlarge', # Have newer r7iz
+        'x2iezn.2xlarge', # Have newer r7iz
         #     32 cores
         'm7i.16xlarge',
         'r7a.8xlarge',
@@ -593,7 +593,8 @@ default_excluded_eda_instance_types = {
 
         # 512 GB:
         #     8 cores
-        'x2iedn.4xlarge',
+        'x2iedn.4xlarge', # Have newer r7iz
+        'x2iezn.4xlarge', # Have newer r7iz
         #     64 cores
         'r7a.16xlarge',
         #     128 cores
@@ -611,10 +612,15 @@ default_excluded_eda_instance_types = {
         'x2iedn.8xlarge',
         #     32 cores
         'x2idn.16xlarge',
+        #     128 cores
+        'r7a.32xlarge',
 
         # 1536 GB:
         #     48 cores
         'x2idn.24xlarge',
+        #     192 cores
+        'r7a.48xlarge',
+
         # 2048 GB: x2iedn.16xlarge
         'x2idn.32xlarge',
         # 3072 GB: 'x2iedn.24xlarge',
@@ -1189,7 +1195,6 @@ def get_config_schema(config):
                 },
                 Optional('Architecture', default=DEFAULT_ARCHITECTURE): And(str, lambda s: s in VALID_ARCHITECTURES),
                 Optional('ComputeNodeAmi'): And(str, lambda s: s.startswith('ami-')),
-                Optional('DisableSimultaneousMultithreading', default=True): bool,
                 # Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group
                 # See https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster
                 Optional('EnableEfa', default=False): bool,
@@ -1260,7 +1265,7 @@ def get_config_schema(config):
             #     For an existing secret can be the secret name or the ARN.
             #     If the secret doesn't exist one will be created, but won't be part of the cloudformation stack
             #     so that it won't be deleted when the stack is deleted.
-            #     Required if your submitters need to use more than 1 cluster.
+            #     Required if your external login nodes need to use more than 1 cluster.
             Optional('MungeKeySecret', default='/slurm/munge_key'): str,
             #
             # SlurmCtl:
@@ -1300,6 +1305,7 @@ def get_config_schema(config):
                 # UseSpot:
                 #     Configure spot instances
                 Optional('UseSpot', default=True): bool,
+                Optional('DisableSimultaneousMultithreading', default=True): bool,
                 Optional('CpuVendor', default=cpu_vendors): [
                     And(str, lambda s: s in cpu_vendors)
                 ],
@@ -1316,8 +1322,36 @@ def get_config_schema(config):
                     #     a family will be included unless specific instance types are included.
                     #     Default: false
                     Optional('MaxSizeOnly', default=False): bool,
-                    Optional('InstanceFamilies'): [str],
-                    Optional('InstanceTypes'): [str]
+                    Optional('InstanceFamilies'): [
+                        Or(
+                            str,
+                            And(
+                                {
+                                    str: {
+                                        Optional('UseOnDemand'): bool,
+                                        Optional('UseSpot'): bool,
+                                        Optional('DisableSimultaneousMultithreading'): bool
+                                    }
+                                },
+                                lambda d: len(d) == 1
+                            )
+                        ),
+                    ],
+                    Optional('InstanceTypes'): [
+                        Or(
+                            str,
+                            And(
+                                {
+                                    str: {
+                                        Optional('UseOnDemand'): bool,
+                                        Optional('UseSpot'): bool,
+                                        Optional('DisableSimultaneousMultithreading'): bool
+                                    }
+                                },
+                                lambda d: len(d) == 1
+                            )
+                        ),
+                    ]
                 },
                 'NodeCounts': {
                     Optional('DefaultMinCount', default=0): And(int, lambda s: s >= 0),

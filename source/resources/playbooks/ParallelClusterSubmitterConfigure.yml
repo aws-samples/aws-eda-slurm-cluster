@@ -1,7 +1,0 @@
----
-- name: Configure ParallelCluster Submitter
-  hosts: ParallelClusterSubmitter
-  become_user: root
-  become: yes
-  roles:
-    - ParallelClusterSubmitterConfigure

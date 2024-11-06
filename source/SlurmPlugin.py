@@ -22,6 +22,7 @@ import socket
 import boto3
 from botocore.exceptions import ClientError
 from collections import Counter, defaultdict
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from EC2InstanceTypeInfoPkg.EC2InstanceTypeInfo import EC2InstanceTypeInfo
 from functools import wraps
@@ -1956,8 +1957,16 @@ class SlurmPlugin:
         Get instance types selected by the config file.
 
         Returns:
-            dict: Dictionary of arrays of instance types in each region. instance_types[region][instance_types]
+            dict: Dictionary of dictionary of instance types in each region. instance_types[region]{instance_types: {UseOnDemand: bool, UseSpot: bool, DisableSimultaneousMultithreading: bool}}
         '''
+        instance_config = deepcopy(instance_config)
+
+        default_instance_type_config = {
+            'UseOnDemand': instance_config['UseOnDemand'],
+            'UseSpot': instance_config['UseSpot'],
+            'DisableSimultaneousMultithreading': instance_config['DisableSimultaneousMultithreading']
+        }
+
         instance_types = {}
         for region in regions:
             # Compile strings into regular expressions
@@ -1965,21 +1974,37 @@ class SlurmPlugin:
             for include_exclude in ['Include', 'Exclude']:
                 instance_config_re[include_exclude] = {}
                 for filter_type in ['InstanceFamilies', 'InstanceTypes']:
-                    instance_config_re[include_exclude][filter_type] = []
-                    for index, re_string in enumerate(instance_config.get(include_exclude, {}).get(filter_type, {})):
+                    if include_exclude == 'Include':
+                        instance_config_re[include_exclude][filter_type] = {}
+                    else:
+                        instance_config_re[include_exclude][filter_type] = []
+                    for index, re_item in enumerate(instance_config.get(include_exclude, {}).get(filter_type, {})):
+                        if type(re_item) is str:
+                            re_string = re_item
+                            re_config = {}
+                        else:
+                            re_string = list(re_item.keys())[0]
+                            re_config = re_item[re_string]
                         try:
-                            instance_config_re[include_exclude][filter_type].append(re.compile(f"^{re_string}$"))
+                            compiled_re = re.compile(f"^{re_string}$")
                         except:
-                            logging.exception(f"Invalid regular expression for instance_config['{include_exclude}']['{filter_type}'] {re_string}")
+                            logger.exception(f"Invalid regular expression for instance_config['{include_exclude}']['{filter_type}'] {re_string}")
                             exit(1)
+                        if include_exclude == 'Include':
+                            instance_config_re[include_exclude][filter_type][re_string] = {
+                                're': compiled_re,
+                                'config': re_config
+                            }
+                        else:
+                            instance_config_re[include_exclude][filter_type].append(compiled_re)
 
-            region_instance_types = []
+            region_instance_types = {}
 
             for instance_family in sorted(self.instance_type_and_family_info[region]['instance_families'].keys()):
                 logger.debug(f"Considering {instance_family} family exclusions")
                 exclude = False
-                for instance_family_re in instance_config_re.get('Exclude', {}).get('InstanceFamilies', {}):
-                    if instance_family_re.match(instance_family):
+                for instance_family_exclude_re in instance_config_re.get('Exclude', {}).get('InstanceFamilies', {}):
+                    if instance_family_exclude_re.match(instance_family):
                         logger.debug(f"Excluding {instance_family} family")
                         exclude = True
                         break
@@ -1989,16 +2014,19 @@ class SlurmPlugin:
                 logger.debug(f"{instance_family} family not excluded")
 
                 # Check to see if instance family is explicitly included
-                include_family = False
+                include_instance_family = False
                 if instance_config_re['Include']['InstanceFamilies']:
                     logger.debug(f"Considering {instance_family} family inclusions")
-                    for instance_family_re in instance_config_re['Include']['InstanceFamilies']:
-                        if instance_family_re.match(instance_family):
+                    for instance_family_include_re_string in instance_config_re['Include']['InstanceFamilies']:
+                        instance_family_include_re = instance_config_re['Include']['InstanceFamilies'][instance_family_include_re_string]['re']
+                        if instance_family_include_re.match(instance_family):
                             logger.debug(f"Including {instance_family} family")
-                            include_family = True
+                            include_instance_family = True
+                            instance_family_config = instance_config_re['Include']['InstanceFamilies'][instance_family_include_re_string]['config']
                             break
-                    if not include_family:
-                        logger.debug(f"{instance_family} family not included. Will check for instance type inclusions.")
+                if not include_instance_family:
+                    logger.debug(f"{instance_family} family not included. Will check for instance type inclusions.")
+                    instance_family_config = default_instance_type_config
 
                 # Check the family's instance types for exclusion and inclusion. MaxSizeOnly is a type of exclusion.
                 instance_family_info = self.instance_type_and_family_info[region]['instance_families'][instance_family]
@@ -2008,9 +2036,9 @@ class SlurmPlugin:
                         logger.debug(f"Excluding {instance_type} because not MaxInstanceType.")
                         continue
                     exclude = False
-                    for instance_type_re in instance_config_re['Exclude']['InstanceTypes']:
-                        if instance_type_re.match(instance_type):
-                            logger.debug(f"Excluding {instance_type} because excluded")
+                    for instance_type_exclude_re in instance_config_re['Exclude']['InstanceTypes']:
+                        if instance_type_exclude_re.match(instance_type):
+                            logger.debug(f"Excluding {instance_type} because instance type excluded")
                             exclude = True
                             break
                     if exclude:
@@ -2018,21 +2046,33 @@ class SlurmPlugin:
                     logger.debug(f"{instance_type} not excluded by instance type exclusions")
 
                     # The instance type isn't explicitly excluded so check if it is included
-                    if include_family:
-                        logger.debug(f"Including {instance_type} because {instance_family} family is included.")
-                        region_instance_types.append(instance_type)
-                        continue
-                    include = False
-                    for instance_type_re in instance_config_re['Include']['InstanceTypes']:
+
+                    # Even if it is included because of the family, check for explicit instance type inclusion because the config may be different than for the family.
+                    include_instance_type = False
+                    instance_type_config = {}
+                    #logger.info(f"instance_config_re:\n{json.dumps(instance_config_re, indent=4, default=lambda o: '<not serializable>')}")
+                    for instance_type_re_string, instance_type_re_dict in instance_config_re['Include']['InstanceTypes'].items():
+                        instance_type_re = instance_type_re_dict['re']
                         if instance_type_re.match(instance_type):
-                            logger.debug(f"Including {instance_type}")
-                            include = True
-                            region_instance_types.append(instance_type)
+                            logger.debug(f"Including {instance_type} because explicitly included.")
+                            include_instance_type = True
+                            instance_type_config = instance_type_re_dict['config']
                             break
-                    if not include:
+
+                    if include_instance_family:
+                        logger.debug(f"Including {instance_type} because {instance_family} family is included.")
+
+                    if not (include_instance_family or include_instance_type):
                         logger.debug(f"Excluding {instance_type} because not included")
                         continue
-            instance_types[region] = sorted(region_instance_types)
+
+                    instance_type_config['UseOnDemand'] = instance_type_config.get('UseOnDemand', instance_family_config.get('UseOnDemand', default_instance_type_config['UseOnDemand']))
+                    instance_type_config['UseSpot'] = instance_type_config.get('UseSpot', instance_family_config.get('UseSpot', default_instance_type_config['UseSpot']))
+                    instance_type_config['DisableSimultaneousMultithreading'] = instance_type_config.get('DisableSimultaneousMultithreading', instance_family_config.get('DisableSimultaneousMultithreading', default_instance_type_config['DisableSimultaneousMultithreading']))
+
+                    region_instance_types[instance_type] = instance_type_config
+
+            instance_types[region] = region_instance_types
         return instance_types
 
     # Translate region code to region name

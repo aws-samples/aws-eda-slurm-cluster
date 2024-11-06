@@ -1,0 +1,7 @@
+---
+- name: Deconfigure ParallelCluster ExternalLoginNode
+  hosts: ParallelClusterExternalLoginNode
+  become_user: root
+  become: yes
+  roles:
+    - ParallelClusterExternalLoginNodeDeconfigure

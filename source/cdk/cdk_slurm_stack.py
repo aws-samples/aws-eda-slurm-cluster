@@ -1158,7 +1158,7 @@ class CdkSlurmStack(Stack):
             'playbooks_s3_url': self.playbooks_s3_url,
             'Region': self.cluster_region,
             'SubnetId': self.config['SubnetId'],
-            'SubmitterSlurmConfigDir': f"/opt/slurm/{self.config['slurm']['ClusterName']}/config"
+            'ExternalLoginNodeSlurmConfigDir': f"/opt/slurm/{self.config['slurm']['ClusterName']}/config"
         }
         if config_schema.PARALLEL_CLUSTER_SUPPORTS_CUSTOM_MUNGE_KEY(self.PARALLEL_CLUSTER_VERSION):
             template_vars['MungeKeySecretId'] = ''
@@ -1186,8 +1186,8 @@ class CdkSlurmStack(Stack):
             'config/bin/on_head_node_updated.sh',
             'config/bin/on_compute_node_start.sh',
             'config/bin/on_compute_node_configured.sh',
-            'config/bin/submitter_configure.sh',
-            'config/bin/submitter_deconfigure.sh',
+            'config/bin/external_login_node_configure.sh',
+            'config/bin/external_login_node_deconfigure.sh',
             'config/bin/xio-compute-node-ami-configure.sh',
             'config/users_groups.json',
         ]
@@ -1292,14 +1292,14 @@ class CdkSlurmStack(Stack):
         with open(local_file, 'rb') as fh:
             self.assets_hash.update(fh.read())
 
-        ansible_submitter_template_vars = self.get_instance_template_vars('ParallelClusterSubmitter')
+        ansible_external_login_node_template_vars = self.get_instance_template_vars('ParallelClusterExternalLoginNode')
         fh = NamedTemporaryFile('w', delete=False)
         fh.write('---\n')
-        for name, value in sorted(ansible_submitter_template_vars.items()):
+        for name, value in sorted(ansible_external_login_node_template_vars.items()):
             fh.write(f"{name:28}: {value}\n")
         fh.close()
         local_file = fh.name
-        s3_key = f"{self.assets_base_key}/config/ansible/ansible_submitter_vars.yml"
+        s3_key = f"{self.assets_base_key}/config/ansible/ansible_external_login_node_vars.yml"
         self.s3_client.upload_file(
             local_file,
             self.assets_bucket,
@@ -1366,15 +1366,11 @@ class CdkSlurmStack(Stack):
         '''
         logger.debug(f"Getting instance types from config")
         self.region_instance_types = self.plugin.get_instance_types_from_instance_config(self.config['slurm']['InstanceConfig'], [self.cluster_region], self.eC2InstanceTypeInfo)
-        self.instance_types = []
-        region_instance_types = self.region_instance_types[self.cluster_region]
-        if len(region_instance_types) == 0:
-            logger.error(f"No instance types found in region {self.cluster_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{region_instance_types}")
+        self.instance_type_configs = self.region_instance_types[self.cluster_region]
+        if len(self.instance_type_configs) == 0:
+            logger.error(f"No instance types found in region {self.cluster_region}. Update slurm/InstanceConfig. Current value:\n{pp.pformat(self.config['slurm']['InstanceConfig'])}\n{self.instance_type_configs}")
             sys.exit(1)
-        logger.info(f"{len(region_instance_types)} instance types configured in {self.cluster_region}:\n{pp.pformat(region_instance_types)}")
-        for instance_type in region_instance_types:
-            self.instance_types.append(instance_type)
-        self.instance_types = sorted(self.instance_types)
+        logger.info(f"{len(self.instance_type_configs)} instance types configured in {self.cluster_region}:\n{pp.pformat(self.instance_type_configs)}")
 
         # Filter the instance types by architecture due to PC limitation to 1 architecture
         # Also require at least 4 GB of memory.
@@ -1382,8 +1378,9 @@ class CdkSlurmStack(Stack):
         MIN_COMPUTE_NODE_GB = 4
         cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
         logger.info(f"ParallelCluster Architecture: {cluster_architecture}")
-        filtered_instance_types = []
-        for instance_type in self.instance_types:
+        filtered_instance_type_configs = {}
+        number_of_compute_resources = 0
+        for instance_type, instance_type_config in self.instance_type_configs.items():
             instance_architecture = self.plugin.get_architecture(self.cluster_region, instance_type)
             if instance_architecture != cluster_architecture:
                 logger.warning(f"Excluding {instance_type} because architecture ({instance_architecture}) != {cluster_architecture}")
@@ -1396,11 +1393,15 @@ class CdkSlurmStack(Stack):
             if cpu_vendor not in self.config['slurm']['InstanceConfig']['CpuVendor']:
                 logger.warning(f"Excluding {instance_type} because CPU vendor {cpu_vendor} not in {self.config['slurm']['InstanceConfig']['CpuVendor']}")
                 continue
-            filtered_instance_types.append(instance_type)
-        self.instance_types = filtered_instance_types
-        logger.info(f"ParallelCluster configured to use {len(self.instance_types)} instance types :\n{pp.pformat(self.instance_types)}")
-        if len(self.instance_types) == 0:
-            logger.error(f"No instance type configured. Update slurm/InstanceConfig with {cluster_architecture} instance types.")
+            filtered_instance_type_configs[instance_type] = instance_type_config
+            if instance_type_config['UseOnDemand']:
+                number_of_compute_resources += 1
+            if instance_type_config['UseSpot']:
+                number_of_compute_resources += 1
+        self.instance_type_configs = filtered_instance_type_configs
+        logger.info(f"ParallelCluster configured to use {len(self.instance_type_configs)} instance types and {number_of_compute_resources} compute resources:\n{pp.pformat(self.instance_type_configs)}")
+        if number_of_compute_resources == 0:
+            logger.error(f"No instance types or compute resources configured. Update slurm/InstanceConfig with {cluster_architecture} instance types with UseOnDemand or UseSpot set..")
             sys.exit(1)
 
         # Validate updated config against schema
@@ -2229,17 +2230,17 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['subnet_id'] = self.config['SubnetId']
                 instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['WorkerSecurityGroupIds']
                 instance_template_vars['xio_config'] = self.config['slurm']['Xio']
-        elif instance_role == 'ParallelClusterSubmitter':
-            instance_template_vars['slurm_version']                  = get_SLURM_VERSION(self.config)
-            instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
-            instance_template_vars['slurmrestd_port']                = self.slurmrestd_port
-            instance_template_vars['file_system_mount_path']         = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['slurm_base_dir']                 = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['submitter_slurm_base_dir']       = f'/opt/slurm/{cluster_name}'
-            instance_template_vars['slurm_config_dir']               = f'/opt/slurm/{cluster_name}/config'
-            instance_template_vars['slurm_etc_dir']                  = f'/opt/slurm/{cluster_name}/etc'
-            instance_template_vars['slurm_uid']                      = self.config['slurm']['SlurmUid']
-            instance_template_vars['modulefiles_base_dir']           = f'/opt/slurm/{cluster_name}/config/modules/modulefiles'
+        elif instance_role == 'ParallelClusterExternalLoginNode':
+            instance_template_vars['slurm_version']                      = get_SLURM_VERSION(self.config)
+            instance_template_vars['parallel_cluster_munge_version']     = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
+            instance_template_vars['slurmrestd_port']                    = self.slurmrestd_port
+            instance_template_vars['file_system_mount_path']             = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['slurm_base_dir']                     = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['external_login_node_slurm_base_dir'] = f'/opt/slurm/{cluster_name}'
+            instance_template_vars['slurm_config_dir']                   = f'/opt/slurm/{cluster_name}/config'
+            instance_template_vars['slurm_etc_dir']                      = f'/opt/slurm/{cluster_name}/etc'
+            instance_template_vars['slurm_uid']                          = self.config['slurm']['SlurmUid']
+            instance_template_vars['modulefiles_base_dir']               = f'/opt/slurm/{cluster_name}/config/modules/modulefiles'
 
         elif instance_role == 'ParallelClusterComputeNode':
             pass
@@ -2651,27 +2652,25 @@ class CdkSlurmStack(Stack):
         # If the user configures too many instance types, then flag an error and print out the configured instance
         # types and suggest instance types to exclude.
 
-        purchase_options = []
-        if self.config['slurm']['InstanceConfig']['UseOnDemand']:
-            purchase_options.append('ONDEMAND')
-        if self.config['slurm']['InstanceConfig']['UseSpot']:
-            purchase_options.append('SPOT')
-        if not len(purchase_options):
-            logger.error(f"Must specify either slurm/InstanceConfig/UseOnDemand or UseSpot.")
-            exit(1)
-        MAX_NUMBER_OF_INSTANCE_TYPES = int(MAX_NUMBER_OF_COMPUTE_RESOURCES / len(purchase_options))
+        purchase_options = ['ONDEMAND', 'SPOT']
 
         # Create list of instance types by number of cores and amount of memory
         instance_types_by_core_memory = {}
         # Create list of instance types by amount of memory and number of cores
         instance_types_by_memory_core = {}
-        logger.info(f"Bucketing {len(self.instance_types)} instance types based on core and memory")
-        for instance_type in self.instance_types:
+        number_of_compute_resources = 0
+        logger.info(f"Bucketing {len(self.instance_type_configs)} instance types based on core and memory")
+        for instance_type, instance_type_config in self.instance_type_configs.items():
             if compute_node_ami:
                 supports, error_message = self.ami_supports_instance_type(compute_node_ami, instance_type)
                 if not supports:
                     logger.warning(f"{instance_type:12s} not supported for {compute_node_ami}. {error_message}")
                     continue
+
+            if instance_type_config['UseOnDemand']:
+                number_of_compute_resources += 1
+            if instance_type_config['UseSpot']:
+                number_of_compute_resources += 1
 
             cores = self.plugin.get_CoreCount(self.cluster_region, instance_type)
             mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
@@ -2699,11 +2698,10 @@ class CdkSlurmStack(Stack):
             for cores in sorted(instance_types_by_memory_core[mem_gb]):
                 logger.info(f"            {len(instance_types_by_memory_core[mem_gb][cores])} instance type with {cores:3} core(s): {instance_types_by_memory_core[mem_gb][cores]}")
 
-        if len(self.instance_types) > MAX_NUMBER_OF_INSTANCE_TYPES:
-            logger.error(f"Too many instance types configured: {len(self.instance_types)}. Max is {MAX_NUMBER_OF_INSTANCE_TYPES}")
+        if number_of_compute_resources > MAX_NUMBER_OF_COMPUTE_RESOURCES:
+            logger.error(f"Too many compute resources configured: {number_of_compute_resources}. Max is {MAX_NUMBER_OF_COMPUTE_RESOURCES}")
 
-
-            logger.error(f"Too many instance types configured: {len(self.instance_types)}. Max is {MAX_NUMBER_OF_INSTANCE_TYPES}. Consider selecting 1 instance type per memory size. Either reduce the number of included instance families and types or exclude instance families and types.")
+            logger.error(f"Too many compute resources configured: {number_of_compute_resources}. Max is {MAX_NUMBER_OF_COMPUTE_RESOURCES}. Consider selecting 1 instance type per memory size. Either reduce the number of included instance families and types or exclude instance families and types. Or set UseOnDemand or UseSpot to false for some instance familes or types.")
             exit(1)
 
 
@@ -2712,19 +2710,23 @@ class CdkSlurmStack(Stack):
         number_of_queues = 0
         number_of_compute_resources = 0
 
-        disable_smt = self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading']
-
         # Create 1 queue and compute resource for each instance type and purchase option.
         # The queue is named after the instance type.
         # The CR is named after the amount of memory and number of cores.
         for purchase_option in purchase_options:
-            for instance_type in self.instance_types:
+            for instance_type, instance_type_config in self.instance_type_configs.items():
+                if purchase_option == 'ONDEMAND':
+                    if not instance_type_config['UseOnDemand']:
+                        continue
+                else:
+                    if not instance_type_config['UseSpot']:
+                        continue
                 logger.debug(f"Creating queue for {purchase_option} {instance_type}")
                 efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
                 mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
                 core_count = int(self.plugin.get_CoreCount(self.cluster_region, instance_type))
                 threads_per_core = int(self.plugin.get_DefaultThreadsPerCore(self.cluster_region, instance_type))
-                if not disable_smt:
+                if not instance_type_config['DisableSimultaneousMultithreading']:
                     core_count *= threads_per_core
                 if purchase_option == 'ONDEMAND':
                     queue_name_prefix = "od"
@@ -2784,7 +2786,7 @@ class CdkSlurmStack(Stack):
                     'Name': compute_resource_name,
                     'MinCount': min_count,
                     'MaxCount': max_count,
-                    'DisableSimultaneousMultithreading': self.config['slurm']['ParallelClusterConfig']['DisableSimultaneousMultithreading'],
+                    'DisableSimultaneousMultithreading': instance_type_config['DisableSimultaneousMultithreading'],
                     'Instances': [],
                     'Efa': {'Enabled': efa_supported},
                     'Networking': {
@@ -3045,14 +3047,14 @@ class CdkSlurmStack(Stack):
             self.deconfigure_res_users_groups_json.node.add_dependency(self.parallel_cluster)
 
         if 'ExternalLoginNodes' in self.config:
-            # Custom resource to deconfigure submitters before deleting cluster
-            self.deconfigure_res_submitters = CustomResource(
+            # Custom resource to deconfigure external login nodes before deleting cluster
+            self.deconfigure_external_login_nodes = CustomResource(
                 self, "DeconfigureExternalLoginNodes",
                 service_token = self.deconfigure_external_login_nodes_lambda.function_arn,
                 properties = {
                 }
             )
-            self.deconfigure_res_submitters.node.add_dependency(self.parallel_cluster)
+            self.deconfigure_external_login_nodes.node.add_dependency(self.parallel_cluster)
 
         CfnOutput(self, "ParallelClusterConfigTemplateYamlS3Url",
             value = self.parallel_cluster_config_template_yaml_s3_url
@@ -3074,14 +3076,14 @@ class CdkSlurmStack(Stack):
         CfnOutput(self, "Command02_CreateUsersGroupsJsonConfigure",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_configure.sh"
         )
-        CfnOutput(self, "Command03_SubmitterConfigure",
-            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_configure.sh"
+        CfnOutput(self, "Command03_ExternalLoginNodeConfigure",
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/external_login_node_configure.sh"
         )
         CfnOutput(self, "command10_CreateUsersGroupsJsonDeconfigure",
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_deconfigure.sh"
         )
-        CfnOutput(self, "command11_SubmitterDeconfigure",
-            value = f"sudo /opt/slurm/{cluster_name}/config/bin/submitter_deconfigure.sh && sudo umount /opt/slurm/{cluster_name}"
+        CfnOutput(self, "command11_ExternalLoginNodeDeconfigure",
+            value = f"sudo /opt/slurm/{cluster_name}/config/bin/external_login_nodes_deconfigure.sh && sudo umount /opt/slurm/{cluster_name}"
         )
 
     def create_queue_config(self, queue_name, allocation_strategy, purchase_option):
