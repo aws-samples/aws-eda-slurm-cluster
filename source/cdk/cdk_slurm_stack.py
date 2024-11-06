@@ -2723,7 +2723,8 @@ class CdkSlurmStack(Stack):
                         continue
                 logger.debug(f"Creating queue for {purchase_option} {instance_type}")
                 efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
-                mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
+                mem_mb = self.plugin.get_MemoryInMiB(self.cluster_region, instance_type)
+                mem_gb = int(mem_mb / 1024)
                 core_count = int(self.plugin.get_CoreCount(self.cluster_region, instance_type))
                 threads_per_core = int(self.plugin.get_DefaultThreadsPerCore(self.cluster_region, instance_type))
                 if not instance_type_config['DisableSimultaneousMultithreading']:
@@ -2784,6 +2785,7 @@ class CdkSlurmStack(Stack):
                     max_count = self.config['slurm']['InstanceConfig']['NodeCounts']['DefaultMaxCount']
                 compute_resource = {
                     'Name': compute_resource_name,
+                    'SchedulableMemory': mem_mb,
                     'MinCount': min_count,
                     'MaxCount': max_count,
                     'DisableSimultaneousMultithreading': instance_type_config['DisableSimultaneousMultithreading'],
