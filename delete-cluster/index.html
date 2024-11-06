@@ -126,10 +126,38 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="delete-cluster">Delete Cluster</h1>
-<p>To delete the cluster all you need to do is delete the configuration CloudFormation stack.
-This will delete the ParallelCluster cluster and all of the configuration resources.</p>
+<p>Before deleting the cluster, you should stop the cluster and make sure that no instances are
+connected to the clusters head node.</p>
+<p>For example, you should deconfigure external login nodes and instances that are creating and updating the users_groups.json file.</p>
 <p>If you specified RESEnvironmentName then it will also deconfigure the creation of <code>users_groups.json</code> and also deconfigure the VDI
 instances so they are no longer using the cluster.</p>
+<p>If you configured <a href="../config/#domainjoinedinstance">DomanJoinedInstance</a> then the creation of <code>users_groups.json</code> will be automatically deconfigured.</p>
+<p>If you configured <a href="../config/#externalloginnodes">ExternalLoginNodes</a> then they will automatically deconfigured.</p>
+<p>If you manually did this configuration, then you should manually deconfigure them also before deleting the cluster.
+Otherwise, the NFS mounts of the head node will hang and file system related commands on the instance may hang.
+The commands to manually deconfigure can be found in the outputs of the configuration stack.</p>
+<table>
+<thead>
+<tr>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>command10CreateUsersGroupsJsonDeconfigure</td>
+<td>Deconfigure the creation of users_groups.json</td>
+</tr>
+<tr>
+<td>command11ExternalLoginNodeDeconfigure</td>
+<td>Deconfigure external login node</td>
+</tr>
+</tbody>
+</table>
+<p>To delete the cluster all you need to do is delete the configuration CloudFormation stack.
+This will delete the ParallelCluster cluster stack and all of the configuration resources.
+You should not manually delete the ParallelCluster stack.
+If you do, the deconfiguration of login nodes and such may fail.</p>
 <p>If you deployed the Slurm database stack then you can keep that and use it for other clusters.
 If you don't need it anymore, then you can delete the stack.
 You will also need to manually delete the RDS database.</p>
