@@ -176,6 +176,10 @@
             </li>
             <li class="nav-item" data-level="2"><a href="#create-configuration-file" class="nav-link">Create Configuration File</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#configure-slurm-accounting-database-slurmdbd" class="nav-link">Configure Slurm Accounting database (slurmdbd)</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
             <li class="nav-item" data-level="3"><a href="#configure-linux-users-and-groups" class="nav-link">Configure Linux Users and Groups</a>
               <ul class="nav flex-column">
               </ul>
@@ -566,6 +570,13 @@ You should save your selections in the config file.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="configure-slurm-accounting-database-slurmdbd">Configure Slurm Accounting database (slurmdbd)</h3>
+<p>If you <a href="#create-parallelcluster-slurm-database">created a ParallelCluster Slurm Database</a> and a <a href="#create-slurmdbd-instance">Slurmdbd Instance</a> then add the following configuration parameters.</p>
+<pre><code>slurm:
+  ParallelClusterConfig:
+    Slurmdbd:
+      SlurmdbdStackName: &lt;Slurmdbd-Stack-Name&gt;
+</code></pre>
 <h3 id="configure-linux-users-and-groups">Configure Linux Users and Groups</h3>
 <p>The cluster defines a script that can capture the users and groups from your identity provider (IDP) into a json file.
 When a new compute node starts, another script creates local Linux users and groups from the json file.</p>
