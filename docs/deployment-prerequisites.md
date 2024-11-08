@@ -262,6 +262,17 @@ You should save your selections in the config file.
 | [RESStackName](config.md/##resstackname) | Name of RES environment | |
 | [slurm/storage/ExtraMounts](config.md/#extramounts) | Extra mount points | | None
 
+### Configure Slurm Accounting database (slurmdbd)
+
+If you [created a ParallelCluster Slurm Database](#create-parallelcluster-slurm-database) and a [Slurmdbd Instance](#create-slurmdbd-instance) then add the following configuration parameters.
+
+```
+slurm:
+  ParallelClusterConfig:
+    Slurmdbd:
+      SlurmdbdStackName: <Slurmdbd-Stack-Name>
+```
+
 ### Configure Linux Users and Groups
 
 The cluster defines a script that can capture the users and groups from your identity provider (IDP) into a json file.
