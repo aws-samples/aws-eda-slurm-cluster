@@ -1,0 +1,6 @@
+---
+
+- name: Configure rootless docker
+  shell:
+    cmd: |
+      dockerd-rootless-setuptool.sh install

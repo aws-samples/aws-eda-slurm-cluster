@@ -1,0 +1,10 @@
+---
+
+- name: Create oci.conf
+  when: primary_controller|bool
+  copy:
+    dest: "/opt/slurm/etc/oci.conf"
+    src:  opt/slurm/etc/oci.conf
+    owner: root
+    group: root
+    mode: 0644
