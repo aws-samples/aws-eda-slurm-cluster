@@ -64,11 +64,13 @@ users_groups_json_s3_url="s3://$assets_bucket/$assets_base_key/config/users_grou
 # Download all of the config scripts
 config_scripts=(\
     configure-eda.sh \
+    configure-rootless-docker.sh \
     create_or_update_users_groups_json.sh \
     create_users_groups_json.py \
     create_users_groups_json_configure.sh \
     create_users_groups_json_deconfigure.sh \
     create_users_groups.py \
+    install-rootless-docker.sh \
     on_head_node_start.sh \
     on_head_node_configured.sh \
     on_head_node_updated.sh \

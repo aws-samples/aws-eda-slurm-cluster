@@ -1213,11 +1213,13 @@ class CdkSlurmStack(Stack):
         # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
         files_to_upload = [
             'config/bin/configure-eda.sh',
+            'config/bin/configure-rootless-docker.sh',
             'config/bin/create_or_update_users_groups_json.sh',
             'config/bin/create_users_groups_json.py',
             'config/bin/create_users_groups_json_configure.sh',
             'config/bin/create_users_groups_json_deconfigure.sh',
             'config/bin/create_users_groups.py',
+            'config/bin/install-rootless-docker.sh',
             'config/bin/on_head_node_start.sh',
             'config/bin/on_head_node_configured.sh',
             'config/bin/on_head_node_updated.sh',
@@ -1491,6 +1493,7 @@ class CdkSlurmStack(Stack):
                 'ConfigureEdaScriptS3Url': self.custom_action_s3_urls['config/bin/configure-eda.sh'],
                 'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'ImageBuilderSecurityGroupId': self.imagebuilder_sg.security_group_id,
+                'InstallDockerScriptS3Url': self.custom_action_s3_urls['config/bin/install-rootless-docker.sh'],
                 'ParallelClusterVersion': self.config['slurm']['ParallelClusterConfig']['Version'],
                 'Region': self.cluster_region,
                 'SubnetId': self.config['SubnetId'],
