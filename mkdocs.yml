@@ -15,6 +15,7 @@ nav:
   - 'job_preemption.md'
   - 'rest_api.md'
   - 'onprem.md'
+  - 'containers.md'
  # - 'federation.md'
   - 'delete-cluster.md'
  # - 'implementation.md'
