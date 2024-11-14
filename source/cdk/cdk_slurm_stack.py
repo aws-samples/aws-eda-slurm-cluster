@@ -928,6 +928,7 @@ class CdkSlurmStack(Stack):
             'amd':   3,
             'intel': 3
         }
+        number_of_warnings = 0
         number_of_errors = 0
         xio_profile_configs = {}
         self.instance_type_info = self.plugin.get_instance_types_info(self.cluster_region)
@@ -941,22 +942,28 @@ class CdkSlurmStack(Stack):
             xio_profile_configs[profile_name] = profile_config
             # Check that all instance types and families are from the correct CPU vendor
             profile_cpu_vendor = profile_config['CpuVendor']
+            invalid_instance_types = []
             for instance_type_or_family_with_weight in profile_config['InstanceTypes']:
                 (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
                 if not instance_type or not instance_family:
-                    logger.error(f"XIO InstanceType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
-                    number_of_errors += 1
+                    logger.warning(f"XIO InstanceType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                    number_of_warnings += 1
+                    invalid_instance_types.append(instance_type_or_family_with_weight)
                     continue
                 instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
                 if instance_type_cpu_vendor != profile_cpu_vendor:
                     logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
                     number_of_errors += 1
+            for invalid_instance_type in invalid_instance_types:
+                profile_config['InstanceTypes'].remove(invalid_instance_type)
 
+            invalid_instance_types = []
             for instance_type_or_family_with_weight in profile_config['SpotFleetTypes']:
                 (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
                 if not instance_type or not instance_family:
-                    logger.error(f"Xio SpotFleetType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
-                    number_of_errors += 1
+                    logger.warning(f"Xio SpotFleetType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                    number_of_warnings += 1
+                    invalid_instance_types.append(instance_type_or_family_with_weight)
                     continue
                 # Check that spot pricing is available for spot pools.
                 price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot'].get('max', None)
@@ -967,6 +974,9 @@ class CdkSlurmStack(Stack):
                 if instance_type_cpu_vendor != profile_cpu_vendor:
                     logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
                     number_of_errors += 1
+            for invalid_instance_type in invalid_instance_types:
+                profile_config['SpotFleetTypes'].remove(invalid_instance_type)
+
         xio_pool_names = {}
         for pool_config in self.config['slurm']['Xio']['Pools']:
             pool_name = pool_config['PoolName']
@@ -1176,11 +1186,13 @@ class CdkSlurmStack(Stack):
         # Additions or deletions to the list should be reflected in config_scripts in on_head_node_start.sh.
         files_to_upload = [
             'config/bin/configure-eda.sh',
+            'config/bin/configure-rootless-docker.sh',
             'config/bin/create_or_update_users_groups_json.sh',
             'config/bin/create_users_groups_json.py',
             'config/bin/create_users_groups_json_configure.sh',
             'config/bin/create_users_groups_json_deconfigure.sh',
             'config/bin/create_users_groups.py',
+            'config/bin/install-rootless-docker.sh',
             'config/bin/on_head_node_start.sh',
             'config/bin/on_head_node_configured.sh',
             'config/bin/on_head_node_updated.sh',
@@ -1454,6 +1466,7 @@ class CdkSlurmStack(Stack):
                 'ConfigureEdaScriptS3Url': self.custom_action_s3_urls['config/bin/configure-eda.sh'],
                 'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
                 'ImageBuilderSecurityGroupId': self.imagebuilder_sg.security_group_id,
+                'InstallDockerScriptS3Url': self.custom_action_s3_urls['config/bin/install-rootless-docker.sh'],
                 'ParallelClusterVersion': self.config['slurm']['ParallelClusterConfig']['Version'],
                 'Region': self.cluster_region,
                 'SubnetId': self.config['SubnetId'],

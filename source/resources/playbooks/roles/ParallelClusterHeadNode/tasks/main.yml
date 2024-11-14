@@ -7,4 +7,5 @@
 - { include_tasks: config-slurmrestd.yml, tags: slurmrestd }
 - { include_tasks: config-licenses.yml, tags: licenses }
 - { include_tasks: config-slurmdb-accounts.yml, tags: accounts }
+- { include_tasks: config-oci.yml }
 - { include_tasks: config-pyxis.yml }
