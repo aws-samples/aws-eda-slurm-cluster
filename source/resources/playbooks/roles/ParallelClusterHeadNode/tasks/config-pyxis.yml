@@ -13,3 +13,83 @@
       if [[ -e  $plugstack_conf ]]; then
           mv $plugstack_conf ${plugstack_conf}.back
       fi
+
+- name: Configure pyxis and enroot
+  when: primary_controller|bool
+  copy:
+    dest: "/opt/slurm/etc/oci.conf"
+    src:  opt/slurm/etc/oci.conf
+    owner: root
+    group: root
+    mode: 0644
+
+# https://docs.aws.amazon.com/en_us/parallelcluster/latest/ug/tutorials_11_running-containerized-jobs-with-pyxis.html
+
+- name: Set enroot and pyxis facts
+  set_fact:
+    enroot_persistent_dir: '/var/enroot'
+    enroot_volatile_dir:   '/run/enroot'
+    pyxis_runtime_dir:     '/run/pyxis'
+
+- name: Create {{ enroot_persistent_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ enroot_persistent_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 1777
+
+- name: Create {{ enroot_volatile_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ enroot_volatile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 1777
+
+- name: Create {{ pyxis_runtime_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ pyxis_runtime_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create /opt/slurm/etc/plugstack.conf.d
+  when: primary_controller|bool
+  file:
+    path: "/opt/slurm/etc/plugstack.conf.d"
+    state: directory
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create /etc/enroot/enroot.conf
+  when: primary_controller|bool
+  copy:
+    dest: "/etc/enroot/enroot.conf"
+    src:  etc/enroot/enroot.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create /opt/slurm/etc/plugstack.conf
+  when: primary_controller|bool
+  copy:
+    dest: "/opt/slurm/etc/plugstack.conf"
+    src:  opt/slurm/etc/plugstack.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create /opt/slurm/etc/plugstack.conf.d/pyxis.conf
+  when: primary_controller|bool
+  copy:
+    dest: "/opt/slurm/etc/plugstack.conf.d/pyxis.conf"
+    src:  opt/slurm/etc/plugstack.conf.d/pyxis.conf
+    owner: root
+    group: root
+    mode: 0644
