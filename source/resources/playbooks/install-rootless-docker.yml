@@ -1,0 +1,8 @@
+---
+- name: Install rootless docker for OCI containers
+  hosts:
+    - ParallelClusterComputeNode
+  become_user: root
+  become: yes
+  roles:
+    - install-rootless-docker
