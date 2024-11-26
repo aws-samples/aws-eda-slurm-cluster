@@ -53,7 +53,7 @@ import base64
 import boto3
 from botocore.exceptions import ClientError
 import config_schema
-from config_schema import get_PARALLEL_CLUSTER_ENROOT_VERSION, get_PARALLEL_CLUSTER_LAMBDA_RUNTIME, get_PARALLEL_CLUSTER_MUNGE_VERSION, get_PARALLEL_CLUSTER_PYTHON_VERSION, get_PARALLEL_CLUSTER_PYXIS_VERSION, get_PC_SLURM_VERSION, get_SLURM_VERSION
+from config_schema import get_PARALLEL_CLUSTER_ENROOT_VERSION, get_PARALLEL_CLUSTER_LAMBDA_RUNTIME, get_PARALLEL_CLUSTER_MUNGE_VERSION, get_PARALLEL_CLUSTER_PYTHON_VERSION, get_PARALLEL_CLUSTER_PYXIS_VERSION, get_PC_SLURM_VERSION, get_SLURM_VERSION, get_PCS_LAMBDA_RUNTIME
 from constructs import Construct
 from copy import copy, deepcopy
 from hashlib import sha512
@@ -134,13 +134,26 @@ class CdkSlurmStack(Stack):
 
         self.create_security_groups()
 
-        # Assets needs ARNs of topics used to trigger Lambdas so must be declared as part of assets
-        self.create_parallel_cluster_assets()
+        if 'ParallelClusterConfig' in self.config['slurm']:
+            # Assets needs ARNs of topics used to trigger Lambdas so must be declared as part of assets
+            self.create_parallel_cluster_assets()
 
-        # Lambdas need ARNs from assets in IAM permissions
-        self.create_parallel_cluster_lambdas()
+            # Lambdas need ARNs from assets in IAM permissions
+            self.create_parallel_cluster_lambdas()
 
-        self.create_parallel_cluster_config()
+            self.create_parallel_cluster_config()
+        elif 'PcsConfig' in self.config['slurm']:
+            self.create_pcs_assets()
+
+            # Lambdas need ARNs from assets in IAM permissions
+            self.create_pcs_lambdas()
+
+            self.create_pcs_config()
+
+            self.create_pcs_resources()
+        else:
+            logger.error(f"Must specify either ParallelClusterConfig or PcsConfig")
+            exit(1)
 
         self.create_fault_injection_templates()
 
@@ -316,160 +329,218 @@ class CdkSlurmStack(Stack):
         # Can't have both DatabaseStackName and SlurmdbdStackName
         if 'Database' in self.config['slurm']['ParallelClusterConfig'] and 'Slurmdbd' in self.config['slurm']['ParallelClusterConfig']:
             logger.error(f"Cannot specify both Database and Slurmdbd in config.")
+
+        if 'ParallelClusterConfig' in self.config['slurm'] and 'PcsConfig' in self.config['slurm']:
+            logger.error(f"Cannot specify both ParallelClusterConfig and PcsConfig")
             exit(1)
 
-        if 'Database' in self.config['slurm']['ParallelClusterConfig']:
-            required_database_keys = ['ClientSecurityGroup', 'FQDN', 'Port', 'AdminUserName', 'AdminPasswordSecretArn']
-            if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
-                invalid_keys = []
-                for database_key in self.config['slurm']['ParallelClusterConfig']['Database']:
-                    if database_key in ['DatabaseStackName']:
-                        continue
-                    if database_key in required_database_keys:
-                        logger.error(f"Cannot specify slurm/ParallelClusterConfig/Database/{database_key} and slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName")
-                        invalid_keys.append(database_key)
-                        config_errors += 1
-                for database_key in invalid_keys:
-                    del self.config['slurm']['ParallelClusterConfig']['Database'][database_key]
+        if not('ParallelClusterConfig' in self.config['slurm'] or 'PcsConfig' in self.config['slurm']):
+            logger.error(f"Must specify either ParallelClusterConfig or PcsConfig")
+            exit(1)
 
-            if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
-                cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
-                # Check to make sure that the database is in the same VPC.
-                parameter_dicts = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks'][0]['Parameters']
-                vpc_checked = False
-                for parameter_dict in parameter_dicts:
-                    if parameter_dict['ParameterKey'] == 'Vpc':
-                        database_vpc_id = parameter_dict['ParameterValue']
-                        if database_vpc_id != self.config['VpcId']:
-                            logger.error(f"Config slurm/ParallelClusterConfig/Database/DatabaseStackName({self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}) is deployed in {database_vpc_id} but needs to be in {self.config['VpcId']}")
-                            config_errors += 1
-                        vpc_checked = True
-                        break
-                assert vpc_checked, f"Didn't find vpc for database in\n{json.dumps(parameter_dicts, indent=4)}"
+        if 'ParallelClusterConfig' in self.config['slurm']:
+            self.PARALLEL_CLUSTER_VERSION = parse_version(self.config['slurm']['ParallelClusterConfig']['Version'])
 
-                stacks_list = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks']
-                if not stacks_list:
-                    logger.error(f"No stack named {self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']} found.")
-                    exit(1)
-                if len(stacks_list) > 1:
-                    logger.error(f"More than 1 database stack with name=={self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}. Please report a bug.")
-                    for index, stack_dict in enumerate(stacks_list):
-                        logger.error(f"    stack[{index}]: StackName={stack_dict['StackName']} StackId={stack_dict['StackId']}")
-                    exit(1)
-                if 'Outputs' not in stacks_list[0]:
-                    logger.error(f"No outputs found in {self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}. StackStatus={stacks_list[0]['StackStatus']}")
-                    exit(1)
-                stack_outputs = stacks_list[0]['Outputs']
-                output_to_key_map = {
-                    'DatabaseHost': 'FQDN',
-                    'DatabasePort': 'Port',
-                    'DatabaseAdminUser': 'AdminUserName',
-                    'DatabaseSecretArn': 'AdminPasswordSecretArn',
-                    'DatabaseClientSecurityGroup': 'ClientSecurityGroup'
-                }
-                for output in stack_outputs:
-                    if output['OutputKey'] in output_to_key_map:
-                        database_key = output_to_key_map[output['OutputKey']]
-                        if database_key == 'Port':
-                            value = int(output['OutputValue'])
-                        else:
-                            value = output['OutputValue']
-                        if database_key == 'ClientSecurityGroup':
-                            self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = {f"{self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}-DatabaseClientSG": value}
-                        else:
-                            self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = value
-                for output, database_key in output_to_key_map.items():
-                    if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
-                        logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'] stack to set slurm/ParallelClusterConfig/Database/{database_key}")
+            if not config_schema.PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES(self.PARALLEL_CLUSTER_VERSION):
+                if 'LoginNodes' in self.config['slurm']['ParallelClusterConfig']:
+                    logger.error(f"slurm/ParallelClusterConfig/LoginNodes not supported before version {config_schema.PARALLEL_CLUSTER_SUPPORTS_LOGIN_NODES_VERSION}")
+                    config_errors += 1
 
-            else:
-                for database_key in required_database_keys:
-                    if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
-                        logger.error(f"Must specify slurm/ParallelClusterConfig/Database/{database_key} when slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName not set")
-                        config_errors += 1
+            self.mount_home = False
+            if not config_schema.PARALLEL_CLUSTER_SUPPORTS_HOME_MOUNT(self.PARALLEL_CLUSTER_VERSION):
+                if 'storage' in self.config['slurm']:
+                    for mount_dict in self.config['slurm']['storage']['ExtraMounts']:
+                        logger.info(f"mount_dict={mount_dict}")
+                        if mount_dict['dest'] == '/home':
+                            self.mount_home = True
+                            self.mount_home_src = mount_dict['src']
+                            logger.info(f"Mounting /home from {self.mount_home_src} on compute nodes")
 
-        if 'Slurmdbd' in self.config['slurm']['ParallelClusterConfig']:
-            required_slurmdbd_keys = ['Host', 'Port', 'ClientSecurityGroup']
-            if 'SlurmdbdStackName' in self.config['slurm']['ParallelClusterConfig']['Slurmdbd']:
-                cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
-                # Check that the stack exists
-                try:
-                    stacks_list = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'])['Stacks']
-                except ClientError:
-                    logger.error(f"Can't find {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']} stack specified in /slurm/ParallelClusterConfig/Slurmdbd/SlurmdbdStackName.")
-                    exit(1)
-                if not stacks_list:
-                    logger.error(f"No stack named {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']} found.")
-                    exit(1)
-                if len(stacks_list) > 1:
-                    logger.error(f"More than 1 slurmdbd stack with name=={self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']}. Please report a bug.")
-                    for index, stack_dict in enumerate(stacks_list):
-                        logger.error(f"    stack[{index}]: StackName={stack_dict['StackName']} StackId={stack_dict['StackId']}")
-                    exit(1)
-
-                # Check to make sure that the slurmdbd instance is in the same VPC.
-                parameter_dicts = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'])['Stacks'][0]['Parameters']
-                vpc_checked = False
-                for parameter_dict in parameter_dicts:
-                    if parameter_dict['ParameterKey'] == 'VPCId':
-                        slurmdbd_vpc_id = parameter_dict['ParameterValue']
-                        if slurmdbd_vpc_id != self.config['VpcId']:
-                            logger.error(f"Config slurm/ParallelClusterConfig/Slurmdbd/SlurmdbdStackName({self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']}) is deployed in {slurmdbd_vpc_id} but needs to be in {self.config['VpcId']}")
-                            config_errors += 1
-                        vpc_checked = True
-                        break
-                if not vpc_checked:
-                    logger.error(f"Didn't find VPCId parameter for slurmdbd in\n{json.dumps(parameter_dicts, indent=4)}")
-                    exit(1)
-
-                if 'Outputs' not in stacks_list[0]:
-                    logger.error(f"No outputs found in {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']}. StackStatus={stacks_list[0]['StackStatus']}")
-                    exit(1)
-                stack_outputs = stacks_list[0]['Outputs']
-                output_to_key_map = {
-                    'SlurmdbdPrivateIp': 'Host',
-                    'SlurmdbdPort': 'Port',
-                    'AccountingClientSecurityGroup': 'ClientSecurityGroup',
-                }
-                for output in stack_outputs:
-                    if output['OutputKey'] in output_to_key_map:
-                        slurmdbd_key = output_to_key_map[output['OutputKey']]
-                        if slurmdbd_key == 'Port':
-                            value = int(output['OutputValue'])
-                        else:
-                            value = output['OutputValue']
-                        self.config['slurm']['ParallelClusterConfig']['Slurmdbd'][slurmdbd_key] = value
-                for output, slurmdbd_key in output_to_key_map.items():
-                    if slurmdbd_key not in self.config['slurm']['ParallelClusterConfig']['Slurmdbd']:
-                        logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'] stack to set slurm/ParallelClusterConfig/Slurmdbd/{slurmdbd_key}")
-
-            if self.config['slurm']['ParallelClusterConfig']['Image']['Os'] == 'centos7' and self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
-                logger.error(f'centos7 only supports x86_64 architecture. Update slurm/ParallelClusterConfig/Architecture.')
+            # Check OS
+            if self.config['slurm']['ParallelClusterConfig']['Image']['Os'] not in config_schema.get_PARALLEL_CLUSTER_ALLOWED_OSES(self.config):
+                logger.error(f"{self.config['slurm']['ParallelClusterConfig']['Image']['Os']} is not supported in ParallelCluster version {self.PARALLEL_CLUSTER_VERSION}.")
+                logger.info(f"alinux2: Supported in versions >= {config_schema.MIN_PARALLEL_CLUSTER_VERSION}")
+                logger.info(f"alinux23: Supported in versions >= {config_schema.PARALLEL_CLUSTER_SUPPORTS_AMAZON_LINUX_2023}")
+                logger.info(f"centos7: Supported in versions >= {config_schema.PARALLEL_CLUSTER_SUPPORTS_CENTOS_7_MIN_VERSION} and < {config_schema.PARALLEL_CLUSTER_SUPPORTS_CENTOS_7_DEPRECATED_VERSION}")
+                logger.info(f"rhel8: Supported in versions >= {config_schema.PARALLEL_CLUSTER_SUPPORTS_RHEL_8_MIN_VERSION}")
+                logger.info(f"rhel9: Supported in versions >= {config_schema.PARALLEL_CLUSTER_SUPPORTS_RHEL_9_MIN_VERSION}")
+                logger.info(f"rocky8: Supported in versions >= {config_schema.PARALLEL_CLUSTER_SUPPORTS_ROCKY_8_MIN_VERSION}")
+                logger.info(f"rocky9: Supported in versions >= {config_schema.PARALLEL_CLUSTER_SUPPORTS_ROCKY_9_MIN_VERSION}")
+                logger.info(f"ubuntu2004: Supported in versions >= {config_schema.MIN_PARALLEL_CLUSTER_VERSION}")
+                logger.info(f"ubuntu2204: Supported in versions >= {config_schema.MIN_PARALLEL_CLUSTER_VERSION}")
                 config_errors += 1
 
-            for extra_mount_dict in self.config['slurm'].get('storage', {}).get('ExtraMounts', {}):
-                mount_dir = extra_mount_dict['dest']
-                if 'StorageType' not in extra_mount_dict:
-                    logger.error(f"ParallelCluster requires StorageType for {mount_dir} in slurm/storage/ExtraMounts")
+            # Rocky 8 & 9 require a custom AMI because ParallelCluster doesn't provide one.
+            if self.config['slurm']['ParallelClusterConfig']['Image']['Os'] in ['rocky8', 'rocky9']:
+                if 'CustomAmi' not in self.config['slurm']['ParallelClusterConfig']['Image']:
+                    logger.error(f"Must specify config slurm/ParallelClusterConfig/Image/Os/CustomAmi with rocky8 and rocky9.")
                     config_errors += 1
-                    continue
-                storage_type = extra_mount_dict['StorageType']
-                if storage_type == 'Efs':
-                    if 'FileSystemId' not in extra_mount_dict:
-                        logger.error(f"ParallelCluster requires FileSystemId for {mount_dir} in slurm/storage/ExtraMounts")
+
+            # Can't have both DatabaseStackName and SlurmdbdStackName
+            if 'Database' in self.config['slurm']['ParallelClusterConfig'] and 'Slurmdbd' in self.config['slurm']['ParallelClusterConfig']:
+                logger.error(f"Cannot specify both Database and Slurmdbd in config.")
+                exit(1)
+
+            if 'Database' in self.config['slurm']['ParallelClusterConfig']:
+                required_database_keys = ['ClientSecurityGroup', 'FQDN', 'Port', 'AdminUserName', 'AdminPasswordSecretArn']
+                if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
+                    invalid_keys = []
+                    for database_key in self.config['slurm']['ParallelClusterConfig']['Database']:
+                        if database_key in ['DatabaseStackName']:
+                            continue
+                        if database_key in required_database_keys:
+                            logger.error(f"Cannot specify slurm/ParallelClusterConfig/Database/{database_key} and slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName")
+                            invalid_keys.append(database_key)
+                            config_errors += 1
+                    for database_key in invalid_keys:
+                        del self.config['slurm']['ParallelClusterConfig']['Database'][database_key]
+
+                if 'DatabaseStackName' in self.config['slurm']['ParallelClusterConfig']['Database']:
+                    cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
+                    # Check to make sure that the database is in the same VPC.
+                    parameter_dicts = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks'][0]['Parameters']
+                    vpc_checked = False
+                    for parameter_dict in parameter_dicts:
+                        if parameter_dict['ParameterKey'] == 'Vpc':
+                            database_vpc_id = parameter_dict['ParameterValue']
+                            if database_vpc_id != self.config['VpcId']:
+                                logger.error(f"Config slurm/ParallelClusterConfig/Database/DatabaseStackName({self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}) is deployed in {database_vpc_id} but needs to be in {self.config['VpcId']}")
+                                config_errors += 1
+                            vpc_checked = True
+                            break
+                    assert vpc_checked, f"Didn't find vpc for database in\n{json.dumps(parameter_dicts, indent=4)}"
+
+                    stacks_list = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'])['Stacks']
+                    if not stacks_list:
+                        logger.error(f"No stack named {self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']} found.")
+                        exit(1)
+                    if len(stacks_list) > 1:
+                        logger.error(f"More than 1 database stack with name=={self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}. Please report a bug.")
+                        for index, stack_dict in enumerate(stacks_list):
+                            logger.error(f"    stack[{index}]: StackName={stack_dict['StackName']} StackId={stack_dict['StackId']}")
+                        exit(1)
+                    if 'Outputs' not in stacks_list[0]:
+                        logger.error(f"No outputs found in {self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}. StackStatus={stacks_list[0]['StackStatus']}")
+                        exit(1)
+                    stack_outputs = stacks_list[0]['Outputs']
+                    output_to_key_map = {
+                        'DatabaseHost': 'FQDN',
+                        'DatabasePort': 'Port',
+                        'DatabaseAdminUser': 'AdminUserName',
+                        'DatabaseSecretArn': 'AdminPasswordSecretArn',
+                        'DatabaseClientSecurityGroup': 'ClientSecurityGroup'
+                    }
+                    for output in stack_outputs:
+                        if output['OutputKey'] in output_to_key_map:
+                            database_key = output_to_key_map[output['OutputKey']]
+                            if database_key == 'Port':
+                                value = int(output['OutputValue'])
+                            else:
+                                value = output['OutputValue']
+                            if database_key == 'ClientSecurityGroup':
+                                self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = {f"{self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName']}-DatabaseClientSG": value}
+                            else:
+                                self.config['slurm']['ParallelClusterConfig']['Database'][database_key] = value
+                    for output, database_key in output_to_key_map.items():
+                        if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
+                            logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Database']['DatabaseStackName'] stack to set slurm/ParallelClusterConfig/Database/{database_key}")
+
+                else:
+                    for database_key in required_database_keys:
+                        if database_key not in self.config['slurm']['ParallelClusterConfig']['Database']:
+                            logger.error(f"Must specify slurm/ParallelClusterConfig/Database/{database_key} when slurm/ParallelClusterConfig/Database/[Database,EdaSlurmCluster]StackName not set")
+                            config_errors += 1
+
+            if 'Slurmdbd' in self.config['slurm']['ParallelClusterConfig']:
+                required_slurmdbd_keys = ['Host', 'Port', 'ClientSecurityGroup']
+                if 'SlurmdbdStackName' in self.config['slurm']['ParallelClusterConfig']['Slurmdbd']:
+                    cfn_client = boto3.client('cloudformation', region_name=self.config['Region'])
+                    # Check that the stack exists
+                    try:
+                        stacks_list = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'])['Stacks']
+                    except ClientError:
+                        logger.error(f"Can't find {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']} stack specified in /slurm/ParallelClusterConfig/Slurmdbd/SlurmdbdStackName.")
+                        exit(1)
+                    if not stacks_list:
+                        logger.error(f"No stack named {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']} found.")
+                        exit(1)
+                    if len(stacks_list) > 1:
+                        logger.error(f"More than 1 slurmdbd stack with name=={self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']}. Please report a bug.")
+                        for index, stack_dict in enumerate(stacks_list):
+                            logger.error(f"    stack[{index}]: StackName={stack_dict['StackName']} StackId={stack_dict['StackId']}")
+                        exit(1)
+
+                    # Check to make sure that the slurmdbd instance is in the same VPC.
+                    parameter_dicts = cfn_client.describe_stacks(StackName=self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'])['Stacks'][0]['Parameters']
+                    vpc_checked = False
+                    for parameter_dict in parameter_dicts:
+                        if parameter_dict['ParameterKey'] == 'VPCId':
+                            slurmdbd_vpc_id = parameter_dict['ParameterValue']
+                            if slurmdbd_vpc_id != self.config['VpcId']:
+                                logger.error(f"Config slurm/ParallelClusterConfig/Slurmdbd/SlurmdbdStackName({self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']}) is deployed in {slurmdbd_vpc_id} but needs to be in {self.config['VpcId']}")
+                                config_errors += 1
+                            vpc_checked = True
+                            break
+                    if not vpc_checked:
+                        logger.error(f"Didn't find VPCId parameter for slurmdbd in\n{json.dumps(parameter_dicts, indent=4)}")
+                        exit(1)
+
+                    if 'Outputs' not in stacks_list[0]:
+                        logger.error(f"No outputs found in {self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName']}. StackStatus={stacks_list[0]['StackStatus']}")
+                        exit(1)
+                    stack_outputs = stacks_list[0]['Outputs']
+                    output_to_key_map = {
+                        'SlurmdbdPrivateIp': 'Host',
+                        'SlurmdbdPort': 'Port',
+                        'AccountingClientSecurityGroup': 'ClientSecurityGroup',
+                    }
+                    for output in stack_outputs:
+                        if output['OutputKey'] in output_to_key_map:
+                            slurmdbd_key = output_to_key_map[output['OutputKey']]
+                            if slurmdbd_key == 'Port':
+                                value = int(output['OutputValue'])
+                            else:
+                                value = output['OutputValue']
+                            self.config['slurm']['ParallelClusterConfig']['Slurmdbd'][slurmdbd_key] = value
+                    for output, slurmdbd_key in output_to_key_map.items():
+                        if slurmdbd_key not in self.config['slurm']['ParallelClusterConfig']['Slurmdbd']:
+                            logger.error(f"{output} output not found in self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['SlurmdbdStackName'] stack to set slurm/ParallelClusterConfig/Slurmdbd/{slurmdbd_key}")
+
+                if self.config['slurm']['ParallelClusterConfig']['Image']['Os'] == 'centos7' and self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
+                    logger.error(f'centos7 only supports x86_64 architecture. Update slurm/ParallelClusterConfig/Architecture.')
+                    config_errors += 1
+
+                for extra_mount_dict in self.config['slurm'].get('storage', {}).get('ExtraMounts', {}):
+                    mount_dir = extra_mount_dict['dest']
+                    if 'StorageType' not in extra_mount_dict:
+                        logger.error(f"ParallelCluster requires StorageType for {mount_dir} in slurm/storage/ExtraMounts")
                         config_errors += 1
-                elif storage_type == 'FsxLustre':
-                    if 'FileSystemId' not in extra_mount_dict:
-                        logger.error(f"ParallelCluster requires FileSystemId for {mount_dir} in slurm/storage/ExtraMounts")
-                        config_errors += 1
-                elif storage_type == 'FsxOntap':
-                    if 'VolumeId' not in extra_mount_dict:
-                        logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
-                        config_errors += 1
-                elif storage_type == 'FsxOpenZfs':
-                    if 'VolumeId' not in extra_mount_dict:
-                        logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
-                        config_errors += 1
+                        continue
+                    storage_type = extra_mount_dict['StorageType']
+                    if storage_type == 'Efs':
+                        if 'FileSystemId' not in extra_mount_dict:
+                            logger.error(f"ParallelCluster requires FileSystemId for {mount_dir} in slurm/storage/ExtraMounts")
+                            config_errors += 1
+                    elif storage_type == 'FsxLustre':
+                        if 'FileSystemId' not in extra_mount_dict:
+                            logger.error(f"ParallelCluster requires FileSystemId for {mount_dir} in slurm/storage/ExtraMounts")
+                            config_errors += 1
+                    elif storage_type == 'FsxOntap':
+                        if 'VolumeId' not in extra_mount_dict:
+                            logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
+                            config_errors += 1
+                    elif storage_type == 'FsxOpenZfs':
+                        if 'VolumeId' not in extra_mount_dict:
+                            logger.error(f"ParallelCluster requires VolumeId for {mount_dir} in slurm/storage/ExtraMounts")
+                            config_errors += 1
+
+            if 'Xio' in self.config['slurm']:
+                if self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
+                    logger.error("Xio is only supported on x86_64 architecture, not {self.config['slurm']['ParallelClusterConfig']['Architecture']}")
+                    config_errors += 1
+
+        if 'PcsConfig' in self.config['slurm']:
+            pass
 
         # If no instance config has been set then choose EDA defaults
         if 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Include'] and 'InstanceFamilies' not in self.config['slurm']['InstanceConfig']['Exclude'] and 'InstanceTypes' not in self.config['slurm']['InstanceConfig']['Exclude']:
@@ -1460,13 +1531,14 @@ class CdkSlurmStack(Stack):
         # Also require at least 4 GB of memory.
         # Also filter by the CPU vendor from the config
         MIN_COMPUTE_NODE_GB = 4
-        cluster_architecture = self.config['slurm']['ParallelClusterConfig']['Architecture']
-        logger.info(f"ParallelCluster Architecture: {cluster_architecture}")
+        cluster_architecture = self.config['slurm'].get('ParallelClusterConfig', {}).get('Architecture', None)
+        if cluster_architecture:
+            logger.info(f"ParallelCluster Architecture: {cluster_architecture}")
         filtered_instance_type_configs = {}
         number_of_compute_resources = 0
         for instance_type, instance_type_config in self.instance_type_configs.items():
             instance_architecture = self.plugin.get_architecture(self.cluster_region, instance_type)
-            if instance_architecture != cluster_architecture:
+            if cluster_architecture and instance_architecture != cluster_architecture:
                 logger.warning(f"Excluding {instance_type} because architecture ({instance_architecture}) != {cluster_architecture}")
                 continue
             mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
@@ -1485,7 +1557,10 @@ class CdkSlurmStack(Stack):
         self.instance_type_configs = filtered_instance_type_configs
         logger.info(f"ParallelCluster configured to use {len(self.instance_type_configs)} instance types and {number_of_compute_resources} compute resources:\n{pp.pformat(self.instance_type_configs)}")
         if number_of_compute_resources == 0:
-            logger.error(f"No instance types or compute resources configured. Update slurm/InstanceConfig with {cluster_architecture} instance types with UseOnDemand or UseSpot set..")
+            if cluster_architecture:
+                logger.error(f"No instance types or compute resources configured. Update slurm/InstanceConfig with {cluster_architecture} instance types with UseOnDemand or UseSpot set.")
+            else:
+                logger.error(f"No instance types or compute resources configured. Update slurm/InstanceConfig with instance types with UseOnDemand or UseSpot set.")
             sys.exit(1)
 
         # Validate updated config against schema
@@ -3245,3 +3320,150 @@ class CdkSlurmStack(Stack):
                 parallel_cluster_queue['Iam']['AdditionalIamPolicies'].append({'Policy': iam_policy_arn})
 
         return parallel_cluster_queue
+
+    def create_pcs_assets(self):
+        # Compute node instance profile
+        self.pcs_asset_read_policy = iam.ManagedPolicy(
+            self, "PcsAssetReadPolicy",
+            path = '/AWSPCS/'
+        )
+
+        self.playbooks_asset = s3_assets.Asset(self, 'Playbooks',
+            path = 'resources/playbooks',
+            follow_symlinks = SymlinkFollowMode.ALWAYS
+        )
+        self.playbooks_asset.grant_read(self.pcs_asset_read_policy)
+        self.playbooks_asset_bucket = self.playbooks_asset.s3_bucket_name
+        self.playbooks_asset_key    = self.playbooks_asset.s3_object_key
+
+        self.assets_bucket = self.playbooks_asset.s3_bucket_name
+        self.assets_base_key = self.config['slurm']['ClusterName']
+
+
+    def create_pcs_lambdas(self):
+        PcsClusterLambdaAsset = s3_assets.Asset(self, "PcsClusterAsset", path="resources/lambdas/PcsCluster")
+        self.pcs_cluster_lambda = aws_lambda.Function(
+            self, "PcsClusterLambda",
+            function_name=f"{self.stack_name}-PcsCluster",
+            description="Create PCS Cluster",
+            memory_size=2048,
+            runtime=get_PCS_LAMBDA_RUNTIME(),
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="PcsCluster.lambda_handler",
+            code=aws_lambda.Code.from_bucket(PcsClusterLambdaAsset.bucket, PcsClusterLambdaAsset.s3_object_key),
+            environment = {
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
+                'Region': self.cluster_region
+            }
+        )
+        self.pcs_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    's3:DeleteObject',
+                    's3:GetObject',
+                    's3:PutObject'
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/*",
+                    ]
+                )
+            )
+        if 'ErrorSnsTopicArn' in self.config:
+            self.pcs_cluster_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
+                )
+        self.pcs_cluster_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "cloudformation:*",
+                ],
+                resources=['*']
+                )
+            )
+
+        PcsComputeNodeGroupLambdaAsset = s3_assets.Asset(self, "PcsComputeNodeGroupAsset", path="resources/lambdas/PcsComputeNodeGroup")
+        self.pcs_compute_node_group_lambda = aws_lambda.Function(
+            self, "PcsComputeNodeGroupLambda",
+            function_name=f"{self.stack_name}-PcsComputeNodeGroup",
+            description="Create PCS Compute Node Group",
+            memory_size=2048,
+            runtime=get_PCS_LAMBDA_RUNTIME(),
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="PcsComputeNodeGroup.lambda_handler",
+            code=aws_lambda.Code.from_bucket(PcsComputeNodeGroupLambdaAsset.bucket, PcsComputeNodeGroupLambdaAsset.s3_object_key),
+            environment = {
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
+                'Region': self.cluster_region
+            }
+        )
+        self.pcs_compute_node_group_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    's3:DeleteObject',
+                    's3:GetObject',
+                    's3:PutObject'
+                ],
+                resources=[
+                    f"arn:{Aws.PARTITION}:s3:::{self.assets_bucket}/{self.config['slurm']['ClusterName']}/*",
+                    ]
+                )
+            )
+        if 'ErrorSnsTopicArn' in self.config:
+            self.pcs_compute_node_group_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
+                )
+        self.pcs_compute_node_group_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "cloudformation:*",
+                ],
+                resources=['*']
+                )
+            )
+
+    def create_pcs_config(self):
+        pass
+
+    def create_pcs_resources(self):
+        self.pcs_cluster = CustomResource(
+            self, "PcsCluster",
+            service_token = self.pcs_cluster_lambda.function_arn
+        )
+        self.pcs_cluster_lambda.add_environment(
+            key = 'PcsConfig',
+            value = json.dumps(self.config['slurm']['PcsConfig'])
+        )
+
+        pcs_compute_node_group_name = f"c7i-l-512g-32c"
+        self.pcs_compute_node_group = CustomResource(
+            self, pcs_compute_node_group_name,
+            service_token = self.pcs_compute_node_group_lambda.function_arn,
+            properties = {
+            }
+        )
+
+        # CfnOutput(self, "ParallelClusterConfigTemplateYamlS3Url",
+        #     value = self.parallel_cluster_config_template_yaml_s3_url
+        # )

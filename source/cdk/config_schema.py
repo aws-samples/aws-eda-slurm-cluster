@@ -216,7 +216,7 @@ SLURM_REST_API_VERSIONS = {
 }
 
 def get_parallel_cluster_version(config):
-    parallel_cluster_version = config['slurm']['ParallelClusterConfig']['Version']
+    parallel_cluster_version = config['slurm'].get('ParallelClusterConfig', {}).get('Version', PARALLEL_CLUSTER_VERSIONS[-1])
     if parallel_cluster_version not in PARALLEL_CLUSTER_VERSIONS:
         logger.error(f"Unsupported ParallelCluster version: {parallel_cluster_version}\nSupported versions are:\n{json.dumps(PARALLEL_CLUSTER_VERSIONS, indent=4)}")
         raise KeyError(parallel_cluster_version)
@@ -360,6 +360,19 @@ def PARALLEL_CLUSTER_REQUIRES_FSXZ_OUTBOUND_SG_RULES(parallel_cluster_version):
     else:
         return False
 
+PCS_SLURM_VERSIONS = [
+    '23.11'
+]
+
+PCS_CONTROLLER_SIZES = [
+    'Small',
+    'Medium',
+    'Large'
+]
+
+def get_PCS_LAMBDA_RUNTIME():
+    return aws_lambda.Runtime.PYTHON_3_12
+
 # Determine all AWS regions available on the account.
 default_region = environ.get("AWS_DEFAULT_REGION", "us-east-1")
 ec2_client = boto3.client("ec2", region_name=default_region)
@@ -381,7 +394,7 @@ DEFAULT_ARM_CONTROLLER_INSTANCE_TYPE = 'c6g.large'
 DEFAULT_X86_CONTROLLER_INSTANCE_TYPE = 'c6a.large'
 
 def default_controller_instance_type(config):
-    architecture = config['slurm']['ParallelClusterConfig'].get('Architecture', DEFAULT_ARCHITECTURE)
+    architecture = config['slurm'].get('ParallelClusterConfig', {}).get('Architecture', DEFAULT_ARCHITECTURE)
     if architecture == 'x86_64':
         return DEFAULT_X86_CONTROLLER_INSTANCE_TYPE
     elif architecture == 'arm64':
@@ -394,7 +407,7 @@ DEFAULT_ARM_OS = 'rhel8'
 DEFAULT_X86_OS = 'rhel8'
 
 def DEFAULT_OS(config):
-    architecture = config['slurm']['ParallelClusterConfig'].get('Architecture', DEFAULT_ARCHITECTURE)
+    architecture = config['slurm'].get('ParallelClusterConfig', {}).get('Architecture', DEFAULT_ARCHITECTURE)
     if architecture == 'x86_64':
         return DEFAULT_X86_OS
     elif architecture == 'arm64':
@@ -1616,9 +1629,16 @@ def get_config_schema(config):
                     ]
                 }
             },
+            Optional('PcsConfig'): {
+                'SlurmVersion': And(str, lambda s: s in PCS_SLURM_VERSIONS),
+                'ControllerSize': And(str, lambda s: s in PCS_CONTROLLER_SIZES),
+                Optional('Tags'): [
+                    {'Key': str, 'Value': str}
+                ]
+            },
             #
             # ClusterName:
-            #     Name of the ParallelCluster cluster.
+            #     Name of the ParallelCluster or PCS cluster.
             #     Default:
             #         If StackName ends with "-config" then ClusterName is StackName with "-config" stripped off.
             #         Otherwise add "-cl" to end of StackName.
