@@ -55,6 +55,9 @@ The next step is to [install the Exostellar management server](https://docs.exos
 Exostellar will provide a link to a CloudFormation template that
 will deploy the server in your account and will share 3 AMIs that are used by the template to create the EMS, controllers, and workers.
 
+You must subscribe to the three Exostellar Infrastructure AMIs in the AWS Marketplace.
+The templates for deploying the EMS are in the `xio` directory.
+
 ### Create XIO Configuration
 
 The next step is to plan and configure your XIO deployment.

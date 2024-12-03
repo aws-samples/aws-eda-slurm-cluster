@@ -70,7 +70,7 @@ function resume_xspot()
         echo "MaxMemory=$mem"
 
         TMP_USER_DATA_FILE=$(mktemp).sh
-        cp /opt/slurm/res-demo-pc-3-10-1-rhel8-x86/etc/exostellar/xspot-vm_user_data.sh $TMP_USER_DATA_FILE
+        cp ${SLURM_CONF_PATH}/exostellar/xspot-vm_user_data.sh $TMP_USER_DATA_FILE
         sed -i "s/XSPOT_NODENAME/$host/g" $TMP_USER_DATA_FILE
         cat $TMP_USER_DATA_FILE
         user_data=$(cat $TMP_USER_DATA_FILE | base64 -w 0)

@@ -1,0 +1,424 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Installer for the Exostellar Management Server.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VPCId
+          - SubnetId
+          - DomainName
+          - SubnetIsPublic
+          - VPCCidr
+          - SharedSecurityGroupId
+      - Label:
+          default: "Instance Configuration"
+        Parameters:
+          - InstanceType
+          - KeyName
+          - TerminationProtection
+          - VolumeSize
+      - Label:
+          default: "HA Integration"
+        Parameters:
+          - NFSDNSName
+          - NFSSecurityGroupId
+    ParameterLabels:
+      VPCId:
+        default: "VPC ID"
+      VPCCidr:
+        default: "VPC CIDR"
+      SubnetId:
+        default: "Subnet ID"
+      SubnetIsPublic:
+        default: "Is Subnet Public?"
+      SharedSecurityGroupId:
+        default: "Shared security group ID (Optional)"
+      InstanceType:
+        default: "EC2 Instance Type"
+      KeyName:
+        default: "SSH Key Pair"
+      NFSDNSName:
+        default: "NFS DNS name (Optional). If not using remote NFS, leave empty."
+      NFSSecurityGroupId:
+        default: "NFS security group ID (Required if remote NFS like EFS is used)"
+
+Parameters:
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+    Description: Select the VPC where the Mgmt Server will be deployed.
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select the subnet where the Mgmt Server will be deployed.
+
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Enter the domain name intended to be used to reach the Exostellar Management Server (leave empty if not using)
+
+  SubnetIsPublic:
+    Type: String
+    Description: >
+      Specify 'true' if you want a public IP and this is a public subnet.
+      Note: This choice should reflect the actual configuration of the subnet;
+      it does not auto-detect if the subnet is public.
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'true'
+
+  VPCCidr:
+    Type: String
+    Description: Enter the CIDR block for the VPC.
+    Default: "0.0.0.0/0"
+
+  SharedSecurityGroupId:
+    Type: String
+    Description: Enter the ID of the shared security group to attach to the Mgmt Server. Leave empty if none.
+    Default: ""
+
+  InstanceType:
+    Type: String
+    Description: Select the EC2 instance type for the Mgmt Server.
+    AllowedValues:
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5.12xlarge
+      - c5.18xlarge
+      - c5.24xlarge
+      - c5d.xlarge
+      - c5d.2xlarge
+      - c5d.4xlarge
+      - c5d.9xlarge
+      - c5d.12xlarge
+      - c5d.18xlarge
+      - c5d.24xlarge
+      - c6i.xlarge
+      - c6i.2xlarge
+      - c6i.4xlarge
+      - c6i.8xlarge
+      - c6i.12xlarge
+      - c6i.16xlarge
+      - c6i.24xlarge
+      - c6i.32xlarge
+      - c7i.xlarge
+      - c7i.2xlarge
+      - c7i.4xlarge
+      - c7i.8xlarge
+      - c7i.12xlarge
+      - c7i.16xlarge
+      - c7i.24xlarge
+      - c7i.48xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.12xlarge
+      - m5.24xlarge
+      - m5d.large
+      - m5d.xlarge
+      - m5d.2xlarge
+      - m5d.4xlarge
+      - m5d.12xlarge
+      - m5d.24xlarge
+      - m6i.large
+      - m6i.xlarge
+      - m6i.2xlarge
+      - m6i.4xlarge
+      - m6i.12xlarge
+      - m6i.24xlarge
+      - m7i.large
+      - m7i.xlarge
+      - m7i.2xlarge
+      - m7i.4xlarge
+      - m7i.8xlarge
+      - m7i.12xlarge
+      - m7i.16xlarge
+      - m7i.24xlarge
+      - m7i.48xlarge
+      - r6i.large
+      - r6i.xlarge
+      - r6i.2xlarge
+      - r6i.4xlarge
+      - r6i.12xlarge
+      - r6i.24xlarge
+      - r7i.xlarge
+      - r7i.2xlarge
+      - r7i.4xlarge
+      - r7i.8xlarge
+      - r7i.12xlarge
+      - r7i.16xlarge
+      - r7i.24xlarge
+      - r7i.48xlarge
+    Default: m5d.xlarge
+
+  VolumeSize:
+    Type: Number
+    Description: The size of the management server's EBS volume in GB.
+    Default: 100
+    MinValue: 100
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Select the SSH key pair for Mgmt Server access.
+
+  TerminationProtection:
+    Type: String
+    Description: Enable termination protection for the instance.
+    AllowedValues:
+      - 'yes'
+      - 'no'
+    Default: 'yes'
+
+  NFSDNSName:
+    Type: String
+    Description: Enter the NFS DNS name. E.g., fs-123456789.efs.us-east-1.amazonaws.com.
+    Default: ""
+
+  NFSSecurityGroupId:
+    Type: String
+    Description: Enter the ID of the security group that enables traffic between the NFS server and the management server.
+    Default: ""
+
+Conditions:
+  TerminationProtectionCondition: !Equals [ !Ref TerminationProtection, 'yes' ]
+  SubnetIsPublic: !Equals [ !Ref SubnetIsPublic, 'true' ]
+  HasSharedSecurityGroup: !Not [!Equals [!Ref SharedSecurityGroupId, ""]]
+  HasSharedNFSSecurityGroup: !Not [!Equals [!Ref NFSSecurityGroupId, ""]]
+
+Mappings:
+  RegionAMIMap:
+    us-east-1:
+      AMIID: "ami-068ee583ca9f08b7a"
+    us-east-2:
+      AMIID: "ami-068e2edacd108e779"
+    us-west-1:
+      AMIID: "ami-008543102d9a2bb2b"
+    us-west-2:
+      AMIID: "ami-02796527adf4d9b7a"
+    eu-central-1:
+      AMIID: ""
+    eu-west-1:
+      AMIID: ""
+    eu-west-2:
+      AMIID: ""
+    eu-west-3:
+      AMIID: ""
+    ca-central-1:
+      AMIID: ""
+    ap-south-1:
+      AMIID: ""
+    ap-southeast-1:
+      AMIID: ""
+    ap-southeast-2:
+      AMIID: ""
+
+Resources:
+  ExostellarSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security Group for the Mgmt Server'
+      VpcId: !Ref VPCId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '5000'
+          ToPort: '5000'
+          CidrIp: !Ref VPCCidr
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-SecurityGroup"
+
+  ExostellarSecurityGroupSelfIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref ExostellarSecurityGroup
+      SourceSecurityGroupId: !Ref ExostellarSecurityGroup
+      IpProtocol: -1
+      FromPort: 0
+      ToPort: 65535
+
+  ExostellarRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ExostellarPolicy
+          PolicyDocument: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:RunInstances",
+                    "ec2:StopInstances",
+                    "ec2:DescribeSpotPriceHistory",
+                    "ec2:DescribeInstances",
+                    "ec2:DescribeInstanceTypes",
+                    "ec2:DescribeTags",
+                    "ec2:CreateTags",
+                    "ec2:CreateFleet",
+                    "ec2:CreateLaunchTemplate",
+                    "ec2:DeleteLaunchTemplate",
+                    "ec2:TerminateInstances",
+                    "ec2:AssignPrivateIpAddresses",
+                    "ec2:UnassignPrivateIpAddresses",
+                    "ec2:AttachNetworkInterface",
+                    "ec2:DetachNetworkInterface",
+                    "ec2:CreateNetworkInterface",
+                    "ec2:DeleteNetworkInterface",
+                    "ec2:ModifyNetworkInterfaceAttribute",
+                    "ec2:DescribeRegions"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iam:CreateServiceLinkedRole",
+                    "iam:ListRoles",
+                    "iam:ListInstanceProfiles",
+                    "iam:PassRole",
+                    "iam:GetRole"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeImages",
+                    "ec2:DescribeImageAttribute",
+                    "ec2:DescribeKeyPairs",
+                    "ec2:DescribeInstanceTypeOfferings",
+                    "iam:GetInstanceProfile",
+                    "iam:SimulatePrincipalPolicy",
+                    "sns:Publish",
+                    "ssm:GetParameters",
+                    "ssm:GetParametersByPath"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:CreateVolume",
+                    "ec2:DescribeVolumes",
+                    "ec2:AttachVolume",
+                    "ec2:ModifyInstanceAttribute",
+                    "ec2:DetachVolume",
+                    "ec2:DeleteVolume"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ec2:CreateInstanceExportTask",
+                    "ec2:DescribeExportTasks",
+                    "ec2:RebootInstances",
+                    "ec2:CreateSnapshot",
+                    "ec2:DescribeSnapshots",
+                    "ec2:LockSnapshot"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+      Tags:
+        - Key: "Name"
+          Value: !Sub "${AWS::StackName}-IAMRole"
+
+  ExostellarInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref ExostellarRole
+
+  ExostellarInstanceLaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Properties:
+      LaunchTemplateName: !Sub "${AWS::StackName}-ExostellarInstance"
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref KeyName
+        ImageId: !FindInMap [RegionAMIMap, !Ref 'AWS::Region', AMIID]
+        NetworkInterfaces:
+          - DeviceIndex: '0'
+            SubnetId: !Ref SubnetId
+            AssociatePublicIpAddress: !If [SubnetIsPublic, 'true', 'false']
+            Groups:
+              - !Ref ExostellarSecurityGroup
+              - !If [HasSharedSecurityGroup, !Ref SharedSecurityGroupId, !Ref "AWS::NoValue"]
+              - !If [HasSharedNFSSecurityGroup, !Ref NFSSecurityGroupId, !Ref "AWS::NoValue"]
+        IamInstanceProfile:
+          Name: !Ref ExostellarInstanceProfile
+        BlockDeviceMappings:
+          - DeviceName: "/dev/sda1"
+            Ebs:
+              VolumeSize: !Ref VolumeSize
+              DeleteOnTermination: true
+              VolumeType: "gp2"
+        MetadataOptions:
+          HttpEndpoint: enabled
+          HttpPutResponseHopLimit: 1
+          HttpTokens: optional
+
+  ExostellarInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ExostellarInstanceLaunchTemplate
+        Version: !GetAtt ExostellarInstanceLaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-MgmtServer'
+      DisableApiTermination: !If [TerminationProtectionCondition, 'true', 'false']
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            cat <<EOF >> /xcompute/ems-options
+              DOMAIN_NAME=${DomainName}
+              NFS_REMOTE_HOST=${NFSDNSName}
+            EOF
+
+Outputs:
+  1ExostellarMgmtServerURL:
+    Description: The URL of the Mgmt Server
+    Value: !If
+      - SubnetIsPublic
+      - !Sub 'https://${ExostellarInstance.PublicIp}'
+      - !Sub 'https://${ExostellarInstance.PrivateIp}'
+
+  2ExostellarMgmtServerPrivateIP:
+    Description: The private IP of the Mgmt Server
+    Value: !GetAtt ExostellarInstance.PrivateIp
+
+  3ExostellarAdminUsername:
+    Description: Initial admin username
+    Value: 'admin@exostellar.io'
+
+  4ExostellarAdminPassword:
+    Description: Initial admin password (change on first login)
+    Value: 'password'
