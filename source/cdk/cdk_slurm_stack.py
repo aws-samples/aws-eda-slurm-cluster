@@ -892,21 +892,26 @@ class CdkSlurmStack(Stack):
         if not exostellar_security_group:
             logger.error(f"ExostellarSecurityGroup resource not found in {ems_stack_name} EMS stack")
             exit(1)
-        if 'ControllerSecurityGroupIds' not in self.config['slurm']['Xio']:
-            self.config['slurm']['Xio']['ControllerSecurityGroupIds'] = []
-        if 'WorkerSecurityGroupIds' not in self.config['slurm']['Xio']:
-            self.config['slurm']['Xio']['WorkerSecurityGroupIds'] = []
-        if exostellar_security_group not in self.config['slurm']['Xio']['ControllerSecurityGroupIds']:
-            self.config['slurm']['Xio']['ControllerSecurityGroupIds'].append(exostellar_security_group)
-        if exostellar_security_group not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
-            self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(exostellar_security_group)
-        if self.slurm_compute_node_sg_id:
-            if self.slurm_compute_node_sg_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
-                self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.slurm_compute_node_sg_id)
+        if 'Controllers' not in self.config['slurm']['Xio']:
+            self.config['slurm']['Xio']['Controllers'] = {}
+        if 'SecurityGroupIds' not in self.config['slurm']['Xio']['Controllers']:
+            self.config['slurm']['Xio']['Controllers']['SecurityGroupIds'] = []
+        if 'Workers' not in self.config['slurm']['Xio']:
+            self.config['slurm']['Xio']['Workers'] = {}
+        if 'SecurityGroupIds' not in self.config['slurm']['Xio']['Workers']:
+            self.config['slurm']['Xio']['Workers']['SecurityGroupIds'] = []
+        if exostellar_security_group not in self.config['slurm']['Xio']['Controllers']['SecurityGroupIds']:
+            self.config['slurm']['Xio']['Controllers']['SecurityGroupIds'].append(exostellar_security_group)
+        if exostellar_security_group not in self.config['slurm']['Xio']['Workers']['SecurityGroupIds']:
+            self.config['slurm']['Xio']['Workers']['SecurityGroupIds'].append(exostellar_security_group)
+        if 'AdditionalSecurityGroupsStackName' in self.config:
+            if self.slurm_compute_node_sg_id:
+                if self.slurm_compute_node_sg_id not in self.config['slurm']['Xio']['Workers']['SecurityGroupIds']:
+                    self.config['slurm']['Xio']['Workers']['SecurityGroupIds'].append(self.slurm_compute_node_sg_id)
         if 'RESStackName' in self.config:
             if self.res_dcv_security_group_id:
-                if self.res_dcv_security_group_id not in self.config['slurm']['Xio']['WorkerSecurityGroupIds']:
-                    self.config['slurm']['Xio']['WorkerSecurityGroupIds'].append(self.res_dcv_security_group_id)
+                if self.res_dcv_security_group_id not in self.config['slurm']['Xio']['Workers']['SecurityGroupIds']:
+                    self.config['slurm']['Xio']['Workers']['SecurityGroupIds'].append(self.res_dcv_security_group_id)
 
         # Get values from stack outputs
         ems_ip_address = None
@@ -920,6 +925,7 @@ class CdkSlurmStack(Stack):
         self.config['slurm']['Xio']['ManagementServerIp'] = ems_ip_address
 
         # Check that all of the profiles used by the pools are defined
+        logger.debug(f"Xio config:\n{json.dumps(self.config['slurm']['Xio'], indent=4)}")
         WEIGHT_PER_CORE = {
             'amd':   45,
             'intel': 78
@@ -928,12 +934,18 @@ class CdkSlurmStack(Stack):
             'amd':   3,
             'intel': 3
         }
+        number_of_warnings = 0
         number_of_errors = 0
         xio_profile_configs = {}
         self.instance_type_info = self.plugin.get_instance_types_info(self.cluster_region)
         self.instance_family_info = self.plugin.get_instance_families_info(self.cluster_region)
         for profile_config in self.config['slurm']['Xio']['Profiles']:
             profile_name = profile_config['ProfileName']
+            # Check that profile name is alphanumeric
+            if not re.compile('^[a-zA-z0-9]+$').fullmatch(profile_name):
+                logger.error(f"Invalid XIO profile name: {profile_name}. Name must be alphanumeric.")
+                number_of_errors += 1
+                continue
             if profile_name in xio_profile_configs:
                 logger.error(f"{profile_config['ProfileNmae']} XIO profile already defined")
                 number_of_errors += 1
@@ -941,22 +953,28 @@ class CdkSlurmStack(Stack):
             xio_profile_configs[profile_name] = profile_config
             # Check that all instance types and families are from the correct CPU vendor
             profile_cpu_vendor = profile_config['CpuVendor']
+            invalid_instance_types = []
             for instance_type_or_family_with_weight in profile_config['InstanceTypes']:
                 (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
                 if not instance_type or not instance_family:
-                    logger.error(f"XIO InstanceType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
-                    number_of_errors += 1
+                    logger.warning(f"XIO InstanceType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                    number_of_warnings += 1
+                    invalid_instance_types.append(instance_type_or_family_with_weight)
                     continue
                 instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
                 if instance_type_cpu_vendor != profile_cpu_vendor:
                     logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
                     number_of_errors += 1
+            for invalid_instance_type in invalid_instance_types:
+                profile_config['InstanceTypes'].remove(invalid_instance_type)
 
+            invalid_instance_types = []
             for instance_type_or_family_with_weight in profile_config['SpotFleetTypes']:
                 (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
                 if not instance_type or not instance_family:
-                    logger.error(f"Xio SpotFleetType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
-                    number_of_errors += 1
+                    logger.warning(f"Xio SpotFleetType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                    number_of_warnings += 1
+                    invalid_instance_types.append(instance_type_or_family_with_weight)
                     continue
                 # Check that spot pricing is available for spot pools.
                 price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot'].get('max', None)
@@ -967,6 +985,9 @@ class CdkSlurmStack(Stack):
                 if instance_type_cpu_vendor != profile_cpu_vendor:
                     logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
                     number_of_errors += 1
+            for invalid_instance_type in invalid_instance_types:
+                profile_config['SpotFleetTypes'].remove(invalid_instance_type)
+
         xio_pool_names = {}
         for pool_config in self.config['slurm']['Xio']['Pools']:
             pool_name = pool_config['PoolName']
@@ -985,6 +1006,8 @@ class CdkSlurmStack(Stack):
                     number_of_errors += 1
                 else:
                     pool_config['ImageName'] = self.config['slurm']['Xio']['DefaultImageName']
+            if 'MinMemory' not in pool_config:
+                pool_config['MinMemory'] = pool_config['MaxMemory']
             if 'Weight' not in pool_config:
                 profile_config = xio_profile_configs[profile_name]
                 cpu_vendor = profile_config['CpuVendor']
@@ -2226,9 +2249,9 @@ class CdkSlurmStack(Stack):
             if 'Xio' in self.config['slurm']:
                 instance_template_vars['xio_mgt_ip'] = self.config['slurm']['Xio']['ManagementServerIp']
                 instance_template_vars['xio_availability_zone'] = self.config['slurm']['Xio']['AvailabilityZone']
-                instance_template_vars['xio_controller_security_group_ids'] = self.config['slurm']['Xio']['ControllerSecurityGroupIds']
+                instance_template_vars['xio_controller_security_group_ids'] = self.config['slurm']['Xio']['Controllers']['SecurityGroupIds']
                 instance_template_vars['subnet_id'] = self.config['SubnetId']
-                instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['WorkerSecurityGroupIds']
+                instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['Workers']['SecurityGroupIds']
                 instance_template_vars['xio_config'] = self.config['slurm']['Xio']
         elif instance_role == 'ParallelClusterExternalLoginNode':
             instance_template_vars['slurm_version']                      = get_SLURM_VERSION(self.config)
