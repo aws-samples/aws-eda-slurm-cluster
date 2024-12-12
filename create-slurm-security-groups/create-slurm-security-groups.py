@@ -100,10 +100,15 @@ class CreateSlurmSecurityGroups():
                         slurmdbd_security_group_id = stack_resource_summary_dict['PhysicalResourceId']
                         break
                 if slurmdbd_security_group_id:
+                    self.stack_parameters['slurmdbd_security_group_id'] = slurmdbd_security_group_id
                     break
             if not slurmdbd_security_group_id:
                 logger.error(f"SlurmdbdServerSecurityGroup resource not found in {args.slurmdbd_stack_name} stack.")
                 exit(1)
+
+        if args.slurmdbd_security_group_id and slurmdbd_security_group_id and (args.slurmdbd_security_group_id != slurmdbd_security_group_id):
+            logger.error(f"Both --slurmdbd-stack-name and --slurmdbd-security-group-id are set and they don't match.")
+            exit(1)
 
         if args.slurmdbd_security_group_id:
             self.stack_parameters['slurmdbd_security_group_id'] = args.slurmdbd_security_group_id
