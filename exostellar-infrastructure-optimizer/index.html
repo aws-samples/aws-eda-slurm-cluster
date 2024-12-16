@@ -124,7 +124,7 @@
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#install-the-exostellar-management-server-ems" class="nav-link">Install the Exostellar Management Server (EMS)</a>
+            <li class="nav-item" data-level="3"><a href="#deploy-the-exostellar-management-server-ems" class="nav-link">Deploy the Exostellar Management Server (EMS)</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -132,11 +132,7 @@
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#create-xio-profiles" class="nav-link">Create XIO Profiles</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="3"><a href="#create-the-application-environment" class="nav-link">Create the Application Environment</a>
+            <li class="nav-item" data-level="3"><a href="#verify-that-the-az1-profile-exists" class="nav-link">Verify that the "az1" profile exists</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -144,7 +140,7 @@
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#update-the-cluster-with-the-xio-iconfiguration" class="nav-link">Update the cluster with the XIO Iconfiguration</a>
+            <li class="nav-item" data-level="3"><a href="#update-the-cluster-with-the-xio-configuration" class="nav-link">Update the cluster with the XIO configuration</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -157,6 +153,30 @@
               </ul>
             </li>
             <li class="nav-item" data-level="3"><a href="#run-a-test-job-using-slurm" class="nav-link">Run a test job using Slurm</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-level="2"><a href="#debug" class="nav-link">Debug</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#updateheadnode-resource-failed" class="nav-link">UpdateHeadNode resource failed</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#xio-controller-not-starting" class="nav-link">XIO Controller not starting</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#worker-instance-not-starting" class="nav-link">Worker instance not starting</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#vm-not-starting-on-worker" class="nav-link">VM not starting on worker</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#vm-not-starting-slurm-job" class="nav-link">VM not starting Slurm job</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -207,10 +227,15 @@ This is because the kernel modules that ParallelCluster installs aren't supporte
 <h3 id="deploy-parallelcluster-without-configuring-xio">Deploy ParallelCluster without configuring XIO</h3>
 <p>First deploy your cluster without configuring XIO.
 The cluster deploys ansible playbooks that will be used to create the XIO ParallelCluster AMI.</p>
-<h3 id="install-the-exostellar-management-server-ems">Install the Exostellar Management Server (EMS)</h3>
+<h3 id="deploy-the-exostellar-management-server-ems">Deploy the Exostellar Management Server (EMS)</h3>
 <p>The next step is to <a href="https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server">install the Exostellar management server</a>.
-Exostellar will provide a link to a CloudFormation template that
-will deploy the server in your account and will share 3 AMIs that are used by the template to create the EMS, controllers, and workers.</p>
+You must first subscribe to the three Exostellar Infrastructure AMIs in the AWS Marketplace.</p>
+<ul>
+<li><a href="https://aws.amazon.com/marketplace/server/procurement?productId=prod-crdnafbqnbnm2">Exostellar Management Server</a></li>
+<li><a href="https://aws.amazon.com/marketplace/server/procurement?productId=prod-d4lifqwlw4kja">Exostellar Controller</a></li>
+<li><a href="https://aws.amazon.com/marketplace/server/procurement?productId=prod-2smeyk5fuxt7q">Exostellar Worker</a></li>
+</ul>
+<p>Then follow the <a href="https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server#v2.4.0.0InstallingwithCloudFormationTemplate(AWS)-Step3:CreateaNewStack">directions to deploy the CloudFormation template</a>.</p>
 <h3 id="create-xio-configuration">Create XIO Configuration</h3>
 <p>The next step is to plan and configure your XIO deployment.
 The key decisions that you must make are the instance types that you will use
@@ -230,11 +255,13 @@ This will give you an indication of the likelihood of getting desired spot capac
 I've included instance families from the last 3 generations of instances to maximize the number of
 available capacity pools and increase the likelihood of running on spot.</p>
 <p><strong>Note</strong>: The Intel instance families contain more configurations and higher memory instances. They also have high frequency instance types such as m5zn, r7iz, and z1d. They also tend to have more capacity. The AMD instance families include HPC instance types, however, they do not support spot pricing and can only be used for on-demand.</p>
+<p><strong>Note</strong>: This is only an example configuration. You should customize it for your requirements.</p>
 <pre><code>slurm:
   Xio:
     ManagementServerStackName: exostellar-management-server
     PartitionName: xio
     AvailabilityZone: us-east-2b
+    DefaultImageName: &lt;your-xio-vm-image-name&gt;
     Profiles:
       - ProfileName: amd
         NodeGroupName: amd
@@ -340,38 +367,6 @@ available capacity pools and increase the likelihood of running on spot.</p>
           - xiezn
           - z1d
         EnableHyperthreading: false
-      - ProfileName: intel24core350g
-        NodeGroupName: intel24core350g
-        MaxControllers: 10
-        InstanceTypes:
-          - r5.12xlarge:1
-          - r5d.12xlarge:2
-          - r6i.12xlarge:3
-          - r6id.12xlarge:4
-          - r7i.12xlarge:5
-          - r7iz.12xlarge:6
-        SpotFleetTypes:
-          - r5.12xlarge:1
-          - r5d.12xlarge:2
-          - r6i.12xlarge:3
-          - r6id.12xlarge:4
-          - r7i.12xlarge:5
-          - r7iz.12xlarge:6
-        EnableHyperthreading: false
-      - ProfileName: amd24core350g
-        NodeGroupName: amd24core350g
-        MaxControllers: 10
-        InstanceTypes:
-          - r5a.12xlarge:1
-          - r5ad.12xlarge:2
-          - r6a.12xlarge:3
-          - r7a.12xlarge:5
-        SpotFleetTypes:
-          - r5a.12xlarge:1
-          - r5ad.12xlarge:2
-          - r6a.12xlarge:3
-          - r7a.12xlarge:5
-        EnableHyperthreading: false
     Pools:
       - PoolName: amd-8-gb-1-cores
         ProfileName: amd
@@ -409,14 +404,10 @@ available capacity pools and increase the likelihood of running on spot.</p>
         MinMemory: 350000
         MaxMemory: 350000
 </code></pre>
-<h3 id="create-xio-profiles">Create XIO Profiles</h3>
-<p>In the EMS GUI copy the existing az1 profile to the profiles that you configured.
-The name is all that matters.
-The deployment will update the profile automatically from your configuration.</p>
-<h3 id="create-the-application-environment">Create the Application Environment</h3>
-<p>In the EMS GUI copy the <strong>slurm</strong> Application Environment to a new environment that is the same
-name as your ParallelCluster cluster.
-The deployment will update the application environment from your configuration.</p>
+<h3 id="verify-that-the-az1-profile-exists">Verify that the "az1" profile exists</h3>
+<p>In the EMS GUI go to Profiles and make sure that the "az1" profile exists.
+I use that as a template to create your new profiles.</p>
+<p>If it doesn't exist, there was a problem with the EMS deployment and you should contact Exostellar support.</p>
 <h3 id="create-an-xio-parallelcluster-ami">Create an XIO ParallelCluster AMI</h3>
 <p>Launch an instance using the base AMI for your OS.
 For example, launch an instance with a base RHEL 8 or Rocky 8 AMI.</p>
@@ -427,10 +418,13 @@ For example, launch an instance with a base RHEL 8 or Rocky 8 AMI.</p>
 <p>Do any additional configuration that you require such as configuring file system mounts and installing
 packages.</p>
 <p>Create an AMI from the instance and wait for it to become available.</p>
-<h3 id="update-the-cluster-with-the-xio-iconfiguration">Update the cluster with the XIO Iconfiguration</h3>
+<p>After the AMI has been successfully created you can either stop or terminated the instance to save costs.
+If you may need to do additional customization, then stop it, otherwise terminate it.</p>
+<h3 id="update-the-cluster-with-the-xio-configuration">Update the cluster with the XIO configuration</h3>
 <p>Update the cluster with the XIO configuration.</p>
 <p>This will update the profiles and environment on the EMS server and configure the cluster for XIO.
 The only remaining step before you can submit jobs is to create the XIO VM image.</p>
+<p>This is done before creating an image because the XIO scripts get deployed by this step.</p>
 <h3 id="create-an-xio-image-from-the-xio-parallelcluster-ami">Create an XIO Image from the XIO ParallelCluster AMI</h3>
 <p>Connect to the head node and create the XIO Image from the AMI you created.
 The IMAGE-NAME should be the same that you configured in the Pools.</p>
@@ -440,11 +434,34 @@ The IMAGE-NAME should be the same that you configured in the Pools.</p>
 <p>Connect to the head node and test launching a VM.
 The pool, profile, and image_name should be from your configuration.
 The host name doesn't matter.</p>
-<pre><code>/opt/slurm/etc/exostellar/teste_creasteVm.sh --pool &lt;pool&gt; --profile &lt;profile&gt; -i &lt;image name&gt; -h &lt;host&gt;
+<pre><code>/opt/slurm/etc/exostellar/test_createVm.sh --pool &lt;pool&gt; --profile &lt;profile&gt; -i &lt;image name&gt; -h &lt;host&gt;
 </code></pre>
+<p>When this is done, the VM, worker, and controller should all terminate on their own.
+If they do not, then connect to the EMS and cancel the job that started the controller.</p>
+<p>Use <code>squeue</code> to list the controller jobs. Use <code>scancel</code> to terminate them.</p>
 <h3 id="run-a-test-job-using-slurm">Run a test job using Slurm</h3>
 <pre><code>srun --pty -p xio-
-</code></pre></div>
+</code></pre>
+<h2 id="debug">Debug</h2>
+<h3 id="updateheadnode-resource-failed">UpdateHeadNode resource failed</h3>
+<p>If the UpdateHeadNode resource fails then it is usually because as task in the ansible script failed.
+Connect to the head node and look for errors in:</p>
+<p><code>/var/log/ansible.log</code></p>
+<p>Usually it will be a problem with the <code>/opt/slurm/etc/exostellar/configure_xio.py</code> script.</p>
+<p>When this happens the CloudFormation stack will usually be in UPDATE_ROLLBACK_FAILED status.
+Before you can update it again you will need to complete the rollback.
+Go to Stack Actions, select <code>Continue update rollback</code>, expand <code>Advanced troubleshooting</code>, check the UpdateHeadNode resource, anc click <code>Continue update rollback</code>.</p>
+<h3 id="xio-controller-not-starting">XIO Controller not starting</h3>
+<p>On EMA, check that a job is running to create the controller.</p>
+<p><code>squeue</code></p>
+<p>On EMS, check the autoscaling log to see if there are errors starting the instance.</p>
+<p>`less /var/log/slurm/autoscaling.log``</p>
+<p>EMS Slurm partions are at:</p>
+<p><code>/xcompute/slurm/bin/partitions.json</code></p>
+<p>They are derived from the partition and pool names.</p>
+<h3 id="worker-instance-not-starting">Worker instance not starting</h3>
+<h3 id="vm-not-starting-on-worker">VM not starting on worker</h3>
+<h3 id="vm-not-starting-slurm-job">VM not starting Slurm job</h3></div>
             </div>
         </div>
 
