@@ -49,11 +49,16 @@ Refer to [Exostellar's documentation](https://docs.exostellar.io/latest/Latest/H
 First deploy your cluster without configuring XIO.
 The cluster deploys ansible playbooks that will be used to create the XIO ParallelCluster AMI.
 
-### Install the Exostellar Management Server (EMS)
+### Deploy the Exostellar Management Server (EMS)
 
 The next step is to [install the Exostellar management server](https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server).
-Exostellar will provide a link to a CloudFormation template that
-will deploy the server in your account and will share 3 AMIs that are used by the template to create the EMS, controllers, and workers.
+You must first subscribe to the three Exostellar Infrastructure AMIs in the AWS Marketplace.
+
+* [Exostellar Management Server](https://aws.amazon.com/marketplace/server/procurement?productId=prod-crdnafbqnbnm2)
+* [Exostellar Controller](https://aws.amazon.com/marketplace/server/procurement?productId=prod-d4lifqwlw4kja)
+* [Exostellar Worker](https://aws.amazon.com/marketplace/server/procurement?productId=prod-2smeyk5fuxt7q)
+
+Then follow the [directions to deploy the CloudFormation template](https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server#v2.4.0.0InstallingwithCloudFormationTemplate(AWS)-Step3:CreateaNewStack).
 
 ### Create XIO Configuration
 
@@ -80,12 +85,15 @@ available capacity pools and increase the likelihood of running on spot.
 
 **Note**: The Intel instance families contain more configurations and higher memory instances. They also have high frequency instance types such as m5zn, r7iz, and z1d. They also tend to have more capacity. The AMD instance families include HPC instance types, however, they do not support spot pricing and can only be used for on-demand.
 
+**Note**: This is only an example configuration. You should customize it for your requirements.
+
 ```
 slurm:
   Xio:
     ManagementServerStackName: exostellar-management-server
     PartitionName: xio
     AvailabilityZone: us-east-2b
+    DefaultImageName: <your-xio-vm-image-name>
     Profiles:
       - ProfileName: amd
         NodeGroupName: amd
@@ -191,38 +199,6 @@ slurm:
           - xiezn
           - z1d
         EnableHyperthreading: false
-      - ProfileName: intel24core350g
-        NodeGroupName: intel24core350g
-        MaxControllers: 10
-        InstanceTypes:
-          - r5.12xlarge:1
-          - r5d.12xlarge:2
-          - r6i.12xlarge:3
-          - r6id.12xlarge:4
-          - r7i.12xlarge:5
-          - r7iz.12xlarge:6
-        SpotFleetTypes:
-          - r5.12xlarge:1
-          - r5d.12xlarge:2
-          - r6i.12xlarge:3
-          - r6id.12xlarge:4
-          - r7i.12xlarge:5
-          - r7iz.12xlarge:6
-        EnableHyperthreading: false
-      - ProfileName: amd24core350g
-        NodeGroupName: amd24core350g
-        MaxControllers: 10
-        InstanceTypes:
-          - r5a.12xlarge:1
-          - r5ad.12xlarge:2
-          - r6a.12xlarge:3
-          - r7a.12xlarge:5
-        SpotFleetTypes:
-          - r5a.12xlarge:1
-          - r5ad.12xlarge:2
-          - r6a.12xlarge:3
-          - r7a.12xlarge:5
-        EnableHyperthreading: false
     Pools:
       - PoolName: amd-8-gb-1-cores
         ProfileName: amd
@@ -261,18 +237,12 @@ slurm:
         MaxMemory: 350000
 ```
 
-### Create XIO Profiles
+### Verify that the "az1" profile exists
 
-In the EMS GUI copy the existing az1 profile to the profiles that you configured.
-The name is all that matters.
-The deployment will update the profile automatically from your configuration.
+In the EMS GUI go to Profiles and make sure that the "az1" profile exists.
+I use that as a template to create your new profiles.
 
-
-### Create the Application Environment
-
-In the EMS GUI copy the **slurm** Application Environment to a new environment that is the same
-name as your ParallelCluster cluster.
-The deployment will update the application environment from your configuration.
+If it doesn't exist, there was a problem with the EMS deployment and you should contact Exostellar support.
 
 ### Create an XIO ParallelCluster AMI
 
@@ -292,12 +262,17 @@ packages.
 
 Create an AMI from the instance and wait for it to become available.
 
-### Update the cluster with the XIO Iconfiguration
+After the AMI has been successfully created you can either stop or terminated the instance to save costs.
+If you may need to do additional customization, then stop it, otherwise terminate it.
+
+### Update the cluster with the XIO configuration
 
 Update the cluster with the XIO configuration.
 
 This will update the profiles and environment on the EMS server and configure the cluster for XIO.
 The only remaining step before you can submit jobs is to create the XIO VM image.
+
+This is done before creating an image because the XIO scripts get deployed by this step.
 
 ### Create an XIO Image from the XIO ParallelCluster AMI
 
@@ -315,11 +290,53 @@ The pool, profile, and image_name should be from your configuration.
 The host name doesn't matter.
 
 ```
-/opt/slurm/etc/exostellar/teste_creasteVm.sh --pool <pool> --profile <profile> -i <image name> -h <host>
+/opt/slurm/etc/exostellar/test_createVm.sh --pool <pool> --profile <profile> -i <image name> -h <host>
 ```
+
+When this is done, the VM, worker, and controller should all terminate on their own.
+If they do not, then connect to the EMS and cancel the job that started the controller.
+
+Use `squeue` to list the controller jobs. Use `scancel` to terminate them.
 
 ### Run a test job using Slurm
 
 ```
 srun --pty -p xio-
 ```
+
+## Debug
+
+### UpdateHeadNode resource failed
+
+If the UpdateHeadNode resource fails then it is usually because as task in the ansible script failed.
+Connect to the head node and look for errors in:
+
+```/var/log/ansible.log```
+
+Usually it will be a problem with the `/opt/slurm/etc/exostellar/configure_xio.py` script.
+
+When this happens the CloudFormation stack will usually be in UPDATE_ROLLBACK_FAILED status.
+Before you can update it again you will need to complete the rollback.
+Go to Stack Actions, select `Continue update rollback`, expand `Advanced troubleshooting`, check the UpdateHeadNode resource, anc click `Continue update rollback`.
+
+### XIO Controller not starting
+
+On EMA, check that a job is running to create the controller.
+
+`squeue`
+
+On EMS, check the autoscaling log to see if there are errors starting the instance.
+
+`less /var/log/slurm/autoscaling.log``
+
+EMS Slurm partions are at:
+
+`/xcompute/slurm/bin/partitions.json`
+
+They are derived from the partition and pool names.
+
+### Worker instance not starting
+
+### VM not starting on worker
+
+### VM not starting Slurm job

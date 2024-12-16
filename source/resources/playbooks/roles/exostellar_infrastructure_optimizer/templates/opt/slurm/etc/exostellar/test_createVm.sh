@@ -4,7 +4,7 @@
 ## Email:   support@exostellar.io                                            ##
 ###############################################################################
 
-XCOMPUTE_HEAD_IP=10.3.134.102
+XCOMPUTE_HEAD_IP={{ xio_mgt_ip }}
 
 pool=""
 profile=""
@@ -87,6 +87,8 @@ echo -e "** OUT: JobId = $id\n"
 for i in {0..59}; do
     echo -ne "Waiting for $host... $((i * 10))s\033[0K\r"
     http_code=$(curl -s -w "%{http_code}" -X GET http://$XCOMPUTE_HEAD_IP:5000/v1/xcompute/vm/$host?detailedInfo=true -o $OUT_FILE)
+    echo
+    jq -r '' $OUT_FILE
     if [ $http_code -eq 200 ]; then
         echo "NodeName: `jq -r '.NodeName' $OUT_FILE`"
         echo "Controller: `jq -r '.Controller.NodeName' $OUT_FILE`"

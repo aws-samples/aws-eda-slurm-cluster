@@ -105,6 +105,10 @@ class CreateSlurmSecurityGroupsStack(Stack):
             )
             security_groups['SlurmdbdSG'] = slurmdbd_sg
 
+        # Rules for compute nodes
+        # Allow mounting of /opt/slurm and from head node
+        slurm_compute_node_sg.connections.allow_to(slurm_head_node_sg, ec2.Port.tcp(2049), f"SlurmComputeNodeSG to SlurmHeadNodeSG NFS")
+
         # Rules for login nodes
         slurm_login_node_sg.connections.allow_from(slurm_head_node_sg, ec2.Port.tcp_range(1024, 65535), f"SlurmHeadNodeSG to SlurmLoginNodeSG ephemeral")
         slurm_login_node_sg.connections.allow_from(slurm_compute_node_sg, ec2.Port.tcp_range(1024, 65535), f"SlurmComputeNodeSG to SlurmLoginNodeSG ephemeral")

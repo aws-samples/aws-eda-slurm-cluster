@@ -1408,11 +1408,17 @@ def get_config_schema(config):
                         Optional('Weight'): int
                     }
                 ],
-                Optional('ManagementServerImageId'): str,
                 Optional('AvailabilityZone'): str,
-                Optional('ControllerSecurityGroupIds'): [ str ],
-                Optional('ControllerImageId'): str,
-                Optional('WorkerSecurityGroupIds'): [ str ],
+                Optional('Controllers'): {
+                    Optional('ImageId'): str,
+                    Optional('SecurityGroupIds'): [str],
+                    Optional('IdentityRole'): str,
+                },
+                Optional('Workers'): {
+                    Optional('ImageId'): str,
+                    Optional('SecurityGroupIds'): [ str ],
+                    Optional('IdentityRole'): str
+                },
                 Optional('WorkerImageId'): str,
             },
             Optional('SlurmUid', default=401): int,
