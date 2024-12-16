@@ -106,7 +106,8 @@ class CreateSlurmSecurityGroupsStack(Stack):
             security_groups['SlurmdbdSG'] = slurmdbd_sg
 
         # Rules for compute nodes
-        # Allow mounting of /opt/slurm and from head node
+        # Allow mounting of /opt/slurm from the head node.
+        # This is needed in XIO VMs. ParallelCluster compute nodes have a local copy on their root volume.
         slurm_compute_node_sg.connections.allow_to(slurm_head_node_sg, ec2.Port.tcp(2049), f"SlurmComputeNodeSG to SlurmHeadNodeSG NFS")
 
         # Rules for login nodes
