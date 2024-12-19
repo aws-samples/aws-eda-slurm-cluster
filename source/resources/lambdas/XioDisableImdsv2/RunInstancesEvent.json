@@ -1,0 +1,217 @@
+{
+    "version": "0",
+    "id": "a561b520-0a46-d6ce-cb74-4ca93e07b123",
+    "detail-type": "AWS API Call via CloudTrail",
+    "source": "aws.ec2",
+    "account": "AccountId",
+    "time": "2024-12-18T22:58:14Z",
+    "region": "us-east-1",
+    "resources": [],
+    "detail": {
+        "eventVersion": "1.10",
+        "eventTime": "2024-12-18T22:58:14Z",
+        "eventSource": "ec2.amazonaws.com",
+        "eventName": "RunInstances",
+        "awsRegion": "us-east-1",
+        "sourceIPAddress": "100.27.90.216",
+        "userAgent": "Boto3/1.35.66 md/Botocore#1.35.66 ua/2.0 os/linux#5.14.0-503.14.1.el9_5.x86_64 md/arch#x86_64 lang/python#3.9.19 md/pyimpl#CPython cfg/retry-mode#legacy Botocore/1.35.66 Resource",
+        "requestParameters": {
+            "instancesSet": {
+                "items": [
+                    {
+                        "imageId": "ami-0c1bebd989ce59320",
+                        "minCount": 1,
+                        "maxCount": 1
+                    }
+                ]
+            },
+            "groupSet": {
+                "items": [
+                    {
+                        "groupId": "sg-08df82f7a7fde543c"
+                    },
+                    {
+                        "groupId": "sg-0c9261c43704c7d64"
+                    }
+                ]
+            },
+            "userData": "<sensitiveDataRemoved>",
+            "instanceType": "c5.xlarge",
+            "blockDeviceMapping": {
+                "items": [
+                    {
+                        "deviceName": "/dev/sda1",
+                        "ebs": {
+                            "volumeSize": 100,
+                            "deleteOnTermination": true
+                        }
+                    }
+                ]
+            },
+            "availabilityZone": "us-east-1b",
+            "monitoring": {
+                "enabled": false
+            },
+            "subnetId": "subnet-06de2525e8416b5f7",
+            "disableApiTermination": false,
+            "disableApiStop": false,
+            "iamInstanceProfile": {
+                "arn": "arn:aws:iam::AccountId:instance-profile/xio-ems-2-3-2-ExostellarInstanceProfile-KZxDGhXRFKJj"
+            }
+        },
+        "responseElements": {
+            "requestId": "14b2c017-4a1e-4a15-a6da-d1d29d099690",
+            "reservationId": "r-0097bf225d375d0bb",
+            "ownerId": "AccountId",
+            "groupSet": {},
+            "instancesSet": {
+                "items": [
+                    {
+                        "instanceId": "i-0385539bd236cec04",
+                        "imageId": "ami-0c1bebd989ce59320",
+                        "currentInstanceBootMode": "legacy-bios",
+                        "instanceState": {
+                            "code": 0,
+                            "name": "pending"
+                        },
+                        "privateDnsName": "ip-10-4-140-185.ec2.internal",
+                        "operator": {
+                            "managed": false
+                        },
+                        "amiLaunchIndex": 0,
+                        "productCodes": {},
+                        "instanceType": "c5.xlarge",
+                        "launchTime": 1734562694000,
+                        "placement": {
+                            "availabilityZone": "us-east-1b",
+                            "tenancy": "default"
+                        },
+                        "monitoring": {
+                            "state": "disabled"
+                        },
+                        "subnetId": "subnet-06de2525e8416b5f7",
+                        "vpcId": "vpc-053f56a95d8444394",
+                        "privateIpAddress": "10.4.140.185",
+                        "stateReason": {
+                            "code": "pending",
+                            "message": "pending"
+                        },
+                        "architecture": "x86_64",
+                        "rootDeviceType": "ebs",
+                        "rootDeviceName": "/dev/sda1",
+                        "blockDeviceMapping": {},
+                        "virtualizationType": "hvm",
+                        "hypervisor": "xen",
+                        "groupSet": {
+                            "items": [
+                                {
+                                    "groupId": "sg-08df82f7a7fde543c",
+                                    "groupName": "xio-ems-2-3-2-ExostellarSecurityGroup-gJ5BrDRfe1lN"
+                                },
+                                {
+                                    "groupId": "sg-0c9261c43704c7d64",
+                                    "groupName": "SlurmSharedSecurityGroups-SlurmComputeNodeSG848CA951-JB7kvwFv7ZdR"
+                                }
+                            ]
+                        },
+                        "sourceDestCheck": true,
+                        "networkInterfaceSet": {
+                            "items": [
+                                {
+                                    "networkInterfaceId": "eni-06a1d4e735d8f9adb",
+                                    "subnetId": "subnet-06de2525e8416b5f7",
+                                    "vpcId": "vpc-053f56a95d8444394",
+                                    "ownerId": "AccountId",
+                                    "operator": {
+                                        "managed": false
+                                    },
+                                    "status": "in-use",
+                                    "macAddress": "0e:c1:e3:ec:70:6f",
+                                    "privateIpAddress": "10.4.140.185",
+                                    "privateDnsName": "ip-10-4-140-185.ec2.internal",
+                                    "sourceDestCheck": true,
+                                    "interfaceType": "interface",
+                                    "groupSet": {
+                                        "items": [
+                                            {
+                                                "groupId": "sg-08df82f7a7fde543c",
+                                                "groupName": "xio-ems-2-3-2-ExostellarSecurityGroup-gJ5BrDRfe1lN"
+                                            },
+                                            {
+                                                "groupId": "sg-0c9261c43704c7d64",
+                                                "groupName": "SlurmSharedSecurityGroups-SlurmComputeNodeSG848CA951-JB7kvwFv7ZdR"
+                                            }
+                                        ]
+                                    },
+                                    "attachment": {
+                                        "attachmentId": "eni-attach-0e37c1bc05bccdc07",
+                                        "deviceIndex": 0,
+                                        "networkCardIndex": 0,
+                                        "status": "attaching",
+                                        "attachTime": 1734562694000,
+                                        "deleteOnTermination": true
+                                    },
+                                    "privateIpAddressesSet": {
+                                        "item": [
+                                            {
+                                                "privateIpAddress": "10.4.140.185",
+                                                "privateDnsName": "ip-10-4-140-185.ec2.internal",
+                                                "primary": true
+                                            }
+                                        ]
+                                    },
+                                    "ipv6AddressesSet": {},
+                                    "tagSet": {}
+                                }
+                            ]
+                        },
+                        "iamInstanceProfile": {
+                            "arn": "arn:aws:iam::AccountId:instance-profile/xio-ems-2-3-2-ExostellarInstanceProfile",
+                        },
+                        "ebsOptimized": false,
+                        "enaSupport": true,
+                        "cpuOptions": {
+                            "coreCount": 2,
+                            "threadsPerCore": 2
+                        },
+                        "capacityReservationSpecification": {
+                            "capacityReservationPreference": "open"
+                        },
+                        "enclaveOptions": {
+                            "enabled": false
+                        },
+                        "metadataOptions": {
+                            "state": "pending",
+                            "httpTokens": "required",
+                            "httpPutResponseHopLimit": 1,
+                            "httpEndpoint": "enabled",
+                            "httpProtocolIpv4": "enabled",
+                            "httpProtocolIpv6": "disabled",
+                            "instanceMetadataTags": "disabled"
+                        },
+                        "maintenanceOptions": {
+                            "autoRecovery": "default"
+                        },
+                        "privateDnsNameOptions": {
+                            "hostnameType": "ip-name",
+                            "enableResourceNameDnsARecord": false,
+                            "enableResourceNameDnsAAAARecord": false
+                        }
+                    }
+                ]
+            }
+        },
+        "requestID": "14b2c017-4a1e-4a15-a6da-d1d29d099690",
+        "eventID": "49d543ee-265d-4fd4-8ad8-6c25f912e1ac",
+        "readOnly": false,
+        "eventType": "AwsApiCall",
+        "managementEvent": true,
+        "recipientAccountId": "AccountId",
+        "eventCategory": "Management",
+        "tlsDetails": {
+            "tlsVersion": "TLSv1.3",
+            "cipherSuite": "TLS_AES_128_GCM_SHA256",
+            "clientProvidedHostHeader": "ec2.us-east-1.amazonaws.com"
+        }
+    }
+}
