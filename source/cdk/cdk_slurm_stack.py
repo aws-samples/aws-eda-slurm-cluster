@@ -1011,12 +1011,21 @@ class CdkSlurmStack(Stack):
                     number_of_errors += 1
                 else:
                     pool_config['ImageName'] = self.config['slurm']['Xio']['DefaultImageName']
-            if 'MinMemory' not in pool_config:
-                pool_config['MinMemory'] = pool_config['MaxMemory']
+            if 'InstanceMemory' not in pool_config and 'MaxMemory' not in pool_config:
+                logger.error(f"Must specify either InstanceMemory or MaxMemory in {pool_name} config.")
+                number_of_errors += 1
+                continue
+            if 'MaxMemory' not in pool_config:
+                # The hypervisor uses at least 4.5 GB.
+                # Let's say that a 1TB instance uses 11 GB. That's an extra 6.5 GB.
+                # So let's add an additional amount proportional to 6.5 GB per 1024 GB.
+                hypervisor_usage = int((4.5 + ((6.5 / 1024) * (pool_config['InstanceMemory']/1024))) * 1024)
+                pool_config['MaxMemory'] = pool_config['InstanceMemory'] - hypervisor_usage
+                assert(pool_config['MaxMemory'] > 0)
             if 'Weight' not in pool_config:
                 profile_config = xio_profile_configs[profile_name]
                 cpu_vendor = profile_config['CpuVendor']
-                pool_config['Weight'] = pool_config['CPUs'] * WEIGHT_PER_CORE[cpu_vendor] + int(pool_config['MaxMemory']/1024 * WEIGHT_PER_GB[cpu_vendor])
+                pool_config['Weight'] = pool_config['CPUs'] * WEIGHT_PER_CORE[cpu_vendor] + int(pool_config.get('InstanceMemory', pool_config.get('MaxMemory'))/1024 * WEIGHT_PER_GB[cpu_vendor])
 
         if number_of_errors:
             exit(1)
@@ -2258,6 +2267,7 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['subnet_id'] = self.config['SubnetId']
                 instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['Workers']['SecurityGroupIds']
                 instance_template_vars['xio_config'] = self.config['slurm']['Xio']
+                instance_template_vars['xio_config']['ExtraMounts'] = self.config['slurm']['storage']['ExtraMounts']
         elif instance_role == 'ParallelClusterExternalLoginNode':
             instance_template_vars['slurm_version']                      = get_SLURM_VERSION(self.config)
             instance_template_vars['parallel_cluster_munge_version']     = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)

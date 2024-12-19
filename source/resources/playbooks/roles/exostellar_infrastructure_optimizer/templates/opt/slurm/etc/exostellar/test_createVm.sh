@@ -35,15 +35,23 @@ while [ "$1" != "" ]; do
             shift
             u_file="$1"
             ;;
-        * ) echo "USAGE: test_createVm.sh --pool <pool> --profile <profile>  -i <image name> -h <host> -u <user data file>"
+        --cpus )
+            shift
+            cpus="$1"
+            ;;
+        --mem )
+            shift
+            mem="$1"
+            ;;
+        * ) echo "USAGE: test_createVm.sh --pool <pool> --profile <profile>  -i <image name> -h <host> -u <user data file> --cpus <int> --mem <mem-in-MB>"
             exit 1
             ;;
     esac
     shift
 done
 
-if [ -z "$pool" ] || [ -z "$profile" ] || [ -z "$image_name" ] || [ -z "$host" ]; then
-    echo "please provide --pool <pool> --profile <profile> -i <image name> -h <host>"
+if [ -z "$pool" ] || [ -z "$profile" ] || [ -z "$image_name" ] || [ -z "$host" ] || [ -z "$cpus" ] || [ -z $mem ]; then
+    echo "please provide --pool <pool> --profile <profile> -i <image name> -h <host> --cpus <int> --mem <mem-in-MB>"
     exit 2
 fi
 
@@ -60,9 +68,9 @@ cat << END > $TMP_FILE
     "PoolName": "$pool",
     "ProfileName": "$profile",
     "VM": {
-        "CPUs": 2,
+        "CPUs": "$cpus",
         "ImageName": "$image_name",
-        "MaxMemory": 1990,
+        "MaxMemory": "$mem",
         "UserData": "$user_data",
         "VolumeSize": 4
     }

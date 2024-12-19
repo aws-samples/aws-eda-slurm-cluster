@@ -24,6 +24,7 @@ import json
 import logging
 import logging.handlers
 import requests
+from time import sleep
 import yaml
 
 logger = logging.getLogger(__file__)
@@ -44,6 +45,8 @@ class ConfigureXio:
 
         self.num_errors = 0
 
+        self.configure_vm_images()
+
         self.configure_profiles()
 
         self.configure_environment()
@@ -51,6 +54,46 @@ class ConfigureXio:
         if self.num_errors:
             logger.error(f"Failed with {self.num_errors} errors")
             exit(1)
+
+    def configure_vm_images(self):
+        for image_config in self.xio_config['Images']:
+            image_name = image_config['ImageName']
+            image_id = image_config['ImageId']
+            response = requests.get(f"{self.ems_url}/v1/image/{image_name}", verify=False)
+            if response.status_code == 200:
+                image_info = json.loads(response.content.decode('utf8'))
+                logger.info(f"Image {image_name} already exists:\n{json.dumps(image_info, indent=4)}")
+                if image_info['ImageId'] == image_id:
+                    continue
+                logger.info(f"New ImageId ({image_id} for {image_name} so creating image with new AMI.)")
+            else:
+                logger.info(f"Image {image_name} doesn't exist so creating it.")
+
+            image_json = {
+                "Description": "",
+                "ImageId": image_id,
+                "ImageName": image_name,
+                "UserData": "",
+                "User": "",
+                "UserKeyPem": ""
+            }
+            headers = {'Content-type': 'application/json'}
+            response = requests.post(f"{self.ems_url}/v1/xcompute/parse", data=json.dumps(image_json), headers=headers)
+            if response.status_code != 200:
+                self.num_errors += 1
+                logger.error(f"Error creating {image_name}. code={response.status_code} content:\n{response.content.decode('utf-i')}")
+                continue
+            job_id = json.loads(response.content.decode('utf-8'))['JobId']
+            logger.info(f"Waiting for image {image_name}")
+            while True:
+                response = requests.get(f"{self.ems_url}/v1/image/{image_name}")
+                if response.status_code == 200:
+                    logger.info(f"Image {image_name} successfully created:\n{json.dumps(response.content.decode('utf-8'), indent=4)}")
+                    break
+                elif response.status_code == 400:
+                    logger.error(f"Creation of image {image_name} failed:\n{json.dumps(response.content.decode('utf-8'))}")
+                    break
+                sleep(10)
 
     def configure_profiles(self):
         template_profile_config = self.get_template_profile_config()
@@ -67,70 +110,14 @@ class ConfigureXio:
         logger.info(f"Checking if  profile {profile_name} exists.")
         response = requests.get(f"{self.ems_url}/v1/profile/{profile_name}", verify=False)
         if response.status_code != 200:
-            if response.status_code != 404:
+            if response.status_code == 404:
+                logger.error(f"{profile_name} profile doesn't exist. code={response.status_code} content:\n{response.content.decode('utf8')}")
+            else:
                 self.num_errors += 1
                 logger.error(f"Unknown error getting {profile_name} profile. code={response.status_code} content:\n{response.content.decode('utf8')}")
                 return None
-            logger.info(f"Profile {profile_name} doesn't exist so creating it.")
-            headers = {'Content-type': 'application/json'}
-            template_profile_config = {
-                "AvailabilityZone": self.xio_config['AvailabilityZone'],
-                "Controller": {
-                    "IdentityRole": self.xio_config['Controllers']['IdentityRole'], #"arn:aws:iam::415233562408:instance-profile/xio-ems-2-3-2-ExostellarInstanceProfile-KZxDGhXRFKJj"
-                    "InstanceTags": [
-                        {
-                            "Key": "exostellar.xspot-role",
-                            "Value": "xspot-controller"
-                        }
-                    ],
-                    "InstanceType": "c5.xlarge",
-                    "SecurityGroupIds": self.xio_config['Controllers']['SecurityGroupIds'],
-                    "SubnetID": self.ansible_head_node_vars['subnet_id'],
-                    "VolumeSize": 100,
-                    "ImageId": self.xio_config['Controllers']['ImageId']
-                },
-                "EnableIO": True,
-                "LogPath": "/xcompute/logs",
-                "Manufacturer": "Intel",
-                "MaxControllers": 10,
-                "ProfileName": "az1",
-                "Region": self.ansible_head_node_vars['region'],
-                "Worker": {
-                    "IdentityRole": self.xio_config['Workers']['IdentityRole'], # "arn:aws:iam::415233562408:instance-profile/xio-ems-2-3-2-ExostellarInstanceProfile-KZxDGhXRFKJj"
-                    "InstanceTags": [
-                        {
-                            "Key": "exostellar.xspot-role",
-                            "Value": "xspot-worker"
-                        }
-                    ],
-                    "InstanceTypes": [
-                        "m5:0",
-                        "m6i:1"
-                    ],
-                    "SecurityGroupIds": self.xio_config['Workers']['SecurityGroupIds'],
-                    "SpotFleetTypes": [
-                        "m5:1",
-                        "m5d:0",
-                        "m6i:2"
-                    ],
-                    "SubnetID": self.ansible_head_node_vars['subnet_id'],
-                    "ImageId": self.xio_config['Workers']['ImageId']
-                },
-                "Xspot": {
-                    "EnableHyperthreading": False,
-                    "EnableBalloon": True
-                },
-                "XspotVersion": "xspot-3.0.3",
-                "NodeGroupName": "az1",
-            }
-            logger.debug(f"{profile_name} profile config:\n{json.dumps(template_profile_config, indent=4)}")
-
-            response = requests.post(f"{self.ems_url}/v1/profile", data=json.dumps(template_profile_config), headers=headers)
-            if response.status_code != 200:
-                logger.error(f"Failed to create {profile_name} profile. code=={response.status_code} content:\n{response.content.decode('utf8')}")
-                self.num_errors += 1
-                return None
-            logger.info(f"Created {profile_name} profile: {response.content.decode('utf8')}")
+            self.num_errors += 1
+            return None
 
         template_profile_config = None
         logger.info(f"Getting profile {profile_name} to use as a template for new profiles.")
@@ -145,6 +132,10 @@ class ConfigureXio:
 
         # Remove the Id which is unique to each
         template_profile_config.pop('Id', None)
+        if 'InstanceType' in self.xio_config.get('Controllers', {}):
+            if template_profile_config['Controller']['InstanceType'] != self.xio_config['Controllers']['InstanceType']:
+                logger.info(f"Changing default Controller InstanceType from {template_profile_config['Controller']['InstanceType']} to {self.xio_config['Controllers']['InstanceType']}")
+                template_profile_config['Controller']['InstanceType'] = self.xio_config['Controllers']['InstanceType']
         if 'ImageId' in self.xio_config.get('Controllers', {}):
             if template_profile_config['Controller']['ImageId'] != self.xio_config['Controllers']['ImageId']:
                 logger.info(f"Changing default Controller ImageId from {template_profile_config['Controller']['ImageId']} to {self.xio_config['Controllers']['ImageId']}")
@@ -305,7 +296,6 @@ class ConfigureXio:
                 'VM': {
                     'CPUs': pool_config['CPUs'],
                     'ImageName': pool_config.get('ImageName', self.xio_config['DefaultImageName']),
-                    'MinMemory': pool_config['MinMemory'],
                     'MaxMemory': pool_config['MaxMemory'],
                     'VolumeSize': pool_config['VolumeSize'],
                     'PrefixCount': 0,
