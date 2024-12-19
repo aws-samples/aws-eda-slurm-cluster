@@ -22,6 +22,8 @@ from aws_cdk import (
     aws_cloudwatch_actions as cloudwatch_actions,
     aws_ec2 as ec2,
     aws_efs as efs,
+    aws_events,
+    aws_events_targets,
     aws_fis as fis,
     aws_fsx as fsx,
     aws_iam as iam,
@@ -2130,6 +2132,63 @@ class CdkSlurmStack(Stack):
                         resources=[self.config['ErrorSnsTopicArn']]
                         )
                     )
+
+        xioDisableImdsv2Asset = s3_assets.Asset(self, "xioDisableImdsv2Asset", path="resources/lambdas/XioDisableImdsv2")
+        self.xio_disable_imdsv2_lambda = aws_lambda.Function(
+            self, "XioDisableImdsv2Lambda",
+            function_name=f"{self.stack_name}-XioDisableImdsv2",
+            description="Make IMDS v2 optional for XIO EC2 instances",
+            memory_size=2048,
+            runtime=get_PARALLEL_CLUSTER_LAMBDA_RUNTIME(parse_version(self.config['slurm']['ParallelClusterConfig']['Version'])),
+            architecture=aws_lambda.Architecture.X86_64,
+            timeout=Duration.minutes(15),
+            log_retention=logs.RetentionDays.INFINITE,
+            handler="XioDisableImdsv2.lambda_handler",
+            code=aws_lambda.Code.from_bucket(xioDisableImdsv2Asset.bucket, xioDisableImdsv2Asset.s3_object_key),
+            environment = {
+                'ClusterName': self.config['slurm']['ClusterName'],
+                'ErrorSnsTopicArn': self.config.get('ErrorSnsTopicArn', ''),
+                'VpcId': self.config['VpcId'],
+                'XioControllerTags': json.dumps({
+                    'exostellar.xspot-role': 'xspot-controller'
+                }),
+                'XioWorkerTags': json.dumps({
+                    'exostellar.xspot-role': 'xspot-worker'
+                })
+            }
+        )
+        self.xio_disable_imdsv2_lambda.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    'ec2:DescribeInstanceStatus',
+                    'ec2:DescribeTags',
+                    'ec2:ModifyInstanceMetadataOptions'
+                ],
+                resources=['*']
+                )
+            )
+        if 'ErrorSnsTopicArn' in self.config:
+            self.xio_disable_imdsv2_lambda.add_to_role_policy(
+                statement=iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'sns:Publish'
+                    ],
+                    resources=[self.config['ErrorSnsTopicArn']]
+                    )
+                )
+        self.ec2_run_instances_event_rule = aws_events.Rule(
+            self, 'ec2_run_instances_rule',
+            event_pattern = aws_events.EventPattern(
+                source = ['aws.ec2'],
+                detail = {
+                    'eventSource': ['ec2.amazonaws.com'],
+                    'eventName': ['RunInstances']
+                }
+            )
+        )
+        self.ec2_run_instances_event_rule.add_target(aws_events_targets.LambdaFunction(self.xio_disable_imdsv2_lambda))
 
     def create_callSlurmRestApiLambda(self):
         callSlurmRestApiLambdaAsset = s3_assets.Asset(self, "CallSlurmRestApiLambdaAsset", path="resources/lambdas/CallSlurmRestApi")
