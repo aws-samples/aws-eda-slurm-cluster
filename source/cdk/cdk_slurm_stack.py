@@ -710,51 +710,56 @@ class CdkSlurmStack(Stack):
             logger.error(f"RES VDC controller security group not found.")
             exit(1)
 
-        self.config['ExternalLoginNodes'] = self.config.get('ExternalLoginNodes', [])
-        self.config['ExternalLoginNodes'].append(
-            {
+        if 'AdditionalSecurityGroupsStackName' not in self.config:
+            logger.warning(f"Can't automatically configure RES ExternalLoginNodes or DomainJoinedInstance because AdditionalSecurityGroupsStackName not configured.")
+
+        if 'AdditionalSecurityGroupsStackName' in self.config:
+            self.config['ExternalLoginNodes'] = self.config.get('ExternalLoginNodes', [])
+            self.config['ExternalLoginNodes'].append(
+                {
+                    'Tags': [
+                        {
+                            'Key': 'res:EnvironmentName',
+                            'Values': [self.res_environment_name]
+                        },
+                        {
+                            'Key': 'res:NodeType',
+                            'Values': ['virtual-desktop-dcv-host']
+                        }
+                    ],
+                    'SecurityGroupId': self.slurm_login_node_sg_id
+                }
+            )
+
+        if 'DomainJoinedInstance' in self.config:
+            logger.error(f"Can't specify both DomainJoinedInstance and RESStackName in config file.")
+            exit(1)
+        if 'AdditionalSecurityGroupsStackName' in self.config:
+            self.config['DomainJoinedInstance'] = {
                 'Tags': [
+                    {
+                        'Key': 'Name',
+                        'Values': [f"{self.res_environment_name}-cluster-manager",]
+                    },
                     {
                         'Key': 'res:EnvironmentName',
                         'Values': [self.res_environment_name]
                     },
                     {
+                        'Key': 'res:ModuleName',
+                        'Values': ['cluster-manager']
+                    },
+                    {
+                        'Key': 'res:ModuleId',
+                        'Values': ['cluster-manager']
+                    },
+                    {
                         'Key': 'res:NodeType',
-                        'Values': ['virtual-desktop-dcv-host']
+                        'Values': ['app']
                     }
                 ],
                 'SecurityGroupId': self.slurm_login_node_sg_id
             }
-        )
-
-        if 'DomainJoinedInstance' in self.config:
-            logger.error(f"Can't specify both DomainJoinedInstance and RESStackName in config file.")
-            exit(1)
-        self.config['DomainJoinedInstance'] = {
-            'Tags': [
-                {
-                    'Key': 'Name',
-                    'Values': [f"{self.res_environment_name}-cluster-manager",]
-                },
-                {
-                    'Key': 'res:EnvironmentName',
-                    'Values': [self.res_environment_name]
-                },
-                {
-                    'Key': 'res:ModuleName',
-                    'Values': ['cluster-manager']
-                },
-                {
-                    'Key': 'res:ModuleId',
-                    'Values': ['cluster-manager']
-                },
-                {
-                    'Key': 'res:NodeType',
-                    'Values': ['app']
-                }
-            ],
-            'SecurityGroupId': self.slurm_login_node_sg_id
-        }
 
         # Configure the /home mount from RES if /home not already configured
         home_mount_found = False
