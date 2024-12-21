@@ -378,7 +378,8 @@ class SlurmInstaller():
         launch_installer = os.system(cmd) # nosec
         if cdk_cmd == "deploy":
             if int(launch_installer) == 0:
-                logger.info(f"{fg('green')}SLURM was successfully deployed!{attr('reset')}")
+                logger.info(f"{fg('green')}SLURM config was successfully deployed!{attr('reset')}")
+                self.wait_for_slurm_stack()
         elif args.cdk_cmd == "destroy":
             # Destroy stack if known
             cmd_destroy = f"cdk destroy {self.install_parameters['stack_name']} -c {' -c '.join('{}={}'.format(key, val) for (key, val) in self.install_parameters.items() if val is not None)} --require-approval never"
@@ -457,6 +458,32 @@ class SlurmInstaller():
             sys.exit(1)
 
         return validated_config
+
+    def wait_for_slurm_stack(self):
+        '''
+        Wait for the Slurm stack to be created or updated.
+        '''
+        stack_name = self.config['slurm']['ClusterName']
+        cfn_client = boto3.client("cloudformation", region_name=self.config['Region'])
+
+        valid_states = ['CREATE_COMPLETE', 'UPDATE_COMPLETE']
+        invalid_states = ['ROLLBACK_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
+        stack_status = None
+        while stack_status not in (valid_states + invalid_states):
+            try:
+                stack_info = cfn_client.describe_stacks(StackName=stack_name)['Stacks'][0]
+            except:
+                logger.error(f"ParallelCluster stack ({stack_name}) doesn't exist. Failed to create cluster.")
+                exit(1)
+            if stack_info:
+                stack_status = stack_info['StackStatus']
+                logger.info(f"ParallelCluster stack ({stack_name}) in {stack_status} state.")
+
+        if stack_status in invalid_states:
+            logger.error(f"ParallelCluster stack ({stack_name} deployment failed. State: {stack_status}")
+            exit(1)
+
+        logger.info(f"ParallelCluster stack {stack_name} successfully deployed.")
 
 def upload_objects(install_directory, bucket, stack_name):
     # Upload required assets to customer S3 bucket
