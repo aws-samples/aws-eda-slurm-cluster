@@ -61,6 +61,7 @@ class CreateSlurmSecurityGroups():
         parser.add_argument("--fsxo-security-group-id", type=str, help="Id of security group attached to FSx for NetApp Ontap file systems.")
         parser.add_argument("--fsxz-security-group-id", type=str, help="Id of security group attached to FSx for OpenZfs file systems.")
         parser.add_argument("--cdk-cmd", type=str, choices=["deploy", "create", "update", "diff", "ls", "list", "synth", "synthesize", "destroy", "bootstrap"], default="create")
+        parser.add_argument("--min-pc-version", type=str, default="3.12.0", help="Minimum version of ParallelCluster being used. Used to control security group rules required by PC.")
         parser.add_argument("--debug", action='store_const', const=True, default=False, help="Enable CDK debug mode")
         args = parser.parse_args()
 
@@ -72,6 +73,9 @@ class CreateSlurmSecurityGroups():
         # Choose region
         # Must be passed to the stack.
         self.stack_parameters['region'] = args.region
+
+        logger.debug(f"min pc version: {args.min_pc_version}")
+        self.stack_parameters['min_parallel_cluster_version'] = args.min_pc_version
 
         # Retrieve the AWS Account ID for CDK
         sts_client = boto3.client("sts", region_name=args.region)

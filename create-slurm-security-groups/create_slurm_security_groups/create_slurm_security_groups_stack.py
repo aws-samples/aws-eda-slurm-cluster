@@ -8,6 +8,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 import logging
+from packaging.version import parse as parse_version
 
 logger = logging.getLogger(__file__)
 logger_formatter = logging.Formatter('%(levelname)s: %(message)s')
@@ -27,6 +28,10 @@ class CreateSlurmSecurityGroupsStack(Stack):
         }
         logger.info(f"VpcId: {self.config['VpcId']}")
         self.vpc = ec2.Vpc.from_lookup(self, "Vpc", vpc_id = self.config['VpcId'])
+
+        self.min_parallel_cluster_version = self.node.try_get_context('min_parallel_cluster_version')
+        if self.min_parallel_cluster_version:
+            self.min_parallel_cluster_version = parse_version(self.min_parallel_cluster_version)
 
         security_groups = {}
         fsx_client_security_groups = {}
@@ -105,6 +110,10 @@ class CreateSlurmSecurityGroupsStack(Stack):
             )
             security_groups['SlurmdbdSG'] = slurmdbd_sg
 
+        if not self.min_parallel_cluster_version:
+            logger.info("This is a bootstrap so exiting early.")
+            exit(0)
+
         # Rules for compute nodes
         # Allow mounting of /opt/slurm from the head node.
         # This is needed in XIO VMs. ParallelCluster compute nodes have a local copy on their root volume.
@@ -153,14 +162,15 @@ class CreateSlurmSecurityGroupsStack(Stack):
                 fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS mount, status monitor, and lock daemon")
                 fsx_client_sg.connections.allow_to(fsx_zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fsx_client_sg_name} to {fsx_zfs_sg_name} NFS mount, status monitor, and lock daemon")
                 # There is a bug in PC 3.10.1 that requires outbound traffic to be enabled even though ZFS doesn't.
-                # Remove when bug in PC is fixed.
+                # This bug was resolved in PC 3.12.0.
                 # Tracked by https://github.com/aws-samples/aws-eda-slurm-cluster/issues/253
-                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp(111), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} rpc for NFS")
-                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp(111), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} rpc for NFS")
-                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp(2049), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS server daemon")
-                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp(2049), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS server daemon")
-                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS mount, status monitor, and lock daemon")
-                fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS mount, status monitor, and lock daemon")
+                if self.min_parallel_cluster_version < parse_version('3.12.0'):
+                    fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp(111), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} rpc for NFS")
+                    fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp(111), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} rpc for NFS")
+                    fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp(2049), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS server daemon")
+                    fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp(2049), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS server daemon")
+                    fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.tcp_range(20001, 20003), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS mount, status monitor, and lock daemon")
+                    fsx_client_sg.connections.allow_from(fsx_zfs_sg, ec2.Port.udp_range(20001, 20003), f"{fsx_zfs_sg_name} to {fsx_client_sg_name} NFS mount, status monitor, and lock daemon")
 
         for sg_name, sg in security_groups.items():
             CfnOutput(self, f"{sg_name}Id",
