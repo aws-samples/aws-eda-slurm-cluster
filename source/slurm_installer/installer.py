@@ -42,6 +42,7 @@ from requests.exceptions import RequestException, Timeout
 import shutil
 from shutil import make_archive, copytree
 import sys
+from time import sleep
 import urllib3
 import yaml
 from yaml.scanner import ScannerError
@@ -471,13 +472,16 @@ class SlurmInstaller():
         stack_status = None
         while stack_status not in (valid_states + invalid_states):
             try:
-                stack_info = cfn_client.describe_stacks(StackName=stack_name)['Stacks'][0]
-            except:
+                previous_stack_status = stack_status
+                sleep(10)
+                stack_info = cfn_client.describe_stacks(StackName=stack_name)
+            except ClientError as e:
                 logger.error(f"ParallelCluster stack ({stack_name}) doesn't exist. Failed to create cluster.")
                 exit(1)
-            if stack_info:
-                stack_status = stack_info['StackStatus']
-                logger.info(f"ParallelCluster stack ({stack_name}) in {stack_status} state.")
+            if stack_info['Stacks'][0]:
+                stack_status = stack_info['Stacks'][0]['StackStatus']
+                if stack_status != previous_stack_status:
+                    logger.info(f"ParallelCluster stack ({stack_name}) in {stack_status} state.")
 
         if stack_status in invalid_states:
             logger.error(f"ParallelCluster stack ({stack_name} deployment failed. State: {stack_status}")
