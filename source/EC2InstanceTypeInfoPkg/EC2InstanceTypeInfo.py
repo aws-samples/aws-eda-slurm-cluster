@@ -119,14 +119,24 @@ class EC2InstanceTypeInfo:
         # Endpoints only supported in 2 regions: https://docs.aws.amazon.com/cli/latest/reference/pricing/index.html
         self.pricing_client = boto3.client('pricing', region_name='us-east-1')
 
+        # Check region names first to make sure opt-in regions are enabled
+        self.region_names = {}
+        missing_region_names = False
+        for region in sorted(self.regions):
+            region_name = self.get_region_name(region)
+            if not region_name:
+                logger.error(f"Could not find region name for {region}. Is this a new region or does it need to be enabled for your account?")
+                missing_region_names = True
+                continue
+            self.region_names[region] = region_name
+        if missing_region_names:
+            exit(1)
+
         for region in sorted(self.regions):
             if region in self.instance_type_and_family_info and json_filename:
                 logger.info(f'Using EC2 instance info from {json_filename} for {region}')
                 continue
-            region_name = self.get_region_name(region)
-            if not region_name:
-                logger.error(f"Could not find region name for {region}. Is this a new region or does it need to be enabled for your account?")
-                continue
+            region_name = self.region_names[region]
             logger.info(f'Getting EC2 instance info for {region} ({region_name})')
             assert(self.valid_credentials)
             self.ec2_client = boto3.client('ec2', region_name=region)
@@ -187,6 +197,7 @@ class EC2InstanceTypeInfo:
                 instance_type_info[instanceType]['Hypervisor'] = instanceTypeDict.get('Hypervisor', '')
                 instance_type_info[instanceType]['NetworkPerformance'] = instanceTypeDict['NetworkInfo']['NetworkPerformance']
                 instance_type_info[instanceType]['EfaSupported'] = instanceTypeDict['NetworkInfo']['EfaSupported']
+                instance_type_info[instanceType]['EnaSrdSupported'] = instanceTypeDict['NetworkInfo']['EnaSrdSupported']
                 if 'GpuInfo' in instanceTypeDict and 'Gpus' in instanceTypeDict['GpuInfo']:
                     instance_type_info[instanceType]['GpuCount'] = int(instanceTypeDict['GpuInfo']['Gpus'][0].get('Count', 0))
                     instance_type_info[instanceType]['GpuManufacturer'] = instanceTypeDict['GpuInfo']['Gpus'][0].get('Manufacturer', "")
@@ -528,6 +539,7 @@ class EC2InstanceTypeInfo:
         with open(endpoint_file, 'r') as f:
             data = json.load(f)
         missing_region_names = {
+            'ap-southeast-5': {'description': 'Asia Pacific (Malaysia)'},
             'ca-west-1': {'description': 'Canada (Calgary)'}
         }
         for missing_region in missing_region_names:
