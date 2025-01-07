@@ -63,11 +63,11 @@ def retry_boto3_throttling(min_delay = 1, max_delay = 10 * 60, max_cumulative_de
                     attempt += 1
                     return f(*args, **kwargs)
                 except ClientError as e:
-                    logging.exception("Caught exception")
+                    logging.debug("Caught exception")
                     if e.response['Error']['Code'] in ['RequestLimitExceeded', 'InternalError', 'ThrottlingException']:
                         pass
                     else:
-                        logging.exception("Rethrew exception")
+                        logging.debug("Rethrew exception")
                         raise e
                     logger.debug("%s" % (traceback.format_exc()))
                     logger.debug("attempt=%d" % attempt)

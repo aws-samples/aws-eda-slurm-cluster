@@ -1081,6 +1081,20 @@ class CdkSlurmStack(Stack):
         # If use managed_policy_name, then get the following cfn_nag warning.
         # W28: Resource found with an explicit name, this disallows updates that require replacement of this resource
 
+        self.parallel_cluster_enable_ena_express_policy = iam.ManagedPolicy(
+            self, "ParallelClusterEnableEnaExpressPolicy",
+            path = '/parallelcluster/',
+            statements = [
+                iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'ec2:ModifyNetworkInterfaceAttribute',
+                    ],
+                    resources=['*']
+                )
+            ]
+        )
+
         self.create_munge_key_secret()
 
         self.playbooks_asset = s3_assets.Asset(self, 'Playbooks',
@@ -2787,7 +2801,7 @@ class CdkSlurmStack(Stack):
                     if not instance_type_config['UseSpot']:
                         continue
                 logger.debug(f"Creating queue for {purchase_option} {instance_type}")
-                efa_supported = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and self.config['slurm']['ParallelClusterConfig']['EnableEfa']
+                efa_enabled = self.plugin.get_EfaSupported(self.cluster_region, instance_type) and instance_type_config['EnableEfa']
                 mem_mb = self.plugin.get_MemoryInMiB(self.cluster_region, instance_type)
                 mem_gb = int(mem_mb / 1024)
                 core_count = int(self.plugin.get_CoreCount(self.cluster_region, instance_type))
@@ -2855,18 +2869,21 @@ class CdkSlurmStack(Stack):
                     'MaxCount': max_count,
                     'DisableSimultaneousMultithreading': instance_type_config['DisableSimultaneousMultithreading'],
                     'Instances': [],
-                    'Efa': {'Enabled': efa_supported},
+                    'Efa': {'Enabled': efa_enabled},
                     'Networking': {
                         'PlacementGroup': {
-                            'Enabled': efa_supported
+                            'Enabled': efa_enabled
                         }
                     }
                 }
+                if efa_enabled and instance_type_config['PlacementGroupName']:
+                    compute_resource['Networking']['PlacementGroup']['Name'] = instance_type_config['PlacementGroupName']
                 compute_resource['Instances'].append(
                     {
                         'InstanceType': instance_type
                     }
                 )
+
                 if config_schema.PARALLEL_CLUSTER_SUPPORTS_NODE_WEIGHTS(self.PARALLEL_CLUSTER_VERSION):
                     compute_resource['StaticNodePriority'] = int(price *  1000)
                     compute_resource['DynamicNodePriority'] = int(price * 10000)
@@ -3048,6 +3065,10 @@ class CdkSlurmStack(Stack):
             value = self.parallel_cluster_asset_read_policy.managed_policy_arn
         )
         self.create_parallel_cluster_config_lambda.add_environment(
+            key = 'ParallelClusterEnableEnaExpressPolicyArn',
+            value = self.parallel_cluster_enable_ena_express_policy.managed_policy_arn
+        )
+        self.create_parallel_cluster_config_lambda.add_environment(
             key = 'ParallelClusterJwtWritePolicyArn',
             value = self.parallel_cluster_jwt_write_policy.managed_policy_arn
         )
@@ -3188,7 +3209,8 @@ class CdkSlurmStack(Stack):
                 'AdditionalIamPolicies': [
                     {'Policy': 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'},
                     {'Policy': '{{ParallelClusterAssetReadPolicyArn}}'},
-                    {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'}
+                    {'Policy': '{{ParallelClusterSnsPublishPolicyArn}}'},
+                    {'Policy': '{{ParallelClusterEnableEnaExpressPolicyArn}}'}
                 ]
             },
             'Networking': {
