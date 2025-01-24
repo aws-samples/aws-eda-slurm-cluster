@@ -18,21 +18,36 @@ XCOMPUTE_HEAD_IP={{ xio_mgt_ip }}
 
 function suspend_xspot()
 {
-    host=$1
+    hostname=$1
 
-    if [[ "$host" == "xspot-vm"* ]]; then
-        echo "xspot suspending $host"
-        curl -v -X DELETE  http://$XCOMPUTE_HEAD_IP:5000/v1/xcompute/vm/$host
-    else
-        echo "ParallelCluster suspending $host"
-        /opt/parallelcluster/scripts/slurm/slurm_suspend $host
-    fi
+    echo "xspot suspending $hostname"
+    curl -v -X DELETE  http://$XCOMPUTE_HEAD_IP:5000/v1/xcompute/vm/$hostname
 }
 
 echo "`date` Suspend invoked $0 $*" >> $SLURM_AWS_LOG
 
-hosts=$(${SLURM_BIN_PATH}/scontrol show hostnames $1)
-for host in $hosts
+{% raw -%}
+hostnames=$(${SLURM_BIN_PATH}/scontrol show hostnames $1)
+xspot_hostnames=( )
+pc_hostnames=( )
+for hostname in $hostnames
 do
-    suspend_xspot $host
+    if [[ "$hostname" == "xspot-vm"* ]]; then
+        xspot_hostnames+=( $hostname )
+    else
+        pc_hostnames+=( $hostname )
+    fi
 done
+
+if [[ ${#pc_hostnames[@]} -gt 0 ]]; then
+    pc_hostlist=$(${SLURM_BIN_PATH}/scontrol show hostlistsorted $(IFS=,; echo "${pc_hostnames[*]}"))
+    echo "ParallelCluster suspending $pc_hostlist"
+    /opt/parallelcluster/scripts/slurm/slurm_suspend $pc_hostlist
+fi
+
+if [[ ${#xspot_hostnames[@]} -gt 0 ]]; then
+    for hostname in ${xspot_hostnames[@]}; do
+        suspend_xspot $hostname
+    done
+fi
+{% endraw %}

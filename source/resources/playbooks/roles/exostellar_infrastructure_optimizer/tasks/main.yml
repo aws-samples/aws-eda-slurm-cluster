@@ -159,23 +159,37 @@
 
 - name: Include xspot.slurm.conf in slurm.conf
   shell:
+    creates: /opt/slurm/etc/exostellar/.xspot.slurm.conf.included
     cmd: |
       set -ex
 
       cd /opt/slurm/{{ cluster_name }}/etc
 
-      if grep -q 'xspot.slurm.conf' slurm.conf; then
-          exit 0
+      if ! grep -q 'xspot.slurm.conf' slurm.conf; then
+          echo "include exostellar/xspot.slurm.conf" >> slurm.conf
       fi
 
-      echo "include exostellar/xspot.slurm.conf" >> slurm.conf
+      if ! grep -q '#ResumeProgram=' slurm.conf; then
+          sed -i "s/^ResumeProgram=/#ResumeProgram=/" slurm.conf
+      fi
+      if ! grep -q '#SuspendProgram=' slurm.conf; then
+          sed -i "s/^SuspendProgram=/#SuspendProgram=/" slurm.conf
+      fi
 
-      systemctl restart slurmctld
-      /opt/slurm/bin/scontrol reconfig
+      touch /opt/slurm/etc/exostellar/.xspot.slurm.conf.included
+  register: xspot_slurm_config_included
 
 - name: Restart slurmctld
-  when: xspot_slurm_config.changed
+  when: xspot_slurm_config.changed or xspot_slurm_config_included.changed
   service:
     name: slurmctld
     enabled: yes
     state: restarted
+
+- name: Slurm reconfig
+  when: xspot_slurm_config.changed or xspot_slurm_config_included.changed
+  shell:
+    cmd: |
+      set -ex
+
+      /opt/slurm/bin/scontrol reconfig

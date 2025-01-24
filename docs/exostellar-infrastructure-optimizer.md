@@ -60,183 +60,6 @@ You must first subscribe to the three Exostellar Infrastructure AMIs in the AWS 
 
 Then follow the [directions to deploy the CloudFormation template](https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server#v2.4.0.0InstallingwithCloudFormationTemplate(AWS)-Step3:CreateaNewStack).
 
-### Create XIO Configuration
-
-The next step is to plan and configure your XIO deployment.
-The key decisions that you must make are the instance types that you will use
-and the AMI that you will use for the XIO VM Images.
-
-XIO currently only supports x86_64 instance types and pools cannot mix AMD and Intel instance types.
-The following XIO configuration for aws-eda-slurm-cluster shows 2 pools that contain Intel and AMD instances.
-Note that we first define the XIO Profiles with instance types with the same manufacturer, number of cores, and amount of memory.
-Then we configure pools for the Application Environment that use the profiles.
-The numbers after the instance type are a priority to bias XIO to use higher priority instance types if they are available.
-We've chosen to prioritize the latest generation instance types so our jobs run faster and configure
-older generation instance types at a lower priority to increase the number of capacity pools so that
-we have a better chance of running on spot and having instances to run our jobs.
-Refer to [Best practices for Amazon EC2 Spot](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-best-practices.html) when planning your cluster deployment and creating your configuration.
-
-It is highly recommended to use [EC2 Spot placement scores](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/work-with-spot-placement-score.html) when selecting the region and availability zone for your cluster.
-This will give you an indication of the likelihood of getting desired spot capacity.
-
-In the following example I've configured a profile for AMD and Intel instance families.
-I've included instance families from the last 3 generations of instances to maximize the number of
-available capacity pools and increase the likelihood of running on spot.
-
-**Note**: The Intel instance families contain more configurations and higher memory instances. They also have high frequency instance types such as m5zn, r7iz, and z1d. They also tend to have more capacity. The AMD instance families include HPC instance types, however, they do not support spot pricing and can only be used for on-demand.
-
-**Note**: This is only an example configuration. You should customize it for your requirements.
-
-```
-slurm:
-  Xio:
-    ManagementServerStackName: exostellar-management-server
-    PartitionName: xio
-    AvailabilityZone: us-east-2b
-    DefaultImageName: <your-xio-vm-image-name>
-    Profiles:
-      - ProfileName: amd
-        NodeGroupName: amd
-        MaxControllers: 10
-        InstanceTypes:
-          - c5a
-          - c5ad
-          - c6a
-          - c7a
-          - m5a
-          - m5ad
-          - m6a
-          - m7a
-          - r5a
-          - r5ad
-          - r6a
-          - r7a
-          - hpc6a
-          - hpc7a
-        SpotFleetTypes:
-          - c5a
-          - c5ad
-          - c6a
-          - c7a
-          - m5a
-          - m5ad
-          - m6a
-          - m7a
-          - r5a
-          - r5ad
-          - r6a
-          - r7a
-          - hpc6a
-          - hpc7a
-        EnableHyperthreading: false
-      - ProfileName: intel
-        NodeGroupName: intel
-        MaxControllers: 10
-        InstanceTypes:
-          - c5
-          - c5d
-          - c5n
-          - c6i
-          - c6id
-          - c6in
-          - c7i
-          - m5
-          - m5d
-          - m5dn
-          - m5n
-          - m5zn
-          - m6i
-          - m6id
-          - m6idn
-          - m6in
-          - m7i
-          - r5
-          - r5b
-          - r5d
-          - r5dn
-          - r5n
-          - r6i
-          - r6id
-          - r6idn
-          - r6in
-          - r7i
-          - r7iz
-          - xidn
-          - xiedn
-          - xiezn
-          - z1d
-        SpotFleetTypes:
-          - c5
-          - c5d
-          - c5n
-          - c6i
-          - c6id
-          - c6in
-          - c7i
-          - m5
-          - m5d
-          - m5dn
-          - m5n
-          - m5zn
-          - m6i
-          - m6id
-          - m6idn
-          - m6in
-          - m7i
-          - r5
-          - r5b
-          - r5d
-          - r5dn
-          - r5n
-          - r6i
-          - r6id
-          - r6idn
-          - r6in
-          - r7i
-          - r7iz
-          - xidn
-          - xiedn
-          - xiezn
-          - z1d
-        EnableHyperthreading: false
-    Pools:
-      - PoolName: amd-8-gb-1-cores
-        ProfileName: amd
-        ImageName: res-demo-pc-3-10-1-rhel8-x86
-        PoolSize: 10
-        CPUs: 24
-        MinMemory: 7200
-        MaxMemory: 7200
-      - PoolName: amd-16-gb-2-cores
-        ProfileName: amd
-        ImageName: res-demo-pc-3-10-1-rhel8-x86
-        PoolSize: 10
-        CPUs: 24
-        MinMemory: 15000
-        MaxMemory: 15000
-      - PoolName: amd-32-gb-4-cores
-        ProfileName: amd
-        ImageName: res-demo-pc-3-10-1-rhel8-x86
-        PoolSize: 10
-        CPUs: 24
-        MinMemory: 30000
-        MaxMemory: 30000
-      - PoolName: amd-64-gb-8-cores
-        ProfileName: amd
-        ImageName: res-demo-pc-3-10-1-rhel8-x86
-        PoolSize: 10
-        CPUs: 24
-        MinMemory: 60000
-        MaxMemory: 60000
-      - PoolName: intel-24core-350G
-        ProfileName: intel
-        ImageName: res-demo-pc-3-10-1-rhel8-x86
-        PoolSize: 10
-        CPUs: 24
-        MinMemory: 350000
-        MaxMemory: 350000
-```
-
 ### Verify that the "az1" profile exists
 
 In the EMS GUI go to Profiles and make sure that the "az1" profile exists.
@@ -262,8 +85,542 @@ packages.
 
 Create an AMI from the instance and wait for it to become available.
 
-After the AMI has been successfully created you can either stop or terminated the instance to save costs.
+After the AMI has been successfully created you can either stop or terminate the instance to save costs.
 If you may need to do additional customization, then stop it, otherwise terminate it.
+
+Add the image id to your configuration as described below.
+
+### Create XIO Configuration
+
+The next step is to plan and configure your XIO deployment.
+The key decisions that you must make are the instance types that you will use
+and the AMI that you will use for the XIO VM Images.
+
+XIO currently only supports x86_64 instance types and pools cannot mix AMD and Intel instance types.
+The following XIO configuration for aws-eda-slurm-cluster shows 2 pools that contain Intel and AMD instances.
+Note that we first define the XIO Profiles with instance types with the same manufacturer, number of cores, and amount of memory.
+Then we configure pools for the Application Environment that use the profiles.
+The numbers after the instance type are a priority to bias XIO to use higher priority instance types if they are available.
+We've chosen to prioritize the latest generation instance types so our jobs run faster and configure
+older generation instance types at a lower priority to increase the number of capacity pools so that
+we have a better chance of running on spot and having instances to run our jobs.
+Refer to [Best practices for Amazon EC2 Spot](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-best-practices.html) when planning your cluster deployment and creating your configuration.
+
+**NOTE**: XIO currently doesn't support VMs larger than 1 TB.
+
+It is highly recommended to use [EC2 Spot placement scores](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/work-with-spot-placement-score.html) when selecting the region and availability zone for your cluster.
+This will give you an indication of the likelihood of getting desired spot capacity.
+
+In the following example I've configured a profile for AMD and Intel instance families.
+I've included instance families from the last 3 generations of instances to maximize the number of
+available capacity pools and increase the likelihood of running on spot.
+
+**Note**: The Intel instance families contain more configurations and higher memory instances. They also have high frequency instance types such as m5zn, r7iz, and z1d. They also tend to have more capacity. The AMD instance families include HPC instance types, however, they do not support spot pricing and can only be used for on-demand.
+
+**Note**: This is only an example configuration. You should customize it for your requirements.
+
+```
+slurm:
+  Xio:
+    ManagementServerStackName: exostellar-management-server
+    PartitionName: xio
+    AvailabilityZone: us-east-2b
+
+    Images:
+      - ImageId: ami-xxxxxxxxxxxxxxxxx
+        ImageName: <your-xio-vm-image-name>
+
+    DefaultImageName: <your-xio-vm-image-name>
+    Profiles:
+      - ProfileName: amd
+        NodeGroupName: amd
+        MaxControllers: 10
+        InstanceTypes:
+          - c5a:1
+          - c5ad:1
+          - c6a:4
+          - c7a:7
+
+          - m5a:1
+          - m5ad:1
+          - m6a:4
+          - m7a:7
+
+          - r5a:1
+          - r5ad:1
+          - r6a:4
+          - r7a:7
+        SpotFleetTypes:
+          - c5a:1
+          - c5ad:1
+          - c6a:4
+          - c7a:7
+
+          - m5a:1
+          - m5ad:1
+          - m6a:4
+          - m7a:7
+
+          - r5a:1
+          - r5ad:1
+          - r6a:4
+          - r7a:7
+        EnableHyperthreading: false
+
+      - ProfileName: intel
+        NodeGroupName: intel
+        MaxControllers: 10
+        InstanceTypes:
+          - c5n:1
+          - c5d:1
+          - c5:1
+          - c6in:4
+          - c6id:4
+          - c6i:4
+          - c7i:7
+
+          - m5:1
+          - m5d:1
+          - m5dn:1
+          - m5n:1
+          - m5zn:1
+          - m6i:4
+          - m6id:4
+          - m6idn:4
+          - m6in:4
+          - m7i:7
+
+          - r5:1
+          - r5b:1
+          - r5d:1
+          - r5dn:1
+          - r5n:1
+          - r6i:4
+          - r6id:4
+          - r6idn:4
+          - r6in:4
+          - r7i:7
+          - r7iz:7
+
+          # - x2idn:1
+          # - x2iedn:1
+
+          - z1d:1
+        SpotFleetTypes:
+          - c5n:1
+          - c5d:1
+          - c5:1
+          - c6in:4
+          - c6id:4
+          - c6i:4
+          - c7i:7
+
+          - m5:1
+          - m5d:1
+          - m5dn:1
+          - m5n:1
+          - m5zn:1
+          - m6i:4
+          - m6id:4
+          - m6idn:4
+          - m6in:4
+          - m7i:7
+
+          - r5:1
+          - r5b:1
+          - r5d:1
+          - r5dn:1
+          - r5n:1
+          - r6i:4
+          - r6id:4
+          - r6idn:4
+          - r6in:4
+          - r7i:7
+          - r7iz:7
+
+          # - x2idn:1
+          # - x2iedn:1
+
+          - z1d:1
+        EnableHyperthreading: false
+    Pools:
+      - PoolName: amd-8g-2c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 2
+        InstanceMemory: 8192
+      - PoolName: amd-8g-4c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 4
+        InstanceMemory: 8192
+      - PoolName: amd-16g-1c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 1
+        InstanceMemory: 16384
+      - PoolName: amd-16g-2c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 2
+        InstanceMemory: 16384
+      - PoolName: amd-16g-4c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 4
+        InstanceMemory: 16384
+      - PoolName: amd-16g-8c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 8
+        InstanceMemory: 16384
+      - PoolName: amd-32g-2c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 2
+        InstanceMemory: 32768
+      - PoolName: amd-32g-4c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 4
+        InstanceMemory: 32768
+      - PoolName: amd-32g-8c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 8
+        InstanceMemory: 32768
+      - PoolName: amd-64g-4c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 4
+        InstanceMemory: 65536
+      - PoolName: amd-64g-8c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 8
+        InstanceMemory: 65536
+      - PoolName: amd-64g-16c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 16
+        InstanceMemory: 65536
+      - PoolName: amd-64g-32c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 32
+        InstanceMemory: 65536
+      - PoolName: amd-128g-8c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 8
+        InstanceMemory: 131072
+      - PoolName: amd-128g-16c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 16
+        InstanceMemory: 131072
+      - PoolName: amd-128g-32c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 32
+        InstanceMemory: 131072
+      - PoolName: amd-128g-64c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 64
+        InstanceMemory: 131072
+      - PoolName: amd-192g-24c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 24
+        InstanceMemory: 196608
+      - PoolName: amd-192g-48c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 48
+        InstanceMemory: 196608
+      - PoolName: amd-256g-16c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 16
+        InstanceMemory: 262144
+      - PoolName: amd-256g-32c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 32
+        InstanceMemory: 262144
+      - PoolName: amd-256g-64c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 64
+        InstanceMemory: 262144
+      - PoolName: amd-256g-128c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 128
+        InstanceMemory: 262144
+      - PoolName: amd-384g-24c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 24
+        InstanceMemory: 393216
+      - PoolName: amd-384g-48c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 48
+        InstanceMemory: 393216
+      - PoolName: amd-384g-96c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 96
+        InstanceMemory: 393216
+      - PoolName: amd-384g-192c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 192
+        InstanceMemory: 393216
+      - PoolName: amd-512g-32c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 32
+        InstanceMemory: 524288
+      - PoolName: amd-512g-64c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 64
+        InstanceMemory: 524288
+      - PoolName: amd-512g-128c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 128
+        InstanceMemory: 524288
+      - PoolName: amd-768g-48c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 48
+        InstanceMemory: 786432
+      - PoolName: amd-768g-96c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 96
+        InstanceMemory: 786432
+      - PoolName: amd-768g-192c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 192
+        InstanceMemory: 786432
+      - PoolName: amd-1024g-64c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 64
+        InstanceMemory: 1048576
+      - PoolName: amd-1536g-96c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 96
+        InstanceMemory: 1572864
+      - PoolName: amd-1536g-192c
+        ProfileName: amd
+        PoolSize: 10
+        CPUs: 192
+        InstanceMemory: 1572864
+
+      - PoolName: intel-8g-1c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 1
+        InstanceMemory: 8192
+      - PoolName: intel-8g-2c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 2
+        InstanceMemory: 8192
+      - PoolName: intel-16g-1c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 1
+        InstanceMemory: 16384
+      - PoolName: intel-16g-2c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 2
+        InstanceMemory: 16384
+      - PoolName: intel-16g-4c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 4
+        InstanceMemory: 16384
+      - PoolName: intel-32g-2c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 2
+        InstanceMemory: 32768
+      - PoolName: intel-32g-4c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 4
+        InstanceMemory: 32768
+      - PoolName: intel-32g-8c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 8
+        InstanceMemory: 32768
+      - PoolName: intel-48g-6c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 6
+        InstanceMemory: 49152
+      - PoolName: intel-64g-4c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 4
+        InstanceMemory: 65536
+      - PoolName: intel-64g-8c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 8
+        InstanceMemory: 65536
+      - PoolName: intel-64g-16c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 16
+        InstanceMemory: 65536
+      - PoolName: intel-72g-18c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 18
+        InstanceMemory: 73728
+      - PoolName: intel-96g-6c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 6
+        InstanceMemory: 98304
+      - PoolName: intel-96g-12c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 12
+        InstanceMemory: 98304
+      - PoolName: intel-96g-24c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 12
+        InstanceMemory: 98304
+      # - PoolName: intel-128g-2c # x2iedn.xlarge
+      #   ProfileName: intel
+      #   PoolSize: 10
+      #   CPUs: 2
+      #   InstanceMemory: 131072
+      - PoolName: intel-128g-8c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 8
+        InstanceMemory: 131072
+      - PoolName: intel-128g-16c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 16
+        InstanceMemory: 131072
+      - PoolName: intel-128g-32c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 32
+        InstanceMemory: 131072
+      - PoolName: intel-144g-36c # c5[d].18xlarge
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 36
+        InstanceMemory: 147456
+      - PoolName: intel-192g-12c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 12
+        InstanceMemory: 196608
+      - PoolName: intel-192g-24c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 24
+        InstanceMemory: 196608
+      - PoolName: intel-192g-48c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 48
+        InstanceMemory: 196608
+      # - PoolName: intel-256g-4c # x2iedn.2xlarge
+      #   ProfileName: intel
+      #   PoolSize: 10
+      #   CPUs: 4
+      #   InstanceMemory: 262144
+      - PoolName: intel-256g-16c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 16
+        InstanceMemory: 262144
+      - PoolName: intel-256g-32c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 32
+        InstanceMemory: 262144
+      - PoolName: intel-256g-64c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 64
+        InstanceMemory: 262144
+      - PoolName: intel-384g-24c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 24
+        InstanceMemory: 393216
+      - PoolName: intel-384g-48c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 48
+        InstanceMemory: 393216
+      - PoolName: intel-384g-96c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 96
+        InstanceMemory: 393216
+      # - PoolName: intel-512g-8c # x2iedn.4xlarge
+      #   ProfileName: intel
+      #   PoolSize: 10
+      #   CPUs: 8
+      #   InstanceMemory: 524288
+      - PoolName: intel-512g-32c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 32
+        InstanceMemory: 524288
+      - PoolName: intel-512g-64c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 64
+        InstanceMemory: 524288
+      - PoolName: intel-768g-48c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 48
+        InstanceMemory: 786432
+      - PoolName: intel-768g-96c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 96
+        InstanceMemory: 786432
+      # - PoolName: intel-1024g-16c # x2iedn.8xlarge
+      #   ProfileName: intel
+      #   PoolSize: 10
+      #   CPUs: 16
+      #   InstanceMemory: 1048576
+      # - PoolName: intel-1024g-32c # x2idn.16xlarge
+      #   ProfileName: intel
+      #   PoolSize: 10
+      #   CPUs: 32
+      #   InstanceMemory: 1048576
+      - PoolName: intel-1024g-64c
+        ProfileName: intel
+        PoolSize: 10
+        CPUs: 64
+        InstanceMemory: 1048576
+```
 
 ### Update the cluster with the XIO configuration
 
