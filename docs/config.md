@@ -108,12 +108,16 @@ This project creates a ParallelCluster configuration file that is documented in 
                 useOnDemand: bool
                 UseSpot: bool
                 DisableSimultaneousMultithreading: bool
+                EnableEfa: bool
+                PlacementGroupName: str
             <a href="#include-instancetypes">InstanceTypes</a>:
             - str
             - str:
                 UseOnDemand: bool
                 UseSpot: bool
                 DisableSimultaneousMultithreading: bool
+                EnableEfa: bool
+                PlacementGroupName: str
         <a href="#nodecounts">NodeCounts</a>:
             <a href="#defaultmincount">DefaultMinCount</a>: str
             <a href="#defaultmaxcount">DefaultMaxCount</a>: str
@@ -373,7 +377,14 @@ type: bool
 
 default: False
 
-Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group.
+This will enable EFA for all compute resources with instances that support EFA.
+
+This can also be controlled for individual instance types in the InstanceConfig section.
+
+If EFA is enabled without specifying a placement group name, then each compute resource is assigned its own managed placement group.
+
+NOTE: Most EDA workloads cannot take advantage of EFA because they don't use MPI or NCCL.
+I recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types are in the group.
 
 See [https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster)
 
@@ -827,7 +838,7 @@ Exclude patterns are processed first and take precedence over any includes.
 Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.
 
 Each element in the array can be either a regular expression string or a dictionary where the only key
-is the regular expression string and that has overrides **UseOnDemand**, **UseSpot**, and **DisableSimultaneousMultithreading** for the matching instance families or instance types.
+is the regular expression string and that has overrides **UseOnDemand**, **UseSpot**, **DisableSimultaneousMultithreading**, **EnableEfa**, and **PlacementGroupName** for the matching instance families or instance types.
 
 The settings for instance families overrides the defaults, and the settings for instance types override the others.
 

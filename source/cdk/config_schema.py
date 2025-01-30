@@ -1530,9 +1530,6 @@ def get_config_schema(config):
                 },
                 Optional('Architecture', default=DEFAULT_ARCHITECTURE): And(str, lambda s: s in VALID_ARCHITECTURES),
                 Optional('ComputeNodeAmi'): And(str, lambda s: s.startswith('ami-')),
-                # Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group
-                # See https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster
-                Optional('EnableEfa', default=False): bool,
                 Optional('Database'): {
                     Optional('DatabaseStackName'): str,
                     Optional('FQDN'): str,
@@ -1641,6 +1638,11 @@ def get_config_schema(config):
                 #     Configure spot instances
                 Optional('UseSpot', default=True): bool,
                 Optional('DisableSimultaneousMultithreading', default=True): bool,
+                # This is a global setting that can be overridden for instance types in InstanceConfig.
+                # Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group
+                # See https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster
+                Optional('EnableEfa', default=False): bool,
+                Optional('PlacementGroupName'): str,
                 Optional('CpuVendor', default=cpu_vendors): [
                     And(str, lambda s: s in cpu_vendors)
                 ],
@@ -1665,7 +1667,9 @@ def get_config_schema(config):
                                     str: {
                                         Optional('UseOnDemand'): bool,
                                         Optional('UseSpot'): bool,
-                                        Optional('DisableSimultaneousMultithreading'): bool
+                                        Optional('DisableSimultaneousMultithreading'): bool,
+                                        Optional('EnableEfa'): bool,
+                                        Optional('PlacementGroupName'): str
                                     }
                                 },
                                 lambda d: len(d) == 1
@@ -1680,7 +1684,9 @@ def get_config_schema(config):
                                     str: {
                                         Optional('UseOnDemand'): bool,
                                         Optional('UseSpot'): bool,
-                                        Optional('DisableSimultaneousMultithreading'): bool
+                                        Optional('DisableSimultaneousMultithreading'): bool,
+                                        Optional('EnableEfa'): bool,
+                                        Optional('PlacementGroupName'): str
                                     }
                                 },
                                 lambda d: len(d) == 1
