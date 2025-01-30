@@ -2267,8 +2267,7 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['subnet_id'] = self.config['SubnetId']
                 instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['Workers']['SecurityGroupIds']
                 instance_template_vars['xio_config'] = self.config['slurm']['Xio']
-                if self.config['slurm'].get('storage', {}).get('ExtraMounts', None):
-                    instance_template_vars['xio_config']['ExtraMounts'] = self.config['slurm']['storage']['ExtraMounts']
+                instance_template_vars['xio_config']['ExtraMounts'] = self.config['slurm'].get('storage', {}).get('ExtraMounts', [])
         elif instance_role == 'ParallelClusterExternalLoginNode':
             instance_template_vars['slurm_version']                      = get_SLURM_VERSION(self.config)
             instance_template_vars['parallel_cluster_munge_version']     = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
