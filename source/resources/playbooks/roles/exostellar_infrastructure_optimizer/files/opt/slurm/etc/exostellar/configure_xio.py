@@ -56,7 +56,7 @@ class ConfigureXio:
             exit(1)
 
     def configure_vm_images(self):
-        for image_config in self.xio_config['Images']:
+        for image_config in self.xio_config.get('Images', []):
             image_name = image_config['ImageName']
             image_id = image_config['ImageId']
             response = requests.get(f"{self.ems_url}/v1/image/{image_name}", verify=False)
