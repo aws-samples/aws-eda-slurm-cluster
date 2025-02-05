@@ -35,6 +35,10 @@ trap on_exit EXIT
 config_dir=/opt/slurm/config
 config_bin_dir=$config_dir/bin
 
+if [ -e $config_bin_dir/on_compute_node_configured_custom_prolog.sh ]; then
+    $config_bin_dir/on_compute_node_configured_custom_prolog.sh
+fi
+
 if ! [ -z $HomeMountSrc ]; then
     umount /home
     mount $HomeMountSrc /home
@@ -81,6 +85,10 @@ fi
 #     -i inventories/local.yml \
 #     -e @$ANSIBLE_PATH/ansible_compute_node_vars.yml &
 # popd
+
+if [ -e $config_bin_dir/on_compute_node_configured_custom_epilog.sh ]; then
+    $config_bin_dir/on_compute_node_configured_custom_epilog.sh
+fi
 
 echo "$(date): Finished ${script_name}"
 
