@@ -829,7 +829,8 @@ class CdkSlurmStack(Stack):
         Configure /home file system.
         '''
         logger.info(f"Updating configuration for Exostellar")
-        ems_stack_name = self.config['slurm']['Xio']['ManagementServerStackName']
+        xio_config = self.config['slurm']['Xio']
+        ems_stack_name = xio_config['ManagementServerStackName']
         logger.info(f"    stack: {ems_stack_name}")
 
         # Get RES environment name from stack parameters.
@@ -897,26 +898,26 @@ class CdkSlurmStack(Stack):
         if not exostellar_security_group:
             logger.error(f"ExostellarSecurityGroup resource not found in {ems_stack_name} EMS stack")
             exit(1)
-        if 'Controllers' not in self.config['slurm']['Xio']:
-            self.config['slurm']['Xio']['Controllers'] = {}
-        if 'SecurityGroupIds' not in self.config['slurm']['Xio']['Controllers']:
-            self.config['slurm']['Xio']['Controllers']['SecurityGroupIds'] = []
-        if 'Workers' not in self.config['slurm']['Xio']:
-            self.config['slurm']['Xio']['Workers'] = {}
-        if 'SecurityGroupIds' not in self.config['slurm']['Xio']['Workers']:
-            self.config['slurm']['Xio']['Workers']['SecurityGroupIds'] = []
-        if exostellar_security_group not in self.config['slurm']['Xio']['Controllers']['SecurityGroupIds']:
-            self.config['slurm']['Xio']['Controllers']['SecurityGroupIds'].append(exostellar_security_group)
-        if exostellar_security_group not in self.config['slurm']['Xio']['Workers']['SecurityGroupIds']:
-            self.config['slurm']['Xio']['Workers']['SecurityGroupIds'].append(exostellar_security_group)
+        if 'Controllers' not in xio_config:
+            xio_config['Controllers'] = {}
+        if 'SecurityGroupIds' not in xio_config['Controllers']:
+            xio_config['Controllers']['SecurityGroupIds'] = []
+        if 'Workers' not in xio_config:
+            xio_config['Workers'] = {}
+        if 'SecurityGroupIds' not in xio_config['Workers']:
+            xio_config['Workers']['SecurityGroupIds'] = []
+        if exostellar_security_group not in xio_config['Controllers']['SecurityGroupIds']:
+            xio_config['Controllers']['SecurityGroupIds'].append(exostellar_security_group)
+        if exostellar_security_group not in xio_config['Workers']['SecurityGroupIds']:
+            xio_config['Workers']['SecurityGroupIds'].append(exostellar_security_group)
         if 'AdditionalSecurityGroupsStackName' in self.config:
             if self.slurm_compute_node_sg_id:
-                if self.slurm_compute_node_sg_id not in self.config['slurm']['Xio']['Workers']['SecurityGroupIds']:
-                    self.config['slurm']['Xio']['Workers']['SecurityGroupIds'].append(self.slurm_compute_node_sg_id)
+                if self.slurm_compute_node_sg_id not in xio_config['Workers']['SecurityGroupIds']:
+                    xio_config['Workers']['SecurityGroupIds'].append(self.slurm_compute_node_sg_id)
         if 'RESStackName' in self.config:
             if self.res_dcv_security_group_id:
-                if self.res_dcv_security_group_id not in self.config['slurm']['Xio']['Workers']['SecurityGroupIds']:
-                    self.config['slurm']['Xio']['Workers']['SecurityGroupIds'].append(self.res_dcv_security_group_id)
+                if self.res_dcv_security_group_id not in xio_config['Workers']['SecurityGroupIds']:
+                    xio_config['Workers']['SecurityGroupIds'].append(self.res_dcv_security_group_id)
 
         # Get values from stack outputs
         ems_ip_address = None
@@ -927,10 +928,31 @@ class CdkSlurmStack(Stack):
         if not ems_ip_address:
             logger.error(f"2ExostellarMgmtServerPrivateIP output not found in {ems_stack_name} EMS stack.")
             exit(1)
-        self.config['slurm']['Xio']['ManagementServerIp'] = ems_ip_address
+        xio_config['ManagementServerIp'] = ems_ip_address
+
+        # Get VolumeSize for AMIs used by Images
+        image_configs = {}
+        for image_config in xio_config['Images']:
+            image_id = image_config['ImageId']
+            image_name = image_config['ImageName']
+            volume_size = image_config.get('VolumeSize', xio_config['DefaultVolumeSize'])
+            image_configs[image_name] = image_config
+            images_info = self.ec2_client.describe_images(ImageIds=[image_id])['Images']
+            if not images_info:
+                logger.error(f"slurm/Xio/Images error. ImageId {image_id}  doesn't exist.")
+                exit(1)
+            ami_info = images_info[0]
+            if len(ami_info['BlockDeviceMappings']) != 1:
+                logger.error(f"Images for XIO must have exactly 1 EBS volume. {image_id} has {len(ami_info['BlockDeviceMappings'])}")
+                exit(1)
+            min_volume_size = ami_info['BlockDeviceMappings'][0]['Ebs']['VolumeSize']
+            if volume_size < min_volume_size:
+                logger.info(f"Increased {image_name} VolumeSize from {volume_size} to {min_volume_size} to match {image_id}.")
+                volume_size = min_volume_size
+            image_config['VolumeSize'] = volume_size
 
         # Check that all of the profiles used by the pools are defined
-        logger.debug(f"Xio config:\n{json.dumps(self.config['slurm']['Xio'], indent=4)}")
+        logger.debug(f"Xio config:\n{json.dumps(xio_config, indent=4)}")
         WEIGHT_PER_CORE = {
             'amd':   45,
             'intel': 78
@@ -944,7 +966,7 @@ class CdkSlurmStack(Stack):
         xio_profile_configs = {}
         self.instance_type_info = self.plugin.get_instance_types_info(self.cluster_region)
         self.instance_family_info = self.plugin.get_instance_families_info(self.cluster_region)
-        for profile_config in self.config['slurm']['Xio']['Profiles']:
+        for profile_config in xio_config['Profiles']:
             profile_name = profile_config['ProfileName']
             # Check that profile name is alphanumeric
             if not re.compile('^[a-zA-z0-9]+$').fullmatch(profile_name):
@@ -994,7 +1016,7 @@ class CdkSlurmStack(Stack):
                 profile_config['SpotFleetTypes'].remove(invalid_instance_type)
 
         xio_pool_names = {}
-        for pool_config in self.config['slurm']['Xio']['Pools']:
+        for pool_config in xio_config['Pools']:
             pool_name = pool_config['PoolName']
             if pool_name in xio_pool_names:
                 logger.error(f"{pool_name} Xio pool already defined")
@@ -1006,11 +1028,11 @@ class CdkSlurmStack(Stack):
                 number_of_errors += 1
                 continue
             if 'ImageName' not in pool_config:
-                if 'DefaultImageName' not in self.config['slurm']['Xio']:
+                if 'DefaultImageName' not in xio_config:
                     logger.error(f"Xio pool {pool_name} didn't specify ImageName and Xio DefaultImageName not set.")
                     number_of_errors += 1
                 else:
-                    pool_config['ImageName'] = self.config['slurm']['Xio']['DefaultImageName']
+                    pool_config['ImageName'] = xio_config['DefaultImageName']
             if 'InstanceMemory' not in pool_config and 'MaxMemory' not in pool_config:
                 logger.error(f"Must specify either InstanceMemory or MaxMemory in {pool_name} config.")
                 number_of_errors += 1
@@ -1026,6 +1048,11 @@ class CdkSlurmStack(Stack):
                 profile_config = xio_profile_configs[profile_name]
                 cpu_vendor = profile_config['CpuVendor']
                 pool_config['Weight'] = pool_config['CPUs'] * WEIGHT_PER_CORE[cpu_vendor] + int(pool_config.get('InstanceMemory', pool_config.get('MaxMemory'))/1024 * WEIGHT_PER_GB[cpu_vendor])
+            # Set/validate pool's VolumeSize
+            image_config = image_configs.get(pool_config['ImageName'], {})
+            pool_config['VolumeSize'] = pool_config.get('VolumeSize', image_config.get('VolumeSize', xio_config['DefaultVolumeSize']))
+            if image_config['VolumeSize'] < image_config.get('VolumeSize', 0):
+                logger.error(f"Pool {pool_config['PoolName']} VolumeSize must be >= VolumeSize for image {pool_config['ImageName']}={image_config['VolumeSize']}")
 
         if number_of_errors:
             exit(1)

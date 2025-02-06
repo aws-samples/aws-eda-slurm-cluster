@@ -39,34 +39,41 @@ function resume_xspot()
     image_name=''
     cpus=''
     mem=''
+    vol_size=''
 {% for pool_config in xio_config.Pools %}
     if [[ $pool_name == '{{ pool_config.PoolName }}' ]]; then
         profile_name='{{ pool_config.ProfileName }}'
         image_name='{{ pool_config.ImageName }}'
         cpus={{ pool_config.CPUs }}
         mem={{ pool_config.MaxMemory }}
+        vol_size={{ pool_config.VolumeSize }}
     fi
 {% endfor %}
     if [[ -z $profile_name ]]; then
-        echo "error: No profile_name for $host
+        echo "error: No profile_name for $host"
         return 1
     fi
     if [[ -z $image_name ]]; then
-        echo "error: No image_name for $host
+        echo "error: No image_name for $host"
         return 1
     fi
     if [[ -z $cpus ]]; then
-        echo "error: No cpus for $host
+        echo "error: No cpus for $host"
         return 1
     fi
     if [[ -z $mem ]]; then
-        echo "error: No mem for $host
+        echo "error: No mem for $host"
+        return 1
+    fi
+    if [[ -z $vol_size ]]; then
+        echo "error: No vol_size for $host"
         return 1
     fi
     echo "ProfileName=$profile_name"
     echo "ImageName=$image_name"
     echo "CPUs=$cpus"
     echo "MaxMemory=$mem"
+    echo "VolumeSize=$vol_size"
 
     TMP_USER_DATA_FILE=$(mktemp).sh
     cp ${SLURM_CONF_PATH}/exostellar/xspot-vm_user_data.sh $TMP_USER_DATA_FILE
@@ -84,7 +91,8 @@ function resume_xspot()
         "CPUs": $cpus,
         "ImageName": "$image_name",
         "MaxMemory": $mem,
-        "UserData": "$user_data"
+        "UserData": "$user_data",
+        "VolumeSize": $vol_size
     }
 }
 END
