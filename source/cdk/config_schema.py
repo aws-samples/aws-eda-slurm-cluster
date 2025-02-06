@@ -1716,11 +1716,13 @@ def get_config_schema(config):
                 'PartitionName': str,
                 Optional('Images'): [
                     {
+                        'ImageName': str,
                         'ImageId': str,
-                        'ImageName': str
+                        Optional('VolumeSize'): int
                     }
                 ],
                 Optional('DefaultImageName'): str,
+                Optional('DefaultVolumeSize', default=10): int,
                 Optional('Profiles', default=default_xio_profiles): [
                     {
                         'ProfileName': str,
@@ -1745,7 +1747,7 @@ def get_config_schema(config):
                         Optional('ImageName'): str,
                         Optional('InstanceMemory'): int,
                         Optional('MaxMemory'): int,
-                        Optional('VolumeSize', default=10): int,
+                        Optional('VolumeSize'): int,
                         Optional('Weight'): int
                     }
                 ],
