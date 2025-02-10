@@ -71,6 +71,12 @@ if [[ -e $config_dir/users_groups.json ]]; then
     $config_bin_dir/create_users_groups.py -i $config_dir/users_groups.json
 fi
 
+# Enable ENA Express
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+mac=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/)
+eni_id=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/${mac}interface-id/)
+aws ec2 modify-network-interface-attribute --network-interface-id ${eni_id} --ena-srd-specification 'EnaSrdEnabled=true,EnaSrdUdpSpecification={EnaSrdUdpEnabled=true}'
+
 # ansible_compute_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_compute_node_vars.yml"
 
 # # Configure using ansible

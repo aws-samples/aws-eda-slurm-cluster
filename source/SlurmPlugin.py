@@ -1964,7 +1964,9 @@ class SlurmPlugin:
         default_instance_type_config = {
             'UseOnDemand': instance_config['UseOnDemand'],
             'UseSpot': instance_config['UseSpot'],
-            'DisableSimultaneousMultithreading': instance_config['DisableSimultaneousMultithreading']
+            'DisableSimultaneousMultithreading': instance_config['DisableSimultaneousMultithreading'],
+            'EnableEfa': instance_config['EnableEfa'],
+            'PlacementGroupName': instance_config.get('PlacementGroupName', None)
         }
 
         instance_types = {}
@@ -2069,6 +2071,8 @@ class SlurmPlugin:
                     instance_type_config['UseOnDemand'] = instance_type_config.get('UseOnDemand', instance_family_config.get('UseOnDemand', default_instance_type_config['UseOnDemand']))
                     instance_type_config['UseSpot'] = instance_type_config.get('UseSpot', instance_family_config.get('UseSpot', default_instance_type_config['UseSpot']))
                     instance_type_config['DisableSimultaneousMultithreading'] = instance_type_config.get('DisableSimultaneousMultithreading', instance_family_config.get('DisableSimultaneousMultithreading', default_instance_type_config['DisableSimultaneousMultithreading']))
+                    instance_type_config['EnableEfa'] = instance_type_config.get('EnableEfa', instance_family_config.get('EnableEfa', default_instance_type_config['EnableEfa']))
+                    instance_type_config['PlacementGroupName'] = instance_type_config.get('PlacementGroupName', instance_family_config.get('PlacementGroupName', default_instance_type_config['PlacementGroupName']))
 
                     region_instance_types[instance_type] = instance_type_config
 
