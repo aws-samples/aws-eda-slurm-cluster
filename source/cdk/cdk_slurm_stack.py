@@ -53,7 +53,7 @@ import base64
 import boto3
 from botocore.exceptions import ClientError
 import config_schema
-from config_schema import get_PARALLEL_CLUSTER_LAMBDA_RUNTIME, get_PARALLEL_CLUSTER_MUNGE_VERSION, get_PARALLEL_CLUSTER_PYTHON_VERSION, get_PC_SLURM_VERSION, get_SLURM_VERSION
+from config_schema import get_PARALLEL_CLUSTER_ENROOT_VERSION, get_PARALLEL_CLUSTER_LAMBDA_RUNTIME, get_PARALLEL_CLUSTER_MUNGE_VERSION, get_PARALLEL_CLUSTER_PYTHON_VERSION, get_PARALLEL_CLUSTER_PYXIS_VERSION, get_PC_SLURM_VERSION, get_SLURM_VERSION
 from constructs import Construct
 from copy import copy, deepcopy
 from hashlib import sha512
@@ -289,6 +289,10 @@ class CdkSlurmStack(Stack):
                         self.mount_home_src = mount_dict['src']
                         logger.info(f"Mounting /home from {self.mount_home_src} on compute nodes")
 
+        if self.config['slurm']['ParallelClusterConfig']['EnablePyxis'] and not config_schema.PARALLEL_CLUSTER_SUPPORTS_PYXIS(self.PARALLEL_CLUSTER_VERSION):
+            logger.error(f"Cannot EnablePyxis before ParaallelCluster version {config_schema.PARALLEL_CLUSTER_SUPPORTS_PYXIS_VERSION}")
+            config_errors += 1
+
         # Check OS
         if self.config['slurm']['ParallelClusterConfig']['Image']['Os'] not in config_schema.get_PARALLEL_CLUSTER_ALLOWED_OSES(self.config):
             logger.error(f"{self.config['slurm']['ParallelClusterConfig']['Image']['Os']} is not supported in ParallelCluster version {self.PARALLEL_CLUSTER_VERSION}.")
@@ -498,7 +502,7 @@ class CdkSlurmStack(Stack):
 
         if 'Xio' in self.config['slurm']:
             if self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
-                logger.error("Xio is only supported on x86_64 architecture, not {self.config['slurm']['ParallelClusterConfig']['Architecture']}")
+                logger.error(f"Xio is only supported on x86_64 architecture, not {self.config['slurm']['ParallelClusterConfig']['Architecture']}")
                 config_errors += 1
 
         if config_errors:
@@ -2276,6 +2280,7 @@ class CdkSlurmStack(Stack):
                 "cluster_name": cluster_name,
                 "region": self.cluster_region,
                 "time_zone": self.config['TimeZone'],
+                "parallel_cluster_version": self.PARALLEL_CLUSTER_VERSION
             }
             instance_template_vars['default_partition'] = 'batch'
             instance_template_vars['file_system_mount_path'] = '/opt/slurm'
@@ -2290,9 +2295,12 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['accounting_storage_host'] = self.config['slurm']['ParallelClusterConfig']['Slurmdbd']['Host']
             else:
                 instance_template_vars['accounting_storage_host'] = ''
+            instance_template_vars['enable_pyxis'] = self.config['slurm']['ParallelClusterConfig']['EnablePyxis']
             instance_template_vars['licenses'] = self.config['Licenses']
+            instance_template_vars['parallel_cluster_enroot_version'] = get_PARALLEL_CLUSTER_ENROOT_VERSION(self.config)
             instance_template_vars['parallel_cluster_munge_version'] = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
             instance_template_vars['parallel_cluster_python_version'] = get_PARALLEL_CLUSTER_PYTHON_VERSION(self.config)
+            instance_template_vars['parallel_cluster_pyxis_version'] = get_PARALLEL_CLUSTER_PYXIS_VERSION(self.config)
             instance_template_vars['primary_controller'] = True
             instance_template_vars['slurm_uid'] = self.config['slurm']['SlurmUid']
             instance_template_vars['slurmctld_port'] = self.slurmctld_port
@@ -2313,8 +2321,11 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['xio_config'] = self.config['slurm']['Xio']
                 instance_template_vars['xio_config']['ExtraMounts'] = self.config['slurm'].get('storage', {}).get('ExtraMounts', [])
         elif instance_role == 'ParallelClusterExternalLoginNode':
+            instance_template_vars['enable_pyxis']                       = self.config['slurm']['ParallelClusterConfig']['EnablePyxis']
             instance_template_vars['slurm_version']                      = get_SLURM_VERSION(self.config)
+            instance_template_vars['parallel_cluster_enroot_version']    = get_PARALLEL_CLUSTER_ENROOT_VERSION(self.config)
             instance_template_vars['parallel_cluster_munge_version']     = get_PARALLEL_CLUSTER_MUNGE_VERSION(self.config)
+            instance_template_vars['parallel_cluster_pyxis_version']     = get_PARALLEL_CLUSTER_PYXIS_VERSION(self.config)
             instance_template_vars['slurmrestd_port']                    = self.slurmrestd_port
             instance_template_vars['file_system_mount_path']             = f'/opt/slurm/{cluster_name}'
             instance_template_vars['slurm_base_dir']                     = f'/opt/slurm/{cluster_name}'

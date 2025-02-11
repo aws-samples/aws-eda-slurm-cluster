@@ -1,10 +1,12 @@
 # Containers
 
-Slurm supports [running jobs in unprivileged OCI containers](https://slurm.schedmd.com/containers.html).
-OCI is the [Open Container Initiative](https://opencontainers.org/), an open governance structure with the purpose of creating open industry standards around container formats and runtimes.
+Slurm supports running jobs in unprivileged containers a couple of different ways.
+It natively supports running jobs in unprivileged [Open Container Initiative (OCI) containers](https://slurm.schedmd.com/containers.html).
+Starting with ParallelCluster 3.11.1, it also supports running docker containers using the [Pyxis SPANK plugin](https://github.com/NVIDIA/pyxis) which uses [enroot](https://github.com/NVIDIA/enroot) to run unprivileged containers.
+I will describe using Pyxis first because it is easier than using OCI containers.
 
-I'm going to document how to add OCI support to your EDA Slurm cluster.
-Note that most EDA tools are not containerized and that some won't run in containers and that some may run in a container, but not correctly.
+**Note**: Most EDA tools are not containerized.
+Some won't run in containers and some may run in a container, but not correctly.
 I recommend following the guidance of your EDA vendor and consult with them.
 
 I've seen a couple of main motivations for using containers for EDA tools.
@@ -12,23 +14,64 @@ The first is because orchestration tools like Kubernetes and AWS Batch require j
 The other is to have more flexibility managing the run time environment of the tools.
 Since the EDA tools themselves aren't containerized, the container is usually used to manage file system mounts and packages that are used by the tools.
 If new packages are required by a new tool, then it is easy to update and distribute a new version of the container.
+Another reason is to use legacy OS distributions on an instance running a newer distribution.
 
-## Compute node configuration
+## Using Pyxis
 
-The compute node must be configured to use an unprivileged container runtime.
-We'll show how to install and configure rootless Docker.
+The enroot and Pyxis packages were developed by NVIDIA to make it easier to run containers on Slurm compute nodes.
+ParallelCluster started installing enroot and Pyxis in version 3.11.1 so that you can [run containerized jobs with Pyxis](https://docs.aws.amazon.com/en_us/parallelcluster/latest/ug/tutorials_11_running-containerized-jobs-with-pyxis.html).
 
-The following directions have been automated in the [creation of a custom EDA compute node AMI](custom-amis.md).
+To configure Slurm to use the Pyxis plugin, set the **slurm/ParallelClusterConfig/EnablePyxis** parameter to **true** and create or update your cluster.
+This will configure the head node to use the Pyxis plugin.
+It will also configure your external login nodes to install, configure, and use enroot and the Pyxis plugin.
 
-First, [install the latest Docker from the Docker yum repo](https://docs.docker.com/engine/install/rhel/).
+### Running a containerized job using Pyxis
 
-Next, [configure Docker to run rootless](https://docs.docker.com/engine/security/rootless/).
+With Pyxis configured in your cluster, you have new options in srun and sbatch to specify a container image.
 
-Configure subuid and subgid.
+```
+# Submitting an interactive job
+srun -N 2 --container-image docker://rockylinux:8 hostname
+
+# Submitting a batch job
+sbatch -N 2 --wrap='srun --container-image docker://rockylinux:8 hostname'
+```
+
+## Using OCI containers
+
+Slurm supports [running jobs in unprivileged OCI containers](https://slurm.schedmd.com/containers.html).
+OCI is the [Open Container Initiative](https://opencontainers.org/), an open governance structure with the purpose of creating open industry standards around container formats and runtimes.
+
+I'm going to document how to add OCI support to your EDA Slurm cluster.
+
+**NOTE**: Rootless docker requires user-specific setup for each user that will run the containers.
+For this reason, it is much easier to use Pyxis.
+
+### Configure rootless docker on login and compute nodes
+
+The login and compute nodes must be configured to use an unprivileged container runtime.
+
+Run the following script as root to install rootless Docker.
+
+```
+/opt/slurm/${ClusterName}/config/bin/install-rootless-docker.sh
+```
+
+The script [installs the latest Docker from the Docker yum repo](https://docs.docker.com/engine/install/rhel/).
+
+The creation of a compute node AMI with rootless docker installed has been automated in the [creation of a custom compute node AMI](custom-amis.md).
+Use one of the build config files with **docker** in the name to create a custom AMI and configure your cluster to use it.
+
+### Per user configuration
+
+Next, [configure Docker to run rootless](https://docs.docker.com/engine/security/rootless/) by running the following script as the user that will be running Docker.
+
+```
+dockerd-rootless-setuptool.sh
+```
 
 Each user that will run Docker must have an entry in `/etc/subuid` and `/etc/subgid`.
-
-## Per user configuration
+The creates_users_groups_json.py script will create `/opt/slurm/config/subuid` and `/opt/slurm/config/subgid` and the compute nodes will copy them to `/etc/subuid` and `/etc/subgid`.
 
 You must configure docker to use a non-NFS storage location for storing images.
 
@@ -40,7 +83,7 @@ You must configure docker to use a non-NFS storage location for storing images.
 }
 ```
 
-## Create OCI Bundle
+### Create OCI Bundle
 
 Each container requires an [OCI bundle](https://slurm.schedmd.com/containers.html#bundle).
 
@@ -64,7 +107,7 @@ docker export $(docker create $IMAGE_NAME) > $BUNDLE_NAME.tar
 mkdir rootfs
 tar -C rootfs -xf $IMAGE_NAME.tar
 runc spec --rootless
-runc run containerid
+runc run containerid1
 ```
 
 The same process works for Rocky Linux 8.
@@ -85,17 +128,7 @@ runc spec --rootless
 runc run containerid2
 ```
 
-## Test the bundle locally
-
-```
-export OCI_BUNDLES_DIR=~/oci-bundles
-export BUNDLE_NAME=rockylinux8
-cd $OCI_BUNDLES_DIR/$BUNDLE_NAME
-runc spec --rootless
-runc run containerid2
-```
-
-## Run a bundle on Slurm
+### Run a bundle on Slurm using OCI container
 
 ```
 export OCI_BUNDLES_DIR=~/oci-bundles

@@ -33,13 +33,16 @@
   yum:
     state: present
     name:
-      - docker-ce
-      - docker-ce-cli
       - containerd.io
       - docker-buildx-plugin
+      - docker-ce
+      - docker-ce-cli
+      - docker-ce-rootless-extras
       - docker-compose-plugin
       - fuse-overlayfs
       - iptables
+      - runc
+      - shadow-utils
 
 - name: Disable docker.service
   systemd_service:

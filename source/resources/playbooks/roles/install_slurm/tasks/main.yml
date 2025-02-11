@@ -285,3 +285,113 @@
     group: root
     mode: '0664'
     force: yes
+
+- name: Install enroot packages
+  yum:
+    state: present
+    name:
+      - git
+      - gcc
+      - make
+      - libcap
+      - libtool
+      - automake
+      - libmd-devel
+      - epel-release
+      - jq
+      - squashfs-tools
+      - parallel
+      - fuse-overlayfs
+      #- libnvidia-container-tools
+      - pigz
+      - squashfuse
+
+- name: Clone enroot
+  args:
+    creates: "{{ slurm_src_dir }}/enroot"
+  shell: |
+    set -xe
+
+    cd {{ slurm_src_dir }}
+
+    git clone https://github.com/NVIDIA/enroot.git
+    cd enroot
+    git checkout v{{parallel_cluster_enroot_version}}
+    git submodule update --init --recursive
+
+- name: Build enroot
+  args:
+    creates: "/usr/local/bin/enroot"
+  shell: |
+    set -xe
+
+    cd {{ slurm_src_dir }}/enroot
+    make install
+    make setcap
+
+- name: Download pyxis source
+  args:
+    creates: "{{ slurm_src_dir }}/pyxis-{{ parallel_cluster_pyxis_version }}"
+  shell: |
+    set -xe
+
+    cd {{ slurm_src_dir }}
+
+    # Download pyxis source
+    rm -f pyxis-v{{ parallel_cluster_pyxis_version }}.tar.gz
+    wget https://github.com/NVIDIA/pyxis/archive/refs/tags/v{{ parallel_cluster_pyxis_version }}.tar.gz -O pyxis-v{{ parallel_cluster_pyxis_version }}.tar.gz
+    rm -rf pyxis-{{ parallel_cluster_pyxis_version }}
+    tar -xzf pyxis-v{{ parallel_cluster_pyxis_version }}.tar.gz
+    rm -f pyxis-v{{ parallel_cluster_pyxis_version }}.tar.gz
+
+- name: Build pyxis
+  args:
+    creates: "{{ slurm_src_dir }}/pyxis-v{{ parallel_cluster_pyxis_version }}/spank_pyxis.so"
+  shell: |
+    set -xe
+
+    cd {{ slurm_src_dir }}/pyxis-{{ parallel_cluster_pyxis_version }}
+
+    # Build pyxis
+    export CPPFLAGS='-I {{ slurm_os_dir }}/include'
+    make
+
+    # Copy the plugin to the slurm release dir
+    cp spank_pyxis.so {{ slurm_os_dir }}/lib/slurm/
+
+    # Create a symbolic link to the plugin at /usr/local/lib/slurm/
+    rm -f /usr/local/lib/slurm/spank_pyxis.so
+    ln -s {{ slurm_os_dir }}/lib/slurm/spank_pyxis.so /usr/local/lib/slurm/
+
+- name: Set enroot and pyxis facts
+  set_fact:
+    enroot_persistent_dir: '/var/enroot'
+    enroot_volatile_dir:   '/run/enroot'
+    pyxis_runtime_dir:     '/run/pyxis'
+
+- name: Create {{ enroot_persistent_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ enroot_persistent_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 01777
+
+- name: Create {{ enroot_volatile_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ enroot_volatile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 01777
+
+- name: Create {{ pyxis_runtime_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ pyxis_runtime_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 01777
