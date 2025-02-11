@@ -1,18 +1,4 @@
 ---
-# APC 3.11.0 added the pyxis Slurm Spank plugin
-# This needs to also be built on login nodes.
-# Currently, I am not doing that so until then, disable the Spank plugin by
-# renaming plugstack.conf
-
-- name: Rename plugstack.conf to plugstack.conf.back
-  shell:
-    cmd: |
-      set -ex
-
-      plugstack_conf=/opt/slurm/etc/plugstack.conf
-      if [[ -e  $plugstack_conf ]]; then
-          mv $plugstack_conf ${plugstack_conf}.back
-      fi
 
 - name: Configure pyxis and enroot
   when: primary_controller|bool
@@ -38,7 +24,7 @@
     state: directory
     owner: root
     group: root
-    mode: 1777
+    mode: 01777
 
 - name: Create {{ enroot_volatile_dir }}
   when: primary_controller|bool
@@ -47,7 +33,7 @@
     state: directory
     owner: root
     group: root
-    mode: 1777
+    mode: 01777
 
 - name: Create {{ pyxis_runtime_dir }}
   when: primary_controller|bool
@@ -56,7 +42,7 @@
     state: directory
     owner: root
     group: root
-    mode: 0644
+    mode: 01777
 
 - name: Create /opt/slurm/etc/plugstack.conf.d
   when: primary_controller|bool
@@ -65,7 +51,7 @@
     state: directory
     owner: root
     group: root
-    mode: 0644
+    mode: 0755
 
 - name: Create /etc/enroot/enroot.conf
   when: primary_controller|bool
@@ -78,12 +64,13 @@
 
 - name: Create /opt/slurm/etc/plugstack.conf
   when: primary_controller|bool
-  copy:
+  template:
     dest: "/opt/slurm/etc/plugstack.conf"
-    src:  opt/slurm/etc/plugstack.conf
+    src:    opt/slurm/etc/plugstack.conf
     owner: root
     group: root
     mode: 0644
+    backup: false
 
 - name: Create /opt/slurm/etc/plugstack.conf.d/pyxis.conf
   when: primary_controller|bool
@@ -93,3 +80,4 @@
     owner: root
     group: root
     mode: 0644
+    backup: false

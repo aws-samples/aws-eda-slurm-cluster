@@ -58,13 +58,12 @@ if [ -z $modulefile ]; then
     cat $modulefile_profile | grep 'module use'
     exit1
 fi
-if ! [ -e $modulefile ]; then
-    pushd $PLAYBOOKS_PATH
-    ansible-playbook $PLAYBOOKS_PATH/ParallelClusterExternalLoginNodeInstallSlurm.yml \
-        -i inventories/local.yml \
-        -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
-    popd
-fi
+
+pushd $PLAYBOOKS_PATH
+ansible-playbook $PLAYBOOKS_PATH/ParallelClusterExternalLoginNodeInstallSlurm.yml \
+    -i inventories/local.yml \
+    -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
+popd
 
 echo "$(date): Finished ${script_name}"
 

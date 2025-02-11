@@ -4,6 +4,11 @@ localgroup:
     local:
       ansible_host: 127.0.0.1
       ansible_connection: local
+ExternalLoginNode:
+  hosts:
+    local:
+      ansible_host: 127.0.0.1
+      ansible_connection: local
 ParallelClusterComputeNode:
   hosts:
     local:

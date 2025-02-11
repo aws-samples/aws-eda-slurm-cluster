@@ -71,6 +71,16 @@ if [[ -e $config_dir/users_groups.json ]]; then
     $config_bin_dir/create_users_groups.py -i $config_dir/users_groups.json
 fi
 
+if [[ -e $config_dir/subuid ]]; then
+    cp $config_dir/subuid /etc/subuid
+fi
+
+if [[ -e $config_dir/subgid ]]; then
+    cp $config_dir/subgid /etc/subgid
+fi
+
+chmod 1777 /run/user
+
 # ansible_compute_node_vars_yml_s3_url="s3://$assets_bucket/$assets_base_key/config/ansible/ansible_compute_node_vars.yml"
 
 # # Configure using ansible

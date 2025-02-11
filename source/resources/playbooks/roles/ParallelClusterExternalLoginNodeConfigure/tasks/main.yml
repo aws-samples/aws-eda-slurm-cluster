@@ -3,13 +3,16 @@
 - name: Show vars used in this playbook
   debug:
     msg: |
-      cluster_name:                   {{ cluster_name }}
-      distribution:                   {{ distribution }}
-      parallel_cluster_munge_version: {{ parallel_cluster_munge_version }}
-      region:                         {{ region }}
-      slurm_base_dir:                 {{ slurm_base_dir }}
-      slurm_config_dir:               {{ slurm_config_dir }}
-      slurm_uid:                      {{ slurm_uid }}
+      cluster_name:                    {{ cluster_name }}
+      distribution:                    {{ distribution }}
+      enable_pyxis:                    {{ enable_pyxis }}
+      parallel_cluster_enroot_version: {{ parallel_cluster_enroot_version }}
+      parallel_cluster_munge_version:  {{ parallel_cluster_munge_version }}
+      parallel_cluster_pyxis_version:  {{ parallel_cluster_pyxis_version }}
+      region:                          {{ region }}
+      slurm_base_dir:                  {{ slurm_base_dir }}
+      slurm_config_dir:                {{ slurm_config_dir }}
+      slurm_uid:                       {{ slurm_uid }}
 
 - name: Add /opt/slurm/{{ cluster_name }} to /etc/fstab
   mount:
