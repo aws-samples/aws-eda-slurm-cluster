@@ -2,10 +2,10 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-# This script calls an ansible playbook that installs packages typically used by EDA tools.
+# This script calls an ansible playbook that installs rootless docker on a compute node.
 # It has 2 different use cases:
 #   * To build ParallelCluster AMIs
-#   * To install packages on VDIs or other login nodes using a ParallellCluster.
+#   * To install docker on VDIs or other login nodes using a ParallellCluster.
 # The location of the config directory is different for those 2 use cases.
 # For an AMI build, the config directory and scripts will not exist and must be downloaded from S3.
 # For a login node, the playbooks and scripts will already exist.
@@ -30,14 +30,14 @@ function on_exit {
         echo "See log files for more info:
     /var/lib/amazon/toe/TOE_*
     grep PCImageBuilderEDA /var/log/messages | less" > $tmpfile
-        aws --region $AWS_DEFAULT_REGION sns publish --topic-arn $ErrorSnsTopicArn --subject "${ClusterName} EDAComponent failed" --message file://$tmpfile
+        aws --region $AWS_DEFAULT_REGION sns publish --topic-arn $ErrorSnsTopicArn --subject "${ClusterName} install-rootless-docker.sh failed" --message file://$tmpfile
         rm $tmpfile
     fi
 }
 trap on_exit EXIT
 
 # Redirect all IO to /var/log/messages and then echo to stderr
-exec 1> >(logger -s -t PCImageBuilderEDA) 2>&1
+exec 1> >(logger -s -t install-rootless-docker) 2>&1
 
 # Install ansible
 if ! yum list installed ansible &> /dev/null; then
@@ -84,10 +84,8 @@ fi
 
 pushd $PLAYBOOKS_PATH
 
-ansible-playbook $PLAYBOOKS_PATH/eda_tools.yml \
-    -i inventories/local.yml \
-    -e @$ANSIBLE_PATH/ansible_head_node_vars.yml
-
 ansible-playbook $PLAYBOOKS_PATH/install-rootless-docker.yml \
     -i inventories/local.yml \
-    -e @$ANSIBLE_PATH/ansible_head_node_vars.yml
+    -e @$ANSIBLE_PATH/ansible_compute_node_vars.yml
+
+popd

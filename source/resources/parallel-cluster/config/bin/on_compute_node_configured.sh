@@ -71,6 +71,16 @@ if [[ -e $config_dir/users_groups.json ]]; then
     $config_bin_dir/create_users_groups.py -i $config_dir/users_groups.json
 fi
 
+if [[ -e $config_dir/subuid ]]; then
+    cp $config_dir/subuid /etc/subuid
+fi
+
+if [[ -e $config_dir/subgid ]]; then
+    cp $config_dir/subgid /etc/subgid
+fi
+
+chmod 1777 /run/user
+
 # Enable ENA Express
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 mac=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/network/interfaces/macs/)

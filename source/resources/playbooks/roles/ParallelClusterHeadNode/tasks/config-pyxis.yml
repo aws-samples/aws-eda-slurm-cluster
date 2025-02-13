@@ -1,15 +1,101 @@
 ---
-# APC 3.11.0 added the pyxis Slurm Spank plugin
-# This needs to also be built on login nodes.
-# Currently, I am not doing that so until then, disable the Spank plugin by
-# renaming plugstack.conf
 
-- name: Rename plugstack.conf to plugstack.conf.back
-  shell:
-    cmd: |
-      set -ex
+# https://docs.aws.amazon.com/en_us/parallelcluster/latest/ug/tutorials_11_running-containerized-jobs-with-pyxis.html
 
-      plugstack_conf=/opt/slurm/etc/plugstack.conf
-      if [[ -e  $plugstack_conf ]]; then
-          mv $plugstack_conf ${plugstack_conf}.back
-      fi
+- name: Set enroot and pyxis facts
+  set_fact:
+    enroot_persistent_dir: '/var/enroot'
+    enroot_volatile_dir:   '/run/enroot'
+    pyxis_runtime_dir:     '/run/pyxis'
+
+- name: Show variables used by this role
+  debug:
+    msg: |
+      primary_controller: {{ primary_controller }}
+
+      enable_pyxis:          {{ enable_pyxis }}
+      enroot_persistent_dir: {{ enroot_persistent_dir }}
+      enroot_volatile_dir:   {{ enroot_volatile_dir }}
+      pyxis_runtime_dir:     {{ pyxis_runtime_dir }}
+
+- name: Configure OCI
+  when: primary_controller|bool
+  copy:
+    dest: "/opt/slurm/etc/oci.conf"
+    src:    opt/slurm/etc/oci.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Create {{ enroot_persistent_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ enroot_persistent_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 01777
+
+- name: Create {{ enroot_volatile_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ enroot_volatile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 01777
+
+- name: Create {{ pyxis_runtime_dir }}
+  when: primary_controller|bool
+  file:
+    path: "{{ pyxis_runtime_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 01777
+
+- name: Create /opt/slurm/etc/plugstack.conf.d
+  when: primary_controller|bool
+  file:
+    path: "/opt/slurm/etc/plugstack.conf.d"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Create /etc/enroot/enroot.conf
+  when: primary_controller|bool
+  copy:
+    dest: "/etc/enroot/enroot.conf"
+    src:    etc/enroot/enroot.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Delete /opt/slurm/etc/plugstack.conf
+  when: primary_controller|bool and not enable_pyxis|bool
+  template:
+    dest: "/opt/slurm/etc/plugstack.conf"
+    src:    opt/slurm/etc/plugstack.conf
+    state: absent
+    backup: false
+
+- name: Create /opt/slurm/etc/plugstack.conf
+  when: primary_controller|bool and enable_pyxis|bool
+  template:
+    dest: "/opt/slurm/etc/plugstack.conf"
+    src:    opt/slurm/etc/plugstack.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: false
+
+- name: Create /opt/slurm/etc/plugstack.conf.d/pyxis.conf
+  when: primary_controller|bool
+  copy:
+    dest: "/opt/slurm/etc/plugstack.conf.d/pyxis.conf"
+    src:    opt/slurm/etc/plugstack.conf.d/pyxis.conf
+    owner: root
+    group: root
+    mode: 0644
+    backup: false

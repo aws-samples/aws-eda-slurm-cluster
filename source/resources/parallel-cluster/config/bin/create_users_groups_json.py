@@ -44,14 +44,16 @@ MIN_GID = 1000
 RESERVED_USERS = [
     'ec2-user',
     'nfsnobody',
+    'nobody',
     'ssm-user'
     ]
 
 RESERVED_GROUPS = [
     'nfsnobody',
+    'nobody',
     ]
 
-def main(filename):
+def main(users_groups_json_filename, subuid_filename, subgid_filename):
     config = {}
     config['users'] = {}
     config['gids'] = {}
@@ -115,9 +117,28 @@ def main(filename):
         if group_name in RESERVED_GROUPS:
             continue
         config['gids'][gid] = group_name
-    with open(filename, 'w') as fh:
+    with open(users_groups_json_filename, 'w') as fh:
         #fh.write(pp.pformat(config))
         json.dump(config, fh, sort_keys=True, indent=4)
+
+    # create subuid and subgid files to use with rootless docker
+    subuid_fh = open(subuid_filename, 'w')
+    next_uid = 65536
+    for user in config['users']:
+        uid = config['users'][user]['uid']
+        subuid_fh.write(f"# {user}" + "\n")
+        subuid_fh.write(f"{uid}:{next_uid}:65536" + "\n")
+        next_uid += 65536
+    subuid_fh.close()
+
+    subgid_fh = open(subgid_filename, 'w')
+    next_gid = 65536
+    for gid in config['gids']:
+        subgid_fh.write(f"# {config['gids'][gid]}" + "\n")
+        subgid_fh.write(f"{gid}:{next_gid}:65536" + "\n")
+        next_gid += 65536
+    subgid_fh.close()
+
     return
 
 def get_group_name(gid):
@@ -134,11 +155,13 @@ def get_group_name(gid):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Write user/group info to a json file")
-    parser.add_argument('-o', dest='filename', action='store', required=True, help="output filename")
+    parser.add_argument('-o', dest='users_groups_json_filename', action='store', required=True, help="output users/groups json filename")
+    parser.add_argument('--subuid_filename', dest='subuid_filename', action='store', required=True, help="output subuid filename")
+    parser.add_argument('--subgid_filename', dest='subgid_filename', action='store', required=True, help="output subgid filename")
     parser.add_argument('--debug', '-d', action='count', default=False, help="Enable debug messages")
     args = parser.parse_args()
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
-    main(args.filename)
+    main(args.users_groups_json_filename, args.subuid_filename, args.subgid_filename)

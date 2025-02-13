@@ -1,0 +1,8 @@
+---
+- name: Configure rootless docker for user
+  hosts:
+    - ExternalLoginNode
+  become_user: root
+  become: yes
+  roles:
+    - configure-rootless-docker

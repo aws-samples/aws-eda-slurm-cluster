@@ -272,6 +272,14 @@ def get_PARALLEL_CLUSTER_MUNGE_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
     return PARALLEL_CLUSTER_MUNGE_VERSIONS[parallel_cluster_version]
 
+def get_PARALLEL_CLUSTER_ENROOT_VERSION(config):
+    parallel_cluster_version = get_parallel_cluster_version(config)
+    return PARALLEL_CLUSTER_ENROOT_VERSIONS[parallel_cluster_version]
+
+def get_PARALLEL_CLUSTER_PYXIS_VERSION(config):
+    parallel_cluster_version = get_parallel_cluster_version(config)
+    return PARALLEL_CLUSTER_PYXIS_VERSIONS[parallel_cluster_version]
+
 def get_PARALLEL_CLUSTER_PYTHON_VERSION(config):
     parallel_cluster_version = get_parallel_cluster_version(config)
     return PARALLEL_CLUSTER_PYTHON_VERSIONS[parallel_cluster_version]
@@ -337,6 +345,12 @@ def get_PARALLEL_CLUSTER_LAMBDA_RUNTIME(parallel_cluster_version):
         return aws_lambda.Runtime.PYTHON_3_9
     else:
         return aws_lambda.Runtime.PYTHON_3_12
+
+# Version 3.11.1
+
+PARALLEL_CLUSTER_SUPPORTS_PYXIS_VERSION = parse_version('3.11.1')
+def PARALLEL_CLUSTER_SUPPORTS_PYXIS(parallel_cluster_version):
+    return parallel_cluster_version >= PARALLEL_CLUSTER_SUPPORTS_PYXIS_VERSION
 
 # Version 3.12.0
 
@@ -527,6 +541,7 @@ default_excluded_eda_instance_types = {
         #     2 cores
         'm7i.xlarge',
         'r7a.large',
+        'r8g.large',
         #     4 cores
         'c7i.2xlarge',
         'm7a.xlarge',
@@ -538,6 +553,7 @@ default_excluded_eda_instance_types = {
         # 32 GB:
         #     2 cores
         'r7iz.xlarge',
+        'r8g.xlarge',
         #     4 core(s):
         'm7i.2xlarge',
         'r7a.xlarge',
@@ -555,6 +571,7 @@ default_excluded_eda_instance_types = {
         #     8 core(s):
         'm7i.4xlarge',
         'r7a.2xlarge',
+        'r8g.2xlarge',
         #     16 core(s): ['m8g.4xlarge']
         'c7i.8xlarge',
         'm7a.4xlarge',
@@ -573,11 +590,14 @@ default_excluded_eda_instance_types = {
         #     16 cores
         'm7i.8xlarge',
         'r7a.4xlarge',
+        'r8g.4xlarge',
         #     32 cores
         'c7i.16xlarge',
         'm7a.8xlarge',
+        'm8g.8xlarge',
         #     64 cores
         'c7a.16xlarge',
+        'c8g.16xlarge',
 
         # 192 GB:
         #     48 cores
@@ -585,6 +605,7 @@ default_excluded_eda_instance_types = {
         'm7a.12xlarge',
         #     96 cores
         'c7a.24xlarge',
+        'c8g.24xlarge',
 
         # 256 GB:
         #     4 cores
@@ -593,8 +614,10 @@ default_excluded_eda_instance_types = {
         #     32 cores
         'm7i.16xlarge',
         'r7a.8xlarge',
+        'r8g.8xlarge',
         #     64 cores
         'm7a.16xlarge',
+        'm8g.16xlarge',
         #     128 cores
         'c7a.32xlarge',
 
@@ -605,8 +628,10 @@ default_excluded_eda_instance_types = {
         #     96 cores
         'c7i.48xlarge',
         'm7a.24xlarge',
+        'm8g.24xlarge',
         #     192 cores
         'c7a.48xlarge',
+        'c8g.48xlarge',
 
         # 512 GB:
         #     8 cores
@@ -614,6 +639,7 @@ default_excluded_eda_instance_types = {
         'x2iezn.4xlarge', # Have newer r7iz
         #     64 cores
         'r7a.16xlarge',
+        'r8g.16xlarge',
         #     128 cores
         'm7a.32xlarge',
 
@@ -621,8 +647,10 @@ default_excluded_eda_instance_types = {
         #     96 cores
         'm7i.48xlarge',
         'r7a.24xlarge',
+        'r8g.24xlarge',
         #     192 cores
         'm7a.48xlarge',
+        'm8g.48xlarge',
 
         # 1024 GB:
         #     16 cores
@@ -1530,6 +1558,10 @@ def get_config_schema(config):
                 },
                 Optional('Architecture', default=DEFAULT_ARCHITECTURE): And(str, lambda s: s in VALID_ARCHITECTURES),
                 Optional('ComputeNodeAmi'): And(str, lambda s: s.startswith('ami-')),
+                # Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group
+                # See https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster
+                Optional('EnableEfa', default=False): bool,
+                Optional('EnablePyxis', default=False): bool,
                 Optional('Database'): {
                     Optional('DatabaseStackName'): str,
                     Optional('FQDN'): str,

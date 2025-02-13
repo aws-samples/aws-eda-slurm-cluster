@@ -217,6 +217,23 @@ def lambda_handler(event, context):
                             Body   = build_file_content
                         )
 
+                    # Image with rootless Docker installed
+                    template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-docker-{distribution}-{version}-{architecture}".replace('_', '-')
+                    template_vars['ComponentS3Url'] = environ['InstallDockerScriptS3Url']
+                    build_file_s3_key = f"{assets_base_key}/config/build-files/{template_vars['ImageName']}.yml"
+                    if requestType == 'Delete':
+                        response = s3_client.delete_object(
+                            Bucket = assets_bucket,
+                            Key    = build_file_s3_key
+                        )
+                    else:
+                        build_file_content = build_file_template.render(**template_vars)
+                        s3_client.put_object(
+                            Bucket = assets_bucket,
+                            Key    = build_file_s3_key,
+                            Body   = build_file_content
+                        )
+
                     # Image with EDA packages
                     template_vars['ImageName'] = f"parallelcluster-{parallelcluster_version_name}-eda-{distribution}-{version}-{architecture}".replace('_', '-')
                     template_vars['ComponentS3Url'] = environ['ConfigureEdaScriptS3Url']

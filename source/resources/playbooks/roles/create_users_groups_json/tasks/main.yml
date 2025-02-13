@@ -16,4 +16,4 @@
 - name: Create/update {{ slurm_scripts_dir }}/users_groups.json
   shell:
     cmd: |
-      {{ slurm_scripts_dir }}/create_users_groups_json.py -o {{ slurm_config_dir }}/users_groups.json
+      {{ slurm_scripts_dir }}/create_users_groups_json.py -o {{ slurm_config_dir }}/users_groups.json --subuid_filename {{ slurm_config_dir }}/subuid --subgid_filename {{ slurm_config_dir }}/subgid

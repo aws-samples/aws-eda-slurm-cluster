@@ -1,0 +1,68 @@
+---
+# tasks file for install-rootless-docker
+
+- name: Remove Docker packages
+  yum:
+    state: removed
+    name:
+      - docker
+      - docker-client
+      - docker-client-latest
+      - docker-common
+      - docker-latest
+      - docker-latest-logrotate
+      - docker-logrotate
+      - docker-engine
+      - podman
+      - runc
+
+- name: Install dnf-plugins-core
+  when: (rhel8 or rhel8clone or rhel9 or rhel9clone)
+  yum:
+    state: present
+    name:
+      - dnf-plugins-core
+
+- name: Set up Docker repository
+  shell:
+    cmd: |
+      dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+    creates: /etc/yum.repos.d/docker-ce.repo
+
+- name: Install docker packages
+  yum:
+    state: present
+    name:
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-ce
+      - docker-ce-cli
+      - docker-ce-rootless-extras
+      - docker-compose-plugin
+      - fuse-overlayfs
+      - iptables
+      - runc
+      - shadow-utils
+
+- name: Disable docker.service
+  systemd_service:
+    name: docker.service
+    enabled: false
+    state: stopped
+
+- name: Disable docker.socket
+  systemd_service:
+    name: docker.socket
+    enabled: false
+    state: stopped
+
+- name: Remove /var/run/docker.sock
+  file:
+    path: /var/run/docker.sock
+    state: absent
+
+- name: Load ip_tables kernel module
+  community.general.modprobe:
+    name: ip_tables
+    state: present
+    persistent: present
