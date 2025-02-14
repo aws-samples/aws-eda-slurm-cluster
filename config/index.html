@@ -72,6 +72,9 @@
                                 <a href="../onprem/" class="nav-link">On-Premises Integration</a>
                             </li>
                             <li class="navitem">
+                                <a href="../containers/" class="nav-link">Containers</a>
+                            </li>
+                            <li class="navitem">
                                 <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
                             </li>
                             <li class="navitem">
@@ -449,12 +452,16 @@
                 useOnDemand: bool
                 UseSpot: bool
                 DisableSimultaneousMultithreading: bool
+                EnableEfa: bool
+                PlacementGroupName: str
             <a href="#include-instancetypes">InstanceTypes</a>:
             - str
             - str:
                 UseOnDemand: bool
                 UseSpot: bool
                 DisableSimultaneousMultithreading: bool
+                EnableEfa: bool
+                PlacementGroupName: str
         <a href="#nodecounts">NodeCounts</a>:
             <a href="#defaultmincount">DefaultMinCount</a>: str
             <a href="#defaultmaxcount">DefaultMaxCount</a>: str
@@ -629,7 +636,11 @@ All of the instances must have the same CPU architecture and the same OS.</p>
 <h4 id="enableefa">EnableEfa</h4>
 <p>type: bool</p>
 <p>default: False</p>
-<p>Recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types in the group.</p>
+<p>This will enable EFA for all compute resources with instances that support EFA.</p>
+<p>This can also be controlled for individual instance types in the InstanceConfig section.</p>
+<p>If EFA is enabled without specifying a placement group name, then each compute resource is assigned its own managed placement group.</p>
+<p>NOTE: Most EDA workloads cannot take advantage of EFA because they don't use MPI or NCCL.
+I recommend to not use EFA unless necessary to avoid insufficient capacity errors when starting new instances in group or when multiple instance types are in the group.</p>
 <p>See <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster">https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/placement-groups.html#placement-groups-cluster</a></p>
 <h4 id="database">Database</h4>
 <p>Optional</p>
@@ -944,7 +955,7 @@ It can be overridden for included instance families and by instance types.</p>
 <p>Exclude patterns are processed first and take precedence over any includes.</p>
 <p>Instance families and types are regular expressions with implicit '^' and '$' at the begining and end.</p>
 <p>Each element in the array can be either a regular expression string or a dictionary where the only key
-is the regular expression string and that has overrides <strong>UseOnDemand</strong>, <strong>UseSpot</strong>, and <strong>DisableSimultaneousMultithreading</strong> for the matching instance families or instance types.</p>
+is the regular expression string and that has overrides <strong>UseOnDemand</strong>, <strong>UseSpot</strong>, <strong>DisableSimultaneousMultithreading</strong>, <strong>EnableEfa</strong>, and <strong>PlacementGroupName</strong> for the matching instance families or instance types.</p>
 <p>The settings for instance families overrides the defaults, and the settings for instance types override the others.</p>
 <p>For example, the following configuration defaults to only On-Demand instances with SMT disabled.
 It includes all of the r7a, r7i, and r7iz instance types.
