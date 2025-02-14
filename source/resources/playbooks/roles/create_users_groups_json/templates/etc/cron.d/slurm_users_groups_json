@@ -1,4 +1,0 @@
-MAILTO=''
-SLURM_ROOT={{ slurm_root }}
-PATH="$SLURM_ROOT/bin:/sbin:/bin:/usr/sbin:/usr/bin"
-*/5 * * * * root {{ slurm_scripts_dir }}/create_users_groups_json.py -o {{ slurm_config_dir }}/users_groups.json.new --subuid_filename {{ slurm_config_dir }}/subuid.new --subgid_filename {{ slurm_config_dir }}/subgid.new && mv {{ slurm_config_dir }}/users_groups.json.new {{ slurm_config_dir }}/users_groups.json && mv {{ slurm_config_dir }}/subuid.new {{ slurm_config_dir }}/subuid && mv {{ slurm_config_dir }}/subgid.new {{ slurm_config_dir }}/subgid

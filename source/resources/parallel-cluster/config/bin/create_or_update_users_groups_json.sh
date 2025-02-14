@@ -14,9 +14,11 @@ echo "Started create_or_update_users_groups_json.sh: $full_script"
 config_dir={{ ExternalLoginNodeSlurmConfigDir }}
 config_bin_dir=$config_dir/bin
 
-$config_bin_dir/create_users_groups_json.py -o $config_dir/users_groups.json.new
+$config_bin_dir/create_users_groups_json.py -o $config_dir/users_groups.json.new --subuid_filename $config_dir/subuid.new --subgid_filename $config_dir/subgid.new
 if ! diff $config_dir/users_groups.json.new $config_dir/users_groups.json; then
     mv $config_dir/users_groups.json.new $config_dir/users_groups.json
+    mv $config_dir/subuid.new $config_dir/subuid
+    mv $config_dir/subgid.new $config_dir/subgid
 fi
 
 date
