@@ -3,5 +3,6 @@
     "files.trimTrailingWhitespace": true,
     "files.watcherExclude": {
         "**/cdk.out": true
-    }
+    },
+    "makefile.configureOnOpen": false
 }

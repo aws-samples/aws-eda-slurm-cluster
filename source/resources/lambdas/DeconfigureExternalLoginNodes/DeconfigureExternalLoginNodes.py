@@ -118,46 +118,9 @@ def lambda_handler(event, context):
         ssm_script = dedent(f"""
             set -ex
 
-            mount_dest=/opt/slurm/{cluster_name}
+            script="/opt/aws-eda-slurm-cluster/{cluster_name}/bin/external_login_node_deconfigure.sh"
+            sudo $script
 
-            # Make sure that the cluster is still mounted and mount is accessible.
-            # If the cluster has already been deleted then the mount will be hung and we have to do manual cleanup.
-            if mount | grep " $mount_dest "; then
-                echo "$mount_dest is mounted."
-                if ! timeout 1s ls $mount_dest; then
-                    echo "Mount point ($mount_dest) is hung. Source may have already been deleted."
-                    timeout 5s sudo umount -lf $mount_dest
-                    timeout 1s rm -rf $mount_dest
-                fi
-            fi
-
-            script="$mount_dest/config/bin/external_login_node_deconfigure.sh"
-            if ! timeout 1s ls $script; then
-                echo "$script doesn't exist"
-            else
-                sudo $script
-            fi
-
-            # Do manual cleanup just in case something above failed.
-
-            sudo rm -f /etc/profile.d/slurm_{cluster_name}_modulefiles.sh
-
-            sudo grep -v ' $mount_dest ' /etc/fstab > /etc/fstab.new
-            if diff -q /etc/fstab /etc/fstab.new; then
-                sudo rm -f /etc/fstab.new
-            else
-                sudo cp /etc/fstab /etc/fstab.$(date '+%Y-%m-%d@%H:%M:%S~')
-                sudo mv -f /etc/fstab.new /etc/fstab
-            fi
-
-            if timeout 1s mountpoint $mount_dest; then
-                echo "$mount_dest is a mountpoint"
-                sudo umount -lf $mount_dest
-            fi
-
-            if timeout 1s ls $mount_dest; then
-                sudo rmdir $mount_dest
-            fi
             """)
 
         response = ssm_client.send_command(

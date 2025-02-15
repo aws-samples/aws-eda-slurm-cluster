@@ -114,7 +114,6 @@
       - libyaml-devel
       - lua-devel
       - lz4-devel
-      - mailx
       - make
       - man2html
       # munge is built from ParallelCluster version
@@ -133,6 +132,13 @@
       - rng-tools
       - rrdtool-devel
       - wget
+
+- name: Install slurm packages for not RHEL 9
+  when: not (rhel9 or rhel9clone)
+  yum:
+    state: present
+    name:
+      - mailx
 
 - name: Install hdf5-devel
   when: not(distribution == 'Amazon' and architecture == 'arm64') and not(rhel8 or rhel8clone or rhel9 or rhel9clone)
@@ -251,14 +257,6 @@
     mode: '0755'
   register: create_modulefile_dir_result
 
-- name: Fix modulefile permissions
-  when: create_modulefile_dir_result
-  shell:
-    cmd: |
-      set -ex
-
-      chmod -R 0755 {{ slurm_config_dir }}
-
 - name: Create slurm modulefile .template
   template:
     dest: "{{ modulefiles_base_dir }}/{{ distribution }}/{{ distribution_major_version }}/{{ architecture }}/{{ cluster_name }}/.template"
@@ -361,6 +359,7 @@
 
     # Create a symbolic link to the plugin at /usr/local/lib/slurm/
     rm -f /usr/local/lib/slurm/spank_pyxis.so
+    mkdir -p /usr/local/lib/slurm
     ln -s {{ slurm_os_dir }}/lib/slurm/spank_pyxis.so /usr/local/lib/slurm/
 
 - name: Set enroot and pyxis facts
@@ -370,7 +369,6 @@
     pyxis_runtime_dir:     '/run/pyxis'
 
 - name: Create {{ enroot_persistent_dir }}
-  when: primary_controller|bool
   file:
     path: "{{ enroot_persistent_dir }}"
     state: directory
@@ -379,7 +377,6 @@
     mode: 01777
 
 - name: Create {{ enroot_volatile_dir }}
-  when: primary_controller|bool
   file:
     path: "{{ enroot_volatile_dir }}"
     state: directory
@@ -388,7 +385,6 @@
     mode: 01777
 
 - name: Create {{ pyxis_runtime_dir }}
-  when: primary_controller|bool
   file:
     path: "{{ pyxis_runtime_dir }}"
     state: directory

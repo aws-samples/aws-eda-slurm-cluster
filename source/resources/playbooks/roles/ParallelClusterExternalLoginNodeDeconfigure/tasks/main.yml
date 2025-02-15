@@ -10,27 +10,6 @@
     dest: /etc/profile.d/slurm_{{ cluster_name }}_modulefiles.sh
     state: absent
 
-- name: Unmount /opt/slurm/{{ cluster_name }}
-  shell: |
-    set -ex
-
-    # Handle case where cluster was already deleted so the mountpoint is hung
-    if ! timeout 1s /opt/slurm/{{ cluster_name }}; then
-        echo "Mount point is hung. Source has already been deleted."
-        umount -lf /opt/slurm/{{ cluster_name }}
-    fi
-    if ! mountpoint /opt/slurm/{{ cluster_name }}; then
-        echo "/opt/slurm/{{ cluster_name }} already unmounted."
-        exit 0
-    fi
-    umount /opt/slurm/{{ cluster_name }} || lsof /opt/slurm/{{ cluster_name }}
-  register: umount_results
-
-- name: Show umount results
-  debug:
-    msg: |
-      umount_results: {{ umount_results }}
-
 - name: Remove /opt/slurm/{{ cluster_name }} from /etc/fstab
   mount:
     path: /opt/slurm/{{ cluster_name }}
