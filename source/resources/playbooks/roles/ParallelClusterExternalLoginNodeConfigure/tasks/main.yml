@@ -151,3 +151,40 @@
     group: root
     mode: 0644
     force: yes
+
+- name: Create /opt/aws-eda-slurm-cluster/{{ cluster_name }}
+  file:
+    path: /opt/aws-eda-slurm-cluster/{{ cluster_name }}
+    owner: root
+    group: root
+    mode: 0700
+    state: directory
+
+- name: Create /opt/aws-eda-slurm-cluster/{{ cluster_name }}/bin
+  file:
+    path: /opt/aws-eda-slurm-cluster/{{ cluster_name }}/bin
+    owner: root
+    group: root
+    mode: 0700
+    state: directory
+
+- name: Copy {{ slurm_config_dir }}/bin/external_login_node_deconfigure.sh to /opt/aws-eda-slurm-cluster/{{ cluster_name }}/bin/
+  copy:
+    src: "{{ slurm_config_dir }}/bin/external_login_node_deconfigure.sh"
+    dest: /opt/aws-eda-slurm-cluster/{{ cluster_name }}/bin/external_login_node_deconfigure.sh
+    remote_src: true
+    force: true   # Has to be true or won't be copied when they are different.
+    owner: root
+    group: root
+    mode: 0700
+
+- name: Copy {{ slurm_config_dir }}/ansible/ to /opt/aws-eda-slurm-cluster/{{ cluster_name }}/ansible/
+  copy:
+    src: "{{ slurm_config_dir }}/ansible"
+    dest: /opt/aws-eda-slurm-cluster/{{ cluster_name }}/
+    remote_src: true
+    force: true   # Has to be true or won't be copied when they are different.
+    owner: root
+    group: root
+    directory_mode: 0700
+    mode: 0600

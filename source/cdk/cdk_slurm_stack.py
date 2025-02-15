@@ -3182,10 +3182,10 @@ class CdkSlurmStack(Stack):
             value = f"sudo /opt/slurm/{cluster_name}/config/bin/external_login_node_configure.sh"
         )
         CfnOutput(self, "command10_CreateUsersGroupsJsonDeconfigure",
-            value = f"sudo /opt/slurm/{cluster_name}/config/bin/create_users_groups_json_deconfigure.sh"
+            value = f"sudo /opt/aws-eda-slurm-cluster/{cluster_name}/bin/create_users_groups_json_deconfigure.sh"
         )
         CfnOutput(self, "command11_ExternalLoginNodeDeconfigure",
-            value = f"sudo /opt/slurm/{cluster_name}/config/bin/external_login_nodes_deconfigure.sh && sudo umount /opt/slurm/{cluster_name}"
+            value = f"sudo /opt/aws-eda-slurm-cluster/{cluster_name}/bin/external_login_node_deconfigure.sh"
         )
 
     def create_queue_config(self, queue_name, allocation_strategy, purchase_option):

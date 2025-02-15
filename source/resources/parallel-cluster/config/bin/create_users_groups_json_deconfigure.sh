@@ -2,34 +2,36 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
-# This script creates the json file with user and group information.
-# It also creates a crontab entry to update the json file every hour.
+# This script deconfigures this instance from creating the json file with user and group information.
 
 full_script=$(realpath $0)
 script_dir=$(dirname $full_script)
 base_script=$(basename $full_script)
+ANSIBLE_PATH=$(dirname $script_dir)/ansible
+PLAYBOOKS_PATH=$ANSIBLE_PATH/playbooks
 
-date
-echo "Started create_users_groups_json_deconfigure.sh: $full_script"
+echo "$(date): Started create_users_groups_json_deconfigure.sh: $full_script"
 
-config_dir={{ ExternalLoginNodeSlurmConfigDir }}
-config_bin_dir=$config_dir/bin
+ErrorSnsTopicArn={{ ErrorSnsTopicArn }}
 
-temp_config_dir=/tmp/{{ClusterName}}_config
-temp_config_bin_dir=$temp_config_dir/bin
-if [[ $script_dir != $temp_config_bin_dir ]]; then
-    rm -rf $temp_config_dir
-    cp -r $config_dir $temp_config_dir
-    exec $temp_config_dir/bin/$base_script
-fi
+# Notify user of errors
+function on_exit {
+    rc=$?
+    set +e
+    if [[ $rc -ne 0 ]] && [[ ":$ErrorSnsTopicArn" != ":" ]]; then
+        message_file=$(mktemp)
+        echo "See log files for more info:
+    grep ${script_name} /var/log/messages | less" > $message_file
+        aws sns publish --topic-arn $ErrorSnsTopicArn --subject "${ClusterName} ${script_name} failed" --message file://$message_file
+        rm $message_file
+    fi
+}
+trap on_exit EXIT
 
 # Install ansible
 if ! yum list installed ansible &> /dev/null; then
     yum install -y ansible || amazon-linux-extras install -y ansible2
 fi
-
-ANSIBLE_PATH=$temp_config_dir/ansible
-PLAYBOOKS_PATH=$ANSIBLE_PATH/playbooks
 
 pushd $PLAYBOOKS_PATH
 ansible-playbook $PLAYBOOKS_PATH/ParallelClusterCreateUsersGroupsJsonDeconfigure.yml \
@@ -37,9 +39,8 @@ ansible-playbook $PLAYBOOKS_PATH/ParallelClusterCreateUsersGroupsJsonDeconfigure
     -e @$ANSIBLE_PATH/ansible_external_login_node_vars.yml
 popd
 
-rm -rf $temp_config_dir
+rm -rf $(dirname $script_dir)
 
-date
-echo "Finished create_users_groups_json_deconfigure.sh: $full_script"
+echo "$(date): Finished create_users_groups_json_deconfigure.sh: $full_script"
 
 exit 0

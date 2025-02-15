@@ -370,7 +370,6 @@
     pyxis_runtime_dir:     '/run/pyxis'
 
 - name: Create {{ enroot_persistent_dir }}
-  when: primary_controller|bool
   file:
     path: "{{ enroot_persistent_dir }}"
     state: directory
@@ -379,7 +378,6 @@
     mode: 01777
 
 - name: Create {{ enroot_volatile_dir }}
-  when: primary_controller|bool
   file:
     path: "{{ enroot_volatile_dir }}"
     state: directory
@@ -388,7 +386,6 @@
     mode: 01777
 
 - name: Create {{ pyxis_runtime_dir }}
-  when: primary_controller|bool
   file:
     path: "{{ pyxis_runtime_dir }}"
     state: directory
