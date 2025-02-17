@@ -2,6 +2,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT-0
 
+# This script configures an instance as an external login node for a ParallelCluster cluster.
+#
+# The script and ansible playbooks needed to undo this will be installed at:
+#
+# /opt/aws-eda-slurm-cluster/{{ cluster_name }}
+#
+# To deconfigure the instance as a login node run the following script:
+#
+# /opt/aws-eda-slurm-cluster/{{ cluster_name }}/external_login_node_deconfigure.sh
+
 full_script=$(realpath $0)
 script_dir=$(dirname $full_script)
 script_name=$(basename $full_script)
