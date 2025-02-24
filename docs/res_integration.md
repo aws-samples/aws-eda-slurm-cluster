@@ -1,5 +1,10 @@
 # RES Integration
 
+[Research and Engineering Studio](https://aws.amazon.com/hpc/res/) (RES) si an open source, easy-to-use web-based portal for administrators to create and manage secure cloud-based research and engineering environments.
+It enables users to self-provision virtual desktops.
+It currently doesn't have integrated support for an HPC cluster.
+We'll describe here how to integrate RES virtual desktops with one or more ParallelCluster clusters and use them from the RES desktops.
+
 First you will need to deploy RES.
 The easiest way is to [deploy the demo environment](https://docs.aws.amazon.com/res/latest/ug/create-demo-env.html) which provides all of the prerequisites and completely automates the deployment.
 If you want to use an existing VPC or Active Directory, then you will need to follow the instructions to [deploy the product](https://docs.aws.amazon.com/res/latest/ug/deploy-the-product.html).
@@ -131,3 +136,57 @@ When you are done, remove the following files or else new virtual desktops creat
 ```
 rm /root/bootstrap/semaphore/*.lock
 ```
+
+## Environment Password Management
+
+The RES environment has 2 special AD users that it uses.
+The default AD password policy requires passwords to be changed every 30 days.
+If you don't change them, then the passwords will expire and the RES web portal will stop working.
+You can prevent this by manually resetting the passwords in AD or you can set the passwords for these
+2 users to never expire.
+
+The admin users are:
+
+* Admin
+* ServiceAccount
+
+Their passwords are stored in Secrets Manager.
+
+Make sure that you follow your company's security policies on how you manage these users' passwords.
+
+### Reset Admin User passwords
+
+Retrieve the password for the user in Secrets Manager.
+Go to the AD console and reset the user's password using the same password.
+You can also update to a new password, save it in Secrets Manager, and then update the password in AD.
+
+### Change the Password Policy in AD
+
+Use a Windows RDP client to connect to the AdDomainWindowsNode as the Admin user using the password from Secrets Manager.
+
+Click the Windows start button and find the Windows Administrative tools.
+
+![Windows start menu Administrative Tools](images/res-windows-administrative-tools.png)
+
+Expand and double click on Active Directory Users and Computers.
+
+![Windows start menu Active Directory Users and Computers](images/res-start-ad-users-and-computers.png)
+
+Expand the corp.res.com.
+
+![Active Directory Users and Computers with corp.res.com selected](images/res-ad-users-and-computers.png)
+
+Then expand corp and select Users.
+
+![Active Directory Users and Computers with corp.res.com and corp expanded and Users selected](images/res-users.png)
+
+Double click on the Admin user, select the Account tab, and check the box for "Password never expires".
+Click Apply and OK.
+
+![Admin user properties with Account tab selected](images/res-Admin-properties.png)
+
+Do the same for the ServiceAccount user.
+
+![ServiceAccount user properties with Account tab selected](images/res-ServiceAccount-properties.png)
+
+Log out and stop the AdDomainWindowsNode instance.
