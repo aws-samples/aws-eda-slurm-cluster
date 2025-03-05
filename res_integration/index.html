@@ -153,6 +153,18 @@
               <ul class="nav flex-column">
               </ul>
             </li>
+            <li class="nav-item" data-level="2"><a href="#environment-password-management" class="nav-link">Environment Password Management</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-level="3"><a href="#reset-admin-user-passwords" class="nav-link">Reset Admin User passwords</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-level="3"><a href="#change-the-password-policy-in-ad" class="nav-link">Change the Password Policy in AD</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
               </ul>
             </li>
         </ul>
@@ -161,6 +173,10 @@
                     <div class="col-md-9" role="main">
 
 <h1 id="res-integration">RES Integration</h1>
+<p><a href="https://aws.amazon.com/hpc/res/">Research and Engineering Studio</a> (RES) si an open source, easy-to-use web-based portal for administrators to create and manage secure cloud-based research and engineering environments.
+It enables users to self-provision virtual desktops.
+It currently doesn't have integrated support for an HPC cluster.
+We'll describe here how to integrate RES virtual desktops with one or more ParallelCluster clusters and use them from the RES desktops.</p>
 <p>First you will need to deploy RES.
 The easiest way is to <a href="https://docs.aws.amazon.com/res/latest/ug/create-demo-env.html">deploy the demo environment</a> which provides all of the prerequisites and completely automates the deployment.
 If you want to use an existing VPC or Active Directory, then you will need to follow the instructions to <a href="https://docs.aws.amazon.com/res/latest/ug/deploy-the-product.html">deploy the product</a>.</p>
@@ -308,7 +324,40 @@ slurm:
 You'll normally require root access to do this.
 When you are done, remove the following files or else new virtual desktops created from the image will fail to provision.</p>
 <pre><code>rm /root/bootstrap/semaphore/*.lock
-</code></pre></div>
+</code></pre>
+<h2 id="environment-password-management">Environment Password Management</h2>
+<p>The RES environment has 2 special AD users that it uses.
+The default AD password policy requires passwords to be changed every 30 days.
+If you don't change them, then the passwords will expire and the RES web portal will stop working.
+You can prevent this by manually resetting the passwords in AD or you can set the passwords for these
+2 users to never expire.</p>
+<p>The admin users are:</p>
+<ul>
+<li>Admin</li>
+<li>ServiceAccount</li>
+</ul>
+<p>Their passwords are stored in Secrets Manager.</p>
+<p>Make sure that you follow your company's security policies on how you manage these users' passwords.</p>
+<h3 id="reset-admin-user-passwords">Reset Admin User passwords</h3>
+<p>Retrieve the password for the user in Secrets Manager.
+Go to the AD console and reset the user's password using the same password.
+You can also update to a new password, save it in Secrets Manager, and then update the password in AD.</p>
+<h3 id="change-the-password-policy-in-ad">Change the Password Policy in AD</h3>
+<p>Use a Windows RDP client to connect to the AdDomainWindowsNode as the Admin user using the password from Secrets Manager.</p>
+<p>Click the Windows start button and find the Windows Administrative tools.</p>
+<p><img alt="Windows start menu Administrative Tools" src="../images/res-windows-administrative-tools.png" /></p>
+<p>Expand and double click on Active Directory Users and Computers.</p>
+<p><img alt="Windows start menu Active Directory Users and Computers" src="../images/res-start-ad-users-and-computers.png" /></p>
+<p>Expand the corp.res.com.</p>
+<p><img alt="Active Directory Users and Computers with corp.res.com selected" src="../images/res-ad-users-and-computers.png" /></p>
+<p>Then expand corp and select Users.</p>
+<p><img alt="Active Directory Users and Computers with corp.res.com and corp expanded and Users selected" src="../images/res-users.png" /></p>
+<p>Double click on the Admin user, select the Account tab, and check the box for "Password never expires".
+Click Apply and OK.</p>
+<p><img alt="Admin user properties with Account tab selected" src="../images/res-Admin-properties.png" /></p>
+<p>Do the same for the ServiceAccount user.</p>
+<p><img alt="ServiceAccount user properties with Account tab selected" src="../images/res-ServiceAccount-properties.png" /></p>
+<p>Log out and stop the AdDomainWindowsNode instance.</p></div>
             </div>
         </div>
 
