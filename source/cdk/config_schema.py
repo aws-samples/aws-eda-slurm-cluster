@@ -419,7 +419,7 @@ default_excluded_instance_families = []
 
 default_excluded_instance_types = []
 
-old_eda_instance_familes = [
+old_eda_instance_families = [
     'c7g',               # AWS Graviton3 Processor 2.6 GHz
     'c7gd',              # AWS Graviton3 Processor 2.6 GHz
     'c7gn',              # AWS Graviton3 Processor 2.6 GHz

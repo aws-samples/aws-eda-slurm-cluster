@@ -678,13 +678,13 @@ Go to Stack Actions, select `Continue update rollback`, expand `Advanced trouble
 
 ### XIO Controller not starting
 
-On EMA, check that a job is running to create the controller.
+On EMS, check that a job is running to create the controller.
 
 `squeue`
 
 On EMS, check the autoscaling log to see if there are errors starting the instance.
 
-`less /var/log/slurm/autoscaling.log``
+`less /var/log/slurm/autoscaling.log`
 
 EMS Slurm partions are at:
 

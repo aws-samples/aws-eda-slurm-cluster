@@ -2687,6 +2687,7 @@ class CdkSlurmStack(Stack):
                 'sched_min_internal=2000000',
             ])},
             {'ScronParameters': 'enable'},
+            {'SlurmdParameters': 'l3cache_as_socket'},
         ]
 
         if self.munge_key_secret_arn:
