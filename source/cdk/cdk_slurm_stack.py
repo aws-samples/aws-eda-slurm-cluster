@@ -259,8 +259,16 @@ class CdkSlurmStack(Stack):
         if 'RESStackName' in self.config:
             self.update_config_for_res()
 
+
+        if 'Xio' in self.config['slurm'] and 'Xwo' in self.config['slurm']:
+            logger.error(f"Cannot specify both Xio and Xwo in the same cluster.")
+            exit(1)
+
         if 'Xio' in self.config['slurm']:
-            self.update_config_for_exostellar()
+            self.update_config_for_exostellar('Xio')
+
+        if 'Xwo' in self.config['slurm']:
+            self.update_config_for_exostellar('Xwo')
 
         if 'ErrorSnsTopicArn' not in self.config:
             logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
@@ -290,7 +298,7 @@ class CdkSlurmStack(Stack):
                         logger.info(f"Mounting /home from {self.mount_home_src} on compute nodes")
 
         if self.config['slurm']['ParallelClusterConfig']['EnablePyxis'] and not config_schema.PARALLEL_CLUSTER_SUPPORTS_PYXIS(self.PARALLEL_CLUSTER_VERSION):
-            logger.error(f"Cannot EnablePyxis before ParaallelCluster version {config_schema.PARALLEL_CLUSTER_SUPPORTS_PYXIS_VERSION}")
+            logger.error(f"Cannot EnablePyxis before ParallelCluster version {config_schema.PARALLEL_CLUSTER_SUPPORTS_PYXIS_VERSION}")
             config_errors += 1
 
         # Check OS
@@ -503,6 +511,11 @@ class CdkSlurmStack(Stack):
         if 'Xio' in self.config['slurm']:
             if self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
                 logger.error(f"Xio is only supported on x86_64 architecture, not {self.config['slurm']['ParallelClusterConfig']['Architecture']}")
+                config_errors += 1
+
+        if 'Xwo' in self.config['slurm']:
+            if self.config['slurm']['ParallelClusterConfig']['Architecture'] != 'x86_64':
+                logger.error(f"Xwo is only supported on x86_64 architecture, not {self.config['slurm']['ParallelClusterConfig']['Architecture']}")
                 config_errors += 1
 
         if config_errors:
@@ -825,16 +838,24 @@ class CdkSlurmStack(Stack):
                 self.config['slurm']['InstanceConfig']['AdditionalSecurityGroups'].append(res_home_mount_sg_id)
                 logger.info(f"Added slurm/InstanceConfig/AdditionalSecurityGroups={res_home_mount_sg_id}")
 
-    def update_config_for_exostellar(self):
+    def update_config_for_exostellar(self, config_key):
         '''
         Update config with information from RES stacks
 
         Add login node security groups.
         Configure /home file system.
         '''
-        logger.info(f"Updating configuration for Exostellar")
-        xio_config = self.config['slurm']['Xio']
-        ems_stack_name = xio_config['ManagementServerStackName']
+        logger.info(f"Updating configuration for Exostellar {config_key}")
+        exostellar_config = self.config['slurm'][config_key]
+        logger.debug(f"exostellar_config:\n{json.dumps(exostellar_config, indent=4)}")
+
+        if self.config['slurm']['ParallelClusterConfig']['EnablePyxis']:
+            logger.error(f"Exostellar VMs do not currently support Pyxis. Set slurm/ParallelCluster/EnalbePyxis=false")
+            exit(1)
+
+        self.get_exostellar_vm_root_password_secret_arn(config_key)
+
+        ems_stack_name = exostellar_config['ManagementServerStackName']
         logger.info(f"    stack: {ems_stack_name}")
 
         # Get RES environment name from stack parameters.
@@ -902,26 +923,26 @@ class CdkSlurmStack(Stack):
         if not exostellar_security_group:
             logger.error(f"ExostellarSecurityGroup resource not found in {ems_stack_name} EMS stack")
             exit(1)
-        if 'Controllers' not in xio_config:
-            xio_config['Controllers'] = {}
-        if 'SecurityGroupIds' not in xio_config['Controllers']:
-            xio_config['Controllers']['SecurityGroupIds'] = []
-        if 'Workers' not in xio_config:
-            xio_config['Workers'] = {}
-        if 'SecurityGroupIds' not in xio_config['Workers']:
-            xio_config['Workers']['SecurityGroupIds'] = []
-        if exostellar_security_group not in xio_config['Controllers']['SecurityGroupIds']:
-            xio_config['Controllers']['SecurityGroupIds'].append(exostellar_security_group)
-        if exostellar_security_group not in xio_config['Workers']['SecurityGroupIds']:
-            xio_config['Workers']['SecurityGroupIds'].append(exostellar_security_group)
+        if 'Controllers' not in exostellar_config:
+            exostellar_config['Controllers'] = {}
+        if 'SecurityGroupIds' not in exostellar_config['Controllers']:
+            exostellar_config['Controllers']['SecurityGroupIds'] = []
+        if 'Workers' not in exostellar_config:
+            exostellar_config['Workers'] = {}
+        if 'SecurityGroupIds' not in exostellar_config['Workers']:
+            exostellar_config['Workers']['SecurityGroupIds'] = []
+        if exostellar_security_group not in exostellar_config['Controllers']['SecurityGroupIds']:
+            exostellar_config['Controllers']['SecurityGroupIds'].append(exostellar_security_group)
+        if exostellar_security_group not in exostellar_config['Workers']['SecurityGroupIds']:
+            exostellar_config['Workers']['SecurityGroupIds'].append(exostellar_security_group)
         if 'AdditionalSecurityGroupsStackName' in self.config:
             if self.slurm_compute_node_sg_id:
-                if self.slurm_compute_node_sg_id not in xio_config['Workers']['SecurityGroupIds']:
-                    xio_config['Workers']['SecurityGroupIds'].append(self.slurm_compute_node_sg_id)
+                if self.slurm_compute_node_sg_id not in exostellar_config['Workers']['SecurityGroupIds']:
+                    exostellar_config['Workers']['SecurityGroupIds'].append(self.slurm_compute_node_sg_id)
         if 'RESStackName' in self.config:
             if self.res_dcv_security_group_id:
-                if self.res_dcv_security_group_id not in xio_config['Workers']['SecurityGroupIds']:
-                    xio_config['Workers']['SecurityGroupIds'].append(self.res_dcv_security_group_id)
+                if self.res_dcv_security_group_id not in exostellar_config['Workers']['SecurityGroupIds']:
+                    exostellar_config['Workers']['SecurityGroupIds'].append(self.res_dcv_security_group_id)
 
         # Get values from stack outputs
         ems_ip_address = None
@@ -932,18 +953,18 @@ class CdkSlurmStack(Stack):
         if not ems_ip_address:
             logger.error(f"2ExostellarMgmtServerPrivateIP output not found in {ems_stack_name} EMS stack.")
             exit(1)
-        xio_config['ManagementServerIp'] = ems_ip_address
+        exostellar_config['ManagementServerIp'] = ems_ip_address
 
         # Get VolumeSize for AMIs used by Images
         image_configs = {}
-        for image_config in xio_config['Images']:
+        for image_config in exostellar_config['Images']:
             image_id = image_config['ImageId']
             image_name = image_config['ImageName']
-            volume_size = image_config.get('VolumeSize', xio_config['DefaultVolumeSize'])
+            volume_size = image_config.get('VolumeSize', exostellar_config['DefaultVolumeSize'])
             image_configs[image_name] = image_config
             images_info = self.ec2_client.describe_images(ImageIds=[image_id])['Images']
             if not images_info:
-                logger.error(f"slurm/Xio/Images error. ImageId {image_id}  doesn't exist.")
+                logger.error(f"slurm/{config_key}/Images error. ImageId {image_id}  doesn't exist.")
                 exit(1)
             ami_info = images_info[0]
             if len(ami_info['BlockDeviceMappings']) != 1:
@@ -955,8 +976,121 @@ class CdkSlurmStack(Stack):
                 volume_size = min_volume_size
             image_config['VolumeSize'] = volume_size
 
+        # Create Profiles and pools based on selected instance types and families
+        # The cluster will have a profile for intel and amd, if configured.
+        # Keep a list of instance types bucketed by memory and cores (vCPUS if HyperThreading enabled).
+        number_of_warnings = 0
+        number_of_errors = 0
+        cpu_vendor_instance_types = {
+            'amd': {
+                'InstanceTypes': {},
+                'SpotFleetTypes': {},
+                'instance_types': {}
+            },
+            'intel': {
+                'InstanceTypes': {},
+                'SpotFleetTypes': {},
+                'instance_types': {}
+            }
+        }
+        for instance_key in ['InstanceTypes', 'SpotFleetTypes']:
+            invalid_instance_types = []
+            for instance_type_or_family_with_weight in exostellar_config[instance_key]:
+                (instance_types, instance_family) = self.get_instance_types_and_family_from_exostellar_config(instance_type_or_family_with_weight)
+                if not instance_types:
+                    logger.warning(f"{config_key} {instance_key} {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                    number_of_warnings += 1
+                    invalid_instance_types.append(instance_type_or_family_with_weight)
+                    continue
+                cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_types[0])
+                # Check to see if configured instance type is too small.
+                if len(instance_types) == 1:
+                    mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
+                    if mem_gb < 32:
+                        logger.error(f"{config_key}/{instance_key} instance type {instance_type_or_family_with_weight} with {mem_gb} GiB is too small. Must have at least 32 GiB.")
+                        num_errors += 1
+                        continue
+                cpu_vendor_instance_types[cpu_vendor][instance_key][instance_type_or_family_with_weight] = 1
+                for instance_type in instance_types:
+                    mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
+                    if mem_gb < 32:
+                        continue
+                    cpu_vendor_instance_types[cpu_vendor]['instance_types'][instance_type] = 1
+            for invalid_instance_type in invalid_instance_types:
+                exostellar_config[instance_key].remove(invalid_instance_type)
+        logger.info(f"exostellar_config:\n{json.dumps(exostellar_config, indent=4)}")
+
+        for cpu_vendor in cpu_vendor_instance_types:
+            profile_name = cpu_vendor
+            if profile_name not in exostellar_config['Profiles']:
+                exostellar_config['Profiles'][profile_name] = {
+                    'CpuVendor': cpu_vendor,
+                    'NodeGroupName': cpu_vendor,
+                    'MaxControllers': exostellar_config['MaxControllers'],
+                    'InstanceTypes': list(cpu_vendor_instance_types[cpu_vendor]['InstanceTypes'].keys()),
+                    'SpotFleetTypes': list(cpu_vendor_instance_types[cpu_vendor]['SpotFleetTypes'].keys()),
+                    'EnableHyperthreading': exostellar_config['EnableHyperthreading']
+                }
+        logger.info(f"exostellar_config:\n{json.dumps(exostellar_config, indent=4)}")
+
+        # Create pools
+        # Get all instance types and bucket them by amount of memory and number of cores
+        # If user manually configures a pool, then don't modify it.
+        # If it doesn't exist then build it.
+        max_memory = {
+            'amd': {
+                32:     25000,
+                64:     57000,
+                128:   120000,
+                256:   247000,
+                384:   373000,
+                512:   498000,
+                768:   751000,
+                1024: 1004000
+            },
+            'intel': {
+                32:     26000,
+                64:     58000,
+                128:   122000,
+                256:   248000,
+                384:   376000,
+                512:   502000,
+                768:   758000,
+                1024: 1010000
+            }
+        }
+        for cpu_vendor in cpu_vendor_instance_types:
+            for instance_type in cpu_vendor_instance_types[cpu_vendor]['instance_types']:
+                mem_gb = int(self.plugin.get_MemoryInMiB(self.cluster_region, instance_type) / 1024)
+                cores = self.plugin.get_CoreCount(self.cluster_region, instance_type)
+                if exostellar_config['EnableHyperthreading']:
+                    vcpus = cores * self.plugin.get_DefaultThreadsPerCore(self.cluster_region, instance_type)
+                else:
+                    vcpus = cores
+                pool_name = f"{cpu_vendor}-{mem_gb}g-{vcpus}c"
+                if pool_name in exostellar_config['Pools']:
+                    continue
+                exostellar_config['Pools'][pool_name] = {
+                    'ProfileName': cpu_vendor,
+                    'CPUs': vcpus
+                }
+                pool_config = exostellar_config['Pools'][pool_name]
+                if 'PoolSize' not in exostellar_config:
+                    logger.error(f"{config_key} pool {pool_name} didn't specify PoolSize and {config_key} PoolSize not set.")
+                    number_of_errors += 1
+                else:
+                    pool_config['PoolSize'] = exostellar_config['PoolSize']
+                if 'DefaultImageName' not in exostellar_config:
+                    logger.error(f"{config_key} pool {pool_name} didn't specify ImageName and {config_key} DefaultImageName not set.")
+                    number_of_errors += 1
+                else:
+                    pool_config['ImageName'] = exostellar_config['DefaultImageName']
+                pool_config['MaxMemory'] = max_memory[cpu_vendor][mem_gb]
+
+        logger.info(f"exostellar_config:\n{json.dumps(exostellar_config, indent=4)}")
+
         # Check that all of the profiles used by the pools are defined
-        logger.debug(f"Xio config:\n{json.dumps(xio_config, indent=4)}")
+        logger.debug(f"{config_key} config:\n{json.dumps(exostellar_config, indent=4)}")
         WEIGHT_PER_CORE = {
             'amd':   45,
             'intel': 78
@@ -965,13 +1099,10 @@ class CdkSlurmStack(Stack):
             'amd':   3,
             'intel': 3
         }
-        number_of_warnings = 0
-        number_of_errors = 0
         xio_profile_configs = {}
         self.instance_type_info = self.plugin.get_instance_types_info(self.cluster_region)
         self.instance_family_info = self.plugin.get_instance_families_info(self.cluster_region)
-        for profile_config in xio_config['Profiles']:
-            profile_name = profile_config['ProfileName']
+        for profile_name, profile_config in exostellar_config['Profiles'].items():
             # Check that profile name is alphanumeric
             if not re.compile('^[a-zA-z0-9]+$').fullmatch(profile_name):
                 logger.error(f"Invalid XIO profile name: {profile_name}. Name must be alphanumeric.")
@@ -986,57 +1117,56 @@ class CdkSlurmStack(Stack):
             profile_cpu_vendor = profile_config['CpuVendor']
             invalid_instance_types = []
             for instance_type_or_family_with_weight in profile_config['InstanceTypes']:
-                (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
-                if not instance_type or not instance_family:
+                (instance_types, instance_family) = self.get_instance_types_and_family_from_exostellar_config(instance_type_or_family_with_weight)
+                if not instance_types:
                     logger.warning(f"XIO InstanceType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
                     number_of_warnings += 1
                     invalid_instance_types.append(instance_type_or_family_with_weight)
                     continue
-                instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
+                instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_types[0])
                 if instance_type_cpu_vendor != profile_cpu_vendor:
-                    logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
+                    logger.error(f"{config_key} InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
                     number_of_errors += 1
             for invalid_instance_type in invalid_instance_types:
                 profile_config['InstanceTypes'].remove(invalid_instance_type)
 
             invalid_instance_types = []
             for instance_type_or_family_with_weight in profile_config['SpotFleetTypes']:
-                (instance_type, instance_family) = self.get_instance_type_and_family_from_xio_config(instance_type_or_family_with_weight)
-                if not instance_type or not instance_family:
-                    logger.warning(f"Xio SpotFleetType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
+                (instance_types, instance_family) = self.get_instance_types_and_family_from_exostellar_config(instance_type_or_family_with_weight)
+                if not instance_types:
+                    logger.warning(f"{config_key} SpotFleetType {instance_type_or_family_with_weight} is not a valid instance type or family in the {self.cluster_region} region")
                     number_of_warnings += 1
                     invalid_instance_types.append(instance_type_or_family_with_weight)
                     continue
                 # Check that spot pricing is available for spot pools.
-                price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_type]['pricing']['spot'].get('max', None)
+                price = self.plugin.instance_type_and_family_info[self.cluster_region]['instance_types'][instance_types[0]]['pricing']['spot'].get('max', None)
                 if not price:
-                    logger.error(f"Xio SpotFleetType {instance_type_or_family_with_weight} does not have spot pricing")
+                    logger.error(f"{config_key} SpotFleetType {instance_type_or_family_with_weight} does not have spot pricing")
                     number_of_errors += 1
-                instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_type)
+                instance_type_cpu_vendor = self.plugin.get_cpu_vendor(self.cluster_region, instance_types[0])
                 if instance_type_cpu_vendor != profile_cpu_vendor:
-                    logger.error(f"Xio InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
+                    logger.error(f"{config_key} InstanceType {instance_type_or_family_with_weight} is from {instance_type_cpu_vendor} and must be from {profile_cpu_vendor}")
                     number_of_errors += 1
             for invalid_instance_type in invalid_instance_types:
                 profile_config['SpotFleetTypes'].remove(invalid_instance_type)
 
-        xio_pool_names = {}
-        for pool_config in xio_config['Pools']:
-            pool_name = pool_config['PoolName']
-            if pool_name in xio_pool_names:
-                logger.error(f"{pool_name} Xio pool already defined")
+        exostellar_pool_names = {}
+        for pool_name, pool_config in exostellar_config['Pools'].items():
+            if pool_name in exostellar_pool_names:
+                logger.error(f"{pool_name} {config_key} pool already defined")
                 number_of_errors += 1
                 continue
             profile_name = pool_config['ProfileName']
             if profile_name not in xio_profile_configs:
-                logger.error(f"Xio pool {pool_name} using undefined profile: {pool_config['ProfileName']}")
+                logger.error(f"{config_key} pool {pool_name} using undefined profile: {pool_config['ProfileName']}")
                 number_of_errors += 1
                 continue
             if 'ImageName' not in pool_config:
-                if 'DefaultImageName' not in xio_config:
-                    logger.error(f"Xio pool {pool_name} didn't specify ImageName and Xio DefaultImageName not set.")
+                if 'DefaultImageName' not in exostellar_config:
+                    logger.error(f"{config_key} pool {pool_name} didn't specify ImageName and {config_key} DefaultImageName not set.")
                     number_of_errors += 1
                 else:
-                    pool_config['ImageName'] = xio_config['DefaultImageName']
+                    pool_config['ImageName'] = exostellar_config['DefaultImageName']
             if 'InstanceMemory' not in pool_config and 'MaxMemory' not in pool_config:
                 logger.error(f"Must specify either InstanceMemory or MaxMemory in {pool_name} config.")
                 number_of_errors += 1
@@ -1054,24 +1184,51 @@ class CdkSlurmStack(Stack):
                 pool_config['Weight'] = pool_config['CPUs'] * WEIGHT_PER_CORE[cpu_vendor] + int(pool_config.get('InstanceMemory', pool_config.get('MaxMemory'))/1024 * WEIGHT_PER_GB[cpu_vendor])
             # Set/validate pool's VolumeSize
             image_config = image_configs.get(pool_config['ImageName'], {})
-            pool_config['VolumeSize'] = pool_config.get('VolumeSize', image_config.get('VolumeSize', xio_config['DefaultVolumeSize']))
+            pool_config['VolumeSize'] = pool_config.get('VolumeSize', image_config.get('VolumeSize', exostellar_config['DefaultVolumeSize']))
             if image_config['VolumeSize'] < image_config.get('VolumeSize', 0):
                 logger.error(f"Pool {pool_config['PoolName']} VolumeSize must be >= VolumeSize for image {pool_config['ImageName']}={image_config['VolumeSize']}")
 
         if number_of_errors:
             exit(1)
 
-    def get_instance_type_and_family_from_xio_config(self, instance_type_or_family_with_weight):
+    def get_exostellar_vm_root_password_secret_arn(self, config_key):
+        self.exostellar_vm_root_password_secret_arn = None
+
+        self.exostellar_vm_root_password_secret = self.config['slurm'][config_key].get('VmRootPasswordSecret', '')
+        if self.exostellar_vm_root_password_secret == '':
+            return None
+
+        # Check to see if secret exists
+        # Use it if it exists, otherwise create a new secret
+        secretsmanager_client = boto3.client('secretsmanager', region_name=self.cluster_region)
+        try:
+            response = secretsmanager_client.get_secret_value(
+                SecretId = self.exostellar_vm_root_password_secret
+            )
+            self.exostellar_vm_root_password_secret_arn = response['ARN']
+            logger.info(f"VmRootPasswordSecret secret {self.exostellar_vm_root_password_secret} exists and will be used.")
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                logger.info(f"VmRootPasswordSecret {secret} doesn't exist.")
+                exit(1)
+            else:
+                logger.exception("Error getting VmRootPasswordSecret {secret}")
+
+        logger.debug(f"exostellar_vm_root_password_secret={self.exostellar_vm_root_password_secret} exostellar_vm_root_password_secret_arn={self.exostellar_vm_root_password_secret_arn}")
+
+        return self.exostellar_vm_root_password_secret_arn
+
+    def get_instance_types_and_family_from_exostellar_config(self, instance_type_or_family_with_weight):
         instance_type_or_family = instance_type_or_family_with_weight.split(':')[0]
-        if instance_type_or_family in self.instance_family_info:
+        if instance_type_or_family in self.plugin.get_instance_families_info(self.cluster_region):
             instance_family = instance_type_or_family
-            instance_type = self.plugin.get_max_instance_type(self.cluster_region, instance_family)
+            instance_types = self.plugin.get_instance_family_instance_types(self.cluster_region, instance_family)
         elif instance_type_or_family in self.instance_type_info:
-            instance_type = instance_type_or_family
+            instance_types = [ instance_type_or_family, ]
             instance_family = self.plugin.get_instance_family(instance_type)
         else:
             return None, None
-        return instance_type, instance_family
+        return instance_types, instance_family
 
     def create_parallel_cluster_assets(self):
         # Create a secure hash of all of the assets so that changes can be easily detected to trigger cluster updates.
@@ -1084,6 +1241,17 @@ class CdkSlurmStack(Stack):
         )
         # If use managed_policy_name, then get the following cfn_nag warning.
         # W28: Resource found with an explicit name, this disallows updates that require replacement of this resource
+
+        if self.exostellar_vm_root_password_secret_arn:
+            self.parallel_cluster_asset_read_policy.add_statements(
+                iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        'secretsmanager:GetSecretValue'
+                    ],
+                    resources=[self.exostellar_vm_root_password_secret_arn]
+                )
+            )
 
         self.parallel_cluster_enable_ena_express_policy = iam.ManagedPolicy(
             self, "ParallelClusterEnableEnaExpressPolicy",
@@ -2283,6 +2451,8 @@ class CdkSlurmStack(Stack):
                 "parallel_cluster_version": self.PARALLEL_CLUSTER_VERSION
             }
             instance_template_vars['default_partition'] = 'batch'
+            if 'Xio' in self.config['slurm'] or 'Xwo' in self.config['slurm']:
+                instance_template_vars['exostellar_vm_root_password_secret'] = self.exostellar_vm_root_password_secret
             instance_template_vars['file_system_mount_path'] = '/opt/slurm'
             instance_template_vars['parallel_cluster_version'] = self.config['slurm']['ParallelClusterConfig']['Version']
             instance_template_vars['slurm_base_dir'] = '/opt/slurm'
@@ -2320,6 +2490,14 @@ class CdkSlurmStack(Stack):
                 instance_template_vars['xio_worker_security_group_ids'] = self.config['slurm']['Xio']['Workers']['SecurityGroupIds']
                 instance_template_vars['xio_config'] = self.config['slurm']['Xio']
                 instance_template_vars['xio_config']['ExtraMounts'] = self.config['slurm'].get('storage', {}).get('ExtraMounts', [])
+            if 'Xwo' in self.config['slurm']:
+                instance_template_vars['xwo_mgt_ip'] = self.config['slurm']['Xwo']['ManagementServerIp']
+                instance_template_vars['xwo_availability_zone'] = self.config['slurm']['Xwo']['AvailabilityZone']
+                instance_template_vars['xwo_controller_security_group_ids'] = self.config['slurm']['Xwo']['Controllers']['SecurityGroupIds']
+                instance_template_vars['subnet_id'] = self.config['SubnetId']
+                instance_template_vars['xwo_worker_security_group_ids'] = self.config['slurm']['Xwo']['Workers']['SecurityGroupIds']
+                instance_template_vars['xwo_config'] = self.config['slurm']['Xwo']
+                instance_template_vars['xwo_config']['ExtraMounts'] = self.config['slurm'].get('storage', {}).get('ExtraMounts', [])
         elif instance_role == 'ParallelClusterExternalLoginNode':
             instance_template_vars['enable_pyxis']                       = self.config['slurm']['ParallelClusterConfig']['EnablePyxis']
             instance_template_vars['slurm_version']                      = get_SLURM_VERSION(self.config)

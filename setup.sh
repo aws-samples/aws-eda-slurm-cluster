@@ -62,7 +62,7 @@ echo "Using python $python_version"
 # Check nodejs version
 # https://nodejs.org/en/about/previous-releases
 if [[ $os == 'macos' ]]; then
-    required_nodejs_version=22.14.0
+    required_nodejs_version=20.19.0
 else
     # linux
     required_nodejs_version=16.20.2
@@ -122,7 +122,7 @@ fi
 echo "Using nodejs version $nodejs_version"
 
 # Create a local installation of cdk
-CDK_VERSION=2.111.0 # When you change the CDK version here, make sure to also change it in source/requirements.txt
+CDK_VERSION=2.151.0 # When you change the CDK version here, make sure to also change it in source/requirements.txt
 if ! cdk --version &> /dev/null; then
     echo "CDK not installed. Installing global version of cdk@$CDK_VERSION."
     if ! npm install -g aws-cdk@$CDK_VERSION; then
