@@ -78,7 +78,7 @@ config_scripts=(\
     on_compute_node_configured.sh \
     external_login_node_configure.sh \
     external_login_node_deconfigure.sh \
-    xio-compute-node-ami-configure.sh \
+    exostellar-compute-node-ami-configure.sh \
 )
 for config_script in ${config_scripts[*]}; do
     dest=$config_bin_dir/$config_script

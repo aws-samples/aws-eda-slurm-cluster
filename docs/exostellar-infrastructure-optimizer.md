@@ -1,6 +1,6 @@
 # Exostellar Infrastructure Optimizer (XIO)
 
-[Exostellar Infrastructure Optimizer](https://exostellar.io/infrastructureoptimizer-technical-information/) (XIO) runs applications in virtual machines (VMs) on EC2 instances and can dynamically migrate the VMs between instances based on availability and cost.
+[Exostellar Infrastructure Optimizer](https://exostellar.io/product/#infrastructureoptimizer) (XIO) runs applications in virtual machines (VMs) on EC2 instances and can dynamically migrate the VMs between instances based on availability and cost.
 Long-running, stateful jobs are not normally run on spot instances because of the risk of lost work after a spot termination.
 XIO reduces this risk by predicting spot terminations and migrating the VM to another instance with higher availability.
 This could be a different spot instance type or an on-demand instance.
@@ -678,13 +678,13 @@ Go to Stack Actions, select `Continue update rollback`, expand `Advanced trouble
 
 ### XIO Controller not starting
 
-On EMA, check that a job is running to create the controller.
+On EMS, check that a job is running to create the controller.
 
 `squeue`
 
 On EMS, check the autoscaling log to see if there are errors starting the instance.
 
-`less /var/log/slurm/autoscaling.log``
+`less /var/log/slurm/autoscaling.log`
 
 EMS Slurm partions are at:
 

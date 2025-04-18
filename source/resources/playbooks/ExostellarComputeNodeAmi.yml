@@ -1,0 +1,8 @@
+---
+- name: Configure instance for Exostellar Infrastructure Optimizer or Workload Optimizer AMI creation
+  hosts: ExostellarComputeNodeAmi
+  become_user: root
+  become: yes
+  roles:
+    - eda_tools
+    - ExostellarComputeNodeAmi

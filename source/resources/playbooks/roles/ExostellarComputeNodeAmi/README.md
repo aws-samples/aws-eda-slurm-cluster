@@ -1,4 +1,4 @@
-XioComputeNodeAmi
+ExostellarComputeNodeAmi
 =========
 
 Configure an instance to create an AMI to be used by Exostellar Infrastructure Optimizer (XIO).

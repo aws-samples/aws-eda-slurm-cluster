@@ -421,6 +421,9 @@ class SlurmPlugin:
     def get_instance_family_info(self, region, instance_family):
         return self.instance_type_and_family_info[region]['instance_families'][instance_family]
 
+    def get_instance_family_instance_types(self, region, instance_family):
+        return self.get_instance_family_info(region, instance_family)['instance_types']
+
     def get_max_instance_type(self, region, instance_family):
         return self.instance_type_and_family_info[region]['instance_families'][instance_family]['MaxInstanceType']
 

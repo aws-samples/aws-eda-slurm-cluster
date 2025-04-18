@@ -1,8 +1,0 @@
----
-- name: Configure instance for Exostellar Infrastructure Optimizer AMI creation
-  hosts: XioComnputeNodeAmi
-  become_user: root
-  become: yes
-  roles:
-    - eda_tools
-    - XioComputeNodeAmi

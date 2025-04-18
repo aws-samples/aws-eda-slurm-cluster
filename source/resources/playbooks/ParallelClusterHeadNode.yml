@@ -8,5 +8,7 @@
     - ParallelClusterHeadNode
     - role: exostellar_infrastructure_optimizer
       when: xio_mgt_ip is defined
+    - role: exostellar_workload_optimizer
+      when: xwo_mgt_ip is defined
     - security_updates
     - bug_fixes
