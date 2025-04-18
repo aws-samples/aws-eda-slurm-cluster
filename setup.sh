@@ -122,7 +122,7 @@ fi
 echo "Using nodejs version $nodejs_version"
 
 # Create a local installation of cdk
-CDK_VERSION=2.151.0 # When you change the CDK version here, make sure to also change it in source/requirements.txt
+CDK_VERSION=2.179.0 # When you change the CDK version here, make sure to also change it in source/requirements.txt
 if ! cdk --version &> /dev/null; then
     echo "CDK not installed. Installing global version of cdk@$CDK_VERSION."
     if ! npm install -g aws-cdk@$CDK_VERSION; then

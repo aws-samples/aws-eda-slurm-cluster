@@ -1,5 +1,5 @@
 -e .
-aws-cdk-lib==2.151.0
+aws-cdk-lib==2.179.0
 boto3
 colored
 constructs>=10.0.0
