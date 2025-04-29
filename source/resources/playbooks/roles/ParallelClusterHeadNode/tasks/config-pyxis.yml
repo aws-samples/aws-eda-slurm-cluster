@@ -74,11 +74,9 @@
 
 - name: Delete /opt/slurm/etc/plugstack.conf
   when: primary_controller|bool and not enable_pyxis|bool
-  template:
-    dest: "/opt/slurm/etc/plugstack.conf"
-    src:    opt/slurm/etc/plugstack.conf
+  file:
+    path: "/opt/slurm/etc/plugstack.conf"
     state: absent
-    backup: false
 
 - name: Create /opt/slurm/etc/plugstack.conf
   when: primary_controller|bool and enable_pyxis|bool

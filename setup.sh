@@ -8,23 +8,42 @@ repodir=$scriptdir
 
 pushd $repodir
 
-if ! yum list installed make &> /dev/null; then
+arch=$(uname -m)
+if [[ $arch == 'x86_64' ]]; then
+    shortarch='x86'
+else
+    shortarch=$arch
+fi
+if [[ $(uname -s) == 'Linux' ]]; then
+    os=linux
+    installer='sudo yum -y'
+    shellrc='.bashrc'
+elif [[ $(uname -s) == 'Darwin' ]]; then
+    os=macos
+    installer='brew'
+    shellrc='.zshrc'
+else
+    echo "error: Unsupported OS $(uname -s)"
+    return 1
+fi
+
+if ! make --version &> /dev/null; then
     echo -e "\nInstalling make"
-    if ! sudo yum -y install make; then
+    if ! $installer install make; then
         echo -e "\nwarning: Couldn't install make"
     fi
 fi
 
-if ! yum list installed wget &> /dev/null; then
+if ! wget --version &> /dev/null; then
     echo -e "\nInstalling wget"
-    if ! sudo yum -y install wget; then
+    if ! $installer install wget; then
         echo -e "\nwarning: Couldn't install wget"
     fi
 fi
 
 if ! python3 --version &> /dev/null; then
     echo -e "\nInstalling python3"
-    if ! sudo yum -y install python3; then
+    if ! $installer install python3; then
         echo -e "\nerror: Couldn't find python3 in the path or install it. This is required."
         return 1
     fi
@@ -42,7 +61,12 @@ echo "Using python $python_version"
 
 # Check nodejs version
 # https://nodejs.org/en/about/previous-releases
-required_nodejs_version=16.20.2
+if [[ $os == 'macos' ]]; then
+    required_nodejs_version=20.19.0
+else
+    # linux
+    required_nodejs_version=16.20.2
+fi
 # required_nodejs_version=18.20.2
 # On Amazon Linux 2 and nodejs 18.20.2 I get the following errors:
 #     node: /lib64/libm.so.6: version `GLIBC_2.27' not found (required by node)
@@ -54,50 +78,51 @@ required_nodejs_version=16.20.2
 export JSII_SILENCE_WARNING_DEPRECATED_NODE_VERSION=1
 if ! which node &> /dev/null; then
     echo -e "\nnode not found in your path."
-    echo "Installing nodejs in your home dir. Hit ctrl-c to abort"
-    pushd $HOME
-    wget https://nodejs.org/dist/v${required_nodejs_version}/node-v${required_nodejs_version}-linux-x64.tar.xz
-    tar -xf node-v${required_nodejs_version}-linux-x64.tar.xz
-    rm node-v${required_nodejs_version}-linux-x64.tar.xz
-    cat >> ~/.bashrc << EOF
-
-# Nodejs
-export PATH=$HOME/node-v${required_nodejs_version}-linux-x64/bin:\$PATH
-EOF
-    source ~/.bashrc
-    popd
+    echo "Installing nodejs in your home dir."
+    nodejs_version=None
+else
+    nodejs_version=$(node -v 2>&1 | awk '{print $1}')
+    nodejs_version=${nodejs_version:1}
+    node_major_version=$(echo $nodejs_version | cut -d '.' -f 1)
+    node_minor_version=$(echo $nodejs_version | cut -d '.' -f 2)
+    if [[ $node_major_version -lt 14 ]]; then
+        echo "error: CDK requires node 14.15.0 or later. You have $nodejs_version. Update your node version."
+        return 1
+    fi
+    if [[ $node_major_version -eq 14 ]] && [[ $node_minor_version -lt 6 ]]; then
+        echo "error: CDK requires node 14.15.0 or later. You have $nodejs_version. Update your node version."
+        return 1
+    fi
+    if [[ $nodejs_version != $required_nodejs_version ]]; then
+        echo "Updating nodejs version from $nodejs_version to $required_nodejs_version"
+    fi
 fi
 
-nodejs_version=$(node -v 2>&1 | awk '{print $1}')
-nodejs_version=${nodejs_version:1}
-node_major_version=$(echo $nodejs_version | cut -d '.' -f 1)
-node_minor_version=$(echo $nodejs_version | cut -d '.' -f 2)
-if [[ $node_major_version -lt 14 ]]; then
-    echo "error: CDK requires node 14.15.0 or later. You have $nodejs_version. Update your node version."
-    return 1
-fi
-if [[ $node_major_version -eq 14 ]] && [[ $node_minor_version -lt 6 ]]; then
-    echo "error: CDK requires node 14.15.0 or later. You have $nodejs_version. Update your node version."
-    return 1
-fi
 if [[ $nodejs_version != $required_nodejs_version ]]; then
-    echo "Updating nodejs version from $nodejs_version toe $required_nodejs_version"
+    echo "Installing nodejs ${required_nodejs_version} in your home dir. Hit ctrl-c to abort"
     pushd $HOME
-    wget https://nodejs.org/dist/v${required_nodejs_version}/node-v${required_nodejs_version}-linux-x64.tar.xz
-    tar -xf node-v${required_nodejs_version}-linux-x64.tar.xz
-    rm node-v${required_nodejs_version}-linux-x64.tar.xz
-    cat >> ~/.bashrc << EOF
+    if [[ $os == 'linux' ]]; then
+        nodedir=node-v${required_nodejs_version}-linux-${shortarch}
+    elif [[ $os == 'macos' ]]; then
+        nodedir=node-v${required_nodejs_version}-darwin-${shortarch}
+    fi
+    tarball=${nodedir}.tar.xz
+    wget https://nodejs.org/dist/v${required_nodejs_version}/$tarball
+    tar -xf $tarball
+    rm $tarball
+    cat >> ~/$shellrc << EOF
 
 # Nodejs
-export PATH=$HOME/node-v${required_nodejs_version}-linux-x64/bin:\$PATH
+export PATH=$HOME/$nodedir/bin:\$PATH
 EOF
-    source ~/.bashrc
+    source ~/$shellrc
     popd
 fi
+
 echo "Using nodejs version $nodejs_version"
 
 # Create a local installation of cdk
-CDK_VERSION=2.111.0 # When you change the CDK version here, make sure to also change it in source/requirements.txt
+CDK_VERSION=2.179.0 # When you change the CDK version here, make sure to also change it in source/requirements.txt
 if ! cdk --version &> /dev/null; then
     echo "CDK not installed. Installing global version of cdk@$CDK_VERSION."
     if ! npm install -g aws-cdk@$CDK_VERSION; then

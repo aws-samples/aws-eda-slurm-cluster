@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT-0
 
 # This script configures an instance so that it can be used to create an AMI to be used by
-# Exostellar Infrastructure Optiizer.
+# Exostellar Infrastructure Optimizer or Workload Optimizer.
 # The instance should be launched using a plain RHEL AMI.
 
 script=$0
@@ -18,7 +18,7 @@ ErrorSnsTopicArn={{ErrorSnsTopicArn}}
 playbooks_s3_url={{playbooks_s3_url}}
 
 # Redirect all IO to /var/log/messages and then echo to stderr
-exec 1> >(logger -s -t xio-compute-node-ami-configure.sh) 2>&1
+exec 1> >(logger -s -t exostellar-compute-node-ami-configure.sh) 2>&1
 
 # Install ansible
 if ! yum list installed ansible &> /dev/null; then
@@ -34,7 +34,7 @@ PLAYBOOKS_ZIP_PATH=$ANSIBLE_PATH/playbooks.zip
 
 pushd $PLAYBOOKS_PATH
 
-ansible-playbook $PLAYBOOKS_PATH/XioComputeNodeAmi.yml \
+ansible-playbook $PLAYBOOKS_PATH/ExostellarComputeNodeAmi.yml \
     -i inventories/local.yml \
     -e @$ANSIBLE_PATH/ansible_head_node_vars.yml
 
