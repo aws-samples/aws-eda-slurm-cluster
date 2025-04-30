@@ -10,7 +10,7 @@ pushd $repodir
 
 arch=$(uname -m)
 if [[ $arch == 'x86_64' ]]; then
-    shortarch='x86'
+    shortarch='x64'
 else
     shortarch=$arch
 fi
@@ -18,6 +18,42 @@ if [[ $(uname -s) == 'Linux' ]]; then
     os=linux
     installer='sudo yum -y'
     shellrc='.bashrc'
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID-$VERSION_ID" in
+            "amzn-2"*)
+                echo "error: Unsupported OS $(uname -s)"
+                return 1
+                ;;
+            "centos-7"*)
+                echo "error: Unsupported OS $(uname -s)"
+                return 1
+                ;;
+            "centos-8"*)
+                echo "error: Unsupported OS $(uname -s)"
+                return 1
+                ;;
+            "rhel-7"*)
+                echo "error: Unsupported OS $(uname -s)"
+                return 1
+                ;;
+            "rhel-8"*)
+                distro="rhel8"
+                ;;
+            "rhel-9"*)
+                distro="rhel9"
+                ;;
+            "rocky-8"*)
+                distro="rocky8"
+                ;;
+            "rocky-9"*)
+                distro="rocky9"
+                ;;
+        esac
+    else
+        echo "error: Unsupported OS $(uname -s)"
+        return 1
+    fi
 elif [[ $(uname -s) == 'Darwin' ]]; then
     os=macos
     installer='brew'
@@ -61,12 +97,7 @@ echo "Using python $python_version"
 
 # Check nodejs version
 # https://nodejs.org/en/about/previous-releases
-if [[ $os == 'macos' ]]; then
-    required_nodejs_version=20.19.0
-else
-    # linux
-    required_nodejs_version=16.20.2
-fi
+required_nodejs_version=20.19.0
 # required_nodejs_version=18.20.2
 # On Amazon Linux 2 and nodejs 18.20.2 I get the following errors:
 #     node: /lib64/libm.so.6: version `GLIBC_2.27' not found (required by node)
@@ -107,7 +138,10 @@ if [[ $nodejs_version != $required_nodejs_version ]]; then
         nodedir=node-v${required_nodejs_version}-darwin-${shortarch}
     fi
     tarball=${nodedir}.tar.xz
-    wget https://nodejs.org/dist/v${required_nodejs_version}/$tarball
+    if ! wget https://nodejs.org/dist/v${required_nodejs_version}/$tarball; then
+        echo "error: Couldn't download nodejs from https://nodejs.org/dist/v${required_nodejs_version}/$tarball."
+        return 1
+    fi
     tar -xf $tarball
     rm $tarball
     cat >> ~/$shellrc << EOF
@@ -117,6 +151,7 @@ export PATH=$HOME/$nodedir/bin:\$PATH
 EOF
     source ~/$shellrc
     popd
+    nodejs_version=$required_nodejs_version
 fi
 
 echo "Using nodejs version $nodejs_version"
@@ -138,6 +173,7 @@ if [[ $cdk_version != $CDK_VERSION ]]; then
     if ! npm install -g --force aws-cdk@$CDK_VERSION; then
         sudo npm install -g --force aws-cdk@$CDK_VERSION
     fi
+    cdk_version=$CDK_VERSION
 fi
 echo "Using CDK $cdk_version"
 

@@ -4,10 +4,9 @@ This page shows common prerequisites that need to be done before deployment.
 
 ## Deployment Server/Instance Requirements
 
-The deployment process was developed and tested using Amazon Linux 2.
-It has also been tested on RHEL 8 and RHEL 9.
-An easy way to create a deployment instance is to use AWS CloudShell.
-This will give you a code editor IDE and shell environment that you can use to deploy the cluster.
+The deployment process was developed and tested using Mac OS and RHEL 8.
+Amazon Linux 2 doesn't support the current version of node.js so it cannot be used.
+It has also been tested on RHEL 9 and should work on Rocky Linux 8 and 9.
 
 If the required packages aren't installed then you will need sudo or root access on the instance.
 

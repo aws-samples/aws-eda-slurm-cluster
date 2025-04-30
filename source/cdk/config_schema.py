@@ -510,7 +510,7 @@ default_excluded_eda_instance_families = {
 
 default_excluded_eda_instance_types = {
     'on_demand_and_spot': [
-        '.*\.metal.*',
+        r'.*\.metal.*',
 
         # Reduce the number of selected instance types to 25.
         # Exclude larger core counts for each memory size
@@ -672,7 +672,7 @@ default_excluded_eda_instance_types = {
         # 4096 GB: x2iedn.32xlarge
     ],
     'on_demand_or_spot': [
-        '.*\.metal.*',
+        r'.*\.metal.*',
 
         # Reduce the number of selected instance types to 50.
         # Exclude larger core counts for each memory size
