@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        
+        
+        
+        <link rel="shortcut icon" href="../img/favicon.ico">
+        <title>Exostellar Workload Optimizer (XWO) - EDA SLURM Cluster on AWS</title>
+        <link href="../css/bootstrap.min.css" rel="stylesheet">
+        <link href="../css/fontawesome.min.css" rel="stylesheet">
+        <link href="../css/brands.min.css" rel="stylesheet">
+        <link href="../css/solid.min.css" rel="stylesheet">
+        <link href="../css/v4-font-face.min.css" rel="stylesheet">
+        <link href="../css/base.css" rel="stylesheet">
+        <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" >
+        <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" disabled>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+        <script>hljs.highlightAll();</script> 
+    </head>
+
+    <body>
+        <div class="navbar fixed-top navbar-expand-lg navbar-dark bg-dark">
+            <div class="container">
+                <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
+                <!-- Expander button -->
+                <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar-collapse" aria-controls="navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Expanded navigation -->
+                <div id="navbar-collapse" class="navbar-collapse collapse">
+                        <!-- Main navigation -->
+                        <ul class="nav navbar-nav">
+                            <li class="nav-item">
+                                <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../security-groups/" class="nav-link">Security Groups</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../config/" class="nav-link">Configuraton File Format</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../res_integration/" class="nav-link">RES Integration</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="./" class="nav-link active" aria-current="page">Exostellar Workload Optimizer (XWO)</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../exostellar-infrastructure-optimizer/" class="nav-link">Exostellar Infrastructure Optimizer (XIO)</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../run_jobs/" class="nav-link">Run Jobs</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../job_preemption/" class="nav-link">Job Preemption</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../rest_api/" class="nav-link">Slurm REST API</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../onprem/" class="nav-link">On-Premises Integration</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../containers/" class="nav-link">Containers</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="../debug/" class="nav-link">Debug</a>
+                            </li>
+                        </ul>
+
+                    <ul class="nav navbar-nav ms-md-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" data-bs-toggle="modal" data-bs-target="#mkdocs_search_modal">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                            <li class="nav-item">
+                                <a rel="prev" href="../soca_integration/" class="nav-link">
+                                    <i class="fa fa-arrow-left"></i> Previous
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a rel="next" href="../exostellar-infrastructure-optimizer/" class="nav-link">
+                                    Next <i class="fa fa-arrow-right"></i>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/exostellar-workload-optimizer.md" class="nav-link"><i class="fa-brands fa-github"></i> Edit on GitHub</a>
+                            </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="row">
+                    <div class="col-md-3"><div class="navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+    <div class="navbar-header">
+        <button type="button" class="navbar-toggler collapsed" data-bs-toggle="collapse" data-bs-target="#toc-collapse" title="Table of Contents">
+            <span class="fa fa-angle-down"></span>
+        </button>
+    </div>
+
+    
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-body-tertiary">
+        <ul class="nav flex-column">
+            
+            <li class="nav-item" data-bs-level="1"><a href="#exostellar-workload-optimizer-xwo" class="nav-link">Exostellar Workload Optimizer (XWO)</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="2"><a href="#xwo-configuration" class="nav-link">XWO Configuration</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="3"><a href="#deploy-parallelcluster-without-configuring-xwo" class="nav-link">Deploy ParallelCluster without configuring XWO</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#deploy-the-exostellar-management-server-ems" class="nav-link">Deploy the Exostellar Management Server (EMS)</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#verify-that-the-az1-profile-exists" class="nav-link">Verify that the "az1" profile exists</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#create-an-xwo-parallelcluster-ami" class="nav-link">Create an XWO ParallelCluster AMI</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#create-xwo-configuration" class="nav-link">Create XWO Configuration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#update-the-cluster-with-the-xwo-configuration" class="nav-link">Update the cluster with the XWO configuration</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#create-an-xwo-image-from-the-xwo-parallelcluster-ami" class="nav-link">Create an XWO Image from the XWO ParallelCluster AMI</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#configure-the-exostellar-certificates-on-the-head-node" class="nav-link">Configure the Exostellar Certificates on the Head Node</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#test-launching-an-xwo-vm" class="nav-link">Test launching an XWO VM</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#run-a-test-job-using-slurm" class="nav-link">Run a test job using Slurm</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#debug" class="nav-link">Debug</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="3"><a href="#updateheadnode-resource-failed" class="nav-link">UpdateHeadNode resource failed</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#xwo-controller-not-starting" class="nav-link">XWO Controller not starting</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#worker-instance-not-starting" class="nav-link">Worker instance not starting</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#vm-not-starting-on-worker" class="nav-link">VM not starting on worker</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#vm-not-starting-slurm-job" class="nav-link">VM not starting Slurm job</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+              </ul>
+            </li>
+        </ul>
+    </div>
+</div></div>
+                    <div class="col-md-9" role="main">
+
+<h1 id="exostellar-workload-optimizer-xwo">Exostellar Workload Optimizer (XWO)</h1>
+<p><a href="https://exostellar.io/product/#workloadoptimizer">Exostellar Workload Optimizer</a> (XWO) runs applications in virtual machines (VMs) on EC2 instances and can dynamically migrate the VMs between instances based on actual memory utilization.
+This can provide significant savings when users over-provision memory or provision memory
+based on peak usage by running on instances with less memory when the extra memory isn't
+required.
+It also, optionally, provides the functionality of <a href="https://exostellar.io/product/#infrastructureoptimizer">Infrastructure Optimizer</a> which migrates
+VMs between Spot and On-Demnad instances based on availability and cost.</p>
+<p>XWO runs on an Exostellar Management Server (EMS).
+The EMS runs a web application and launches and manages the instances that run jobs.
+In response to job requests it launches controller nodes that manage pools of worker nodes.
+The controller launches workers and then starts one or more VMs on the workers.
+The controller also determines when VMs need to be migrated, allocates new workers, and manages the VM migrations.</p>
+<p>XWO Profiles configure XWO Controllers and XWO Workers.
+The Workers run the XWO VMs.
+The Controller manages the workers and the VMs that run on them.
+The Worker configuration includes the instance types to use for
+on-demand and spot instances.
+It also includes the security groups and tags for the worker instances.</p>
+<p>You create an XWO Application Environment for each Slurm cluster.
+The Application Environment contains the URL for the Slurm head node,
+configures pools of VMs,
+and configures the path to the Slurm binaries and configuration.
+The VM pools define the attributes of the instances including the number of CPUs, VM Image, min and max memory, and an associated XWO Profile.</p>
+<p>You must also create XWO Images that are used to create the VMs.
+The Images are created from AWS AMIs and are specified in the Pools.</p>
+<p><strong>NOTE:</strong> One current restriction of XWO VMs is that they cannot be created from ParallelCluster AMIs.
+This is because the kernel modules that ParallelCluster installs aren't supported by the XWO hypervisor.</p>
+<h2 id="xwo-configuration">XWO Configuration</h2>
+<p>This section will describe the process of configuring XWO to work with ParallelCluster.</p>
+<p>Refer to <a href="https://docs.exostellar.io/latest/Latest/HPC-User/getting-started-installation">Exostellar's documentation</a> to make sure you have the latest instructions.</p>
+<h3 id="deploy-parallelcluster-without-configuring-xwo">Deploy ParallelCluster without configuring XWO</h3>
+<p>First deploy your cluster without configuring XWO.
+The cluster deploys ansible playbooks that will be used to create the XWO ParallelCluster AMI.</p>
+<h3 id="deploy-the-exostellar-management-server-ems">Deploy the Exostellar Management Server (EMS)</h3>
+<p>The next step is to <a href="https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server">install the Exostellar management server</a>.
+You must first subscribe to the three Exostellar Infrastructure AMIs in the AWS Marketplace.</p>
+<ul>
+<li><a href="https://aws.amazon.com/marketplace/server/procurement?productId=prod-crdnafbqnbnm2">Exostellar Management Server</a></li>
+<li><a href="https://aws.amazon.com/marketplace/server/procurement?productId=prod-d4lifqwlw4kja">Exostellar Controller</a></li>
+<li><a href="https://aws.amazon.com/marketplace/server/procurement?productId=prod-2smeyk5fuxt7q">Exostellar Worker</a></li>
+</ul>
+<p>Then follow the <a href="https://docs.exostellar.io/latest/Latest/HPC-User/installing-management-server#v2.4.0.0InstallingwithCloudFormationTemplate(AWS)-Step3:CreateaNewStack">directions to deploy the CloudFormation template</a>.</p>
+<h3 id="verify-that-the-az1-profile-exists">Verify that the "az1" profile exists</h3>
+<p>In the EMS GUI go to Profiles and make sure that the "az1" profile exists.
+I use that as a template to create your new profiles.</p>
+<p>If it doesn't exist, there was a problem with the EMS deployment and you should contact Exostellar support.</p>
+<h3 id="create-an-xwo-parallelcluster-ami">Create an XWO ParallelCluster AMI</h3>
+<p>Launch an instance using the base AMI for your OS.
+For example, launch an instance with a base RHEL 8 or Rocky 8 AMI.</p>
+<p>Mount the ParallelCluster NFS file system at /opt/slurm.</p>
+<p>Run the ansible playbook to configure the instance for XWO.</p>
+<pre><code>/opt/slurm/config/bin/exostellar-compute-node-ami-configure.sh
+</code></pre>
+<p>Do any additional configuration that you require such as configuring file system mounts and installing
+packages.</p>
+<p>Create an AMI from the instance and wait for it to become available.</p>
+<p>After the AMI has been successfully created you can either stop or terminate the instance to save costs.
+If you may need to do additional customization, then stop it, otherwise terminate it.</p>
+<p>Add the image id to your configuration as described below.</p>
+<h3 id="create-xwo-configuration">Create XWO Configuration</h3>
+<p>The next step is to plan and configure your XWO deployment.
+The key decisions that you must make are the instance types that you will use
+and the AMI that you will use for the XWO VM Images.</p>
+<p>XWO currently only supports x86_64 instance types and pools cannot mix AMD and Intel instance types.
+The configuration has been simplified so that all you have to do is specify the instance types
+and families that you want to use.
+The instance types will be grouped by the number of cores and amount of memory to create
+pools and Slurm partitions.
+You can still create your own profiles and pools if the automatically generated ones do not
+meet your needs.
+The example only shows the simplified configuration.</p>
+<p><strong>NOTE</strong>: XWO currently doesn't support VMs larger than 1 TB.</p>
+<p>Refer to <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-best-practices.html">Best practices for Amazon EC2 Spot</a> when planning your cluster deployment and creating your configuration.</p>
+<p>It is highly recommended to use <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/work-with-spot-placement-score.html">EC2 Spot placement scores</a> when selecting the region and availability zone for your cluster.
+This will give you an indication of the likelihood of getting desired spot capacity.</p>
+<p>In the following example,
+I've included instance families from the last 3 generations of instances to maximize the number of
+available capacity pools and increase the likelihood of running on spot.</p>
+<p><strong>Note</strong>: The Intel instance families contain more configurations and higher memory instances. They also have high frequency instance types such as m5zn, r7iz, and z1d. They also tend to have more capacity. The AMD instance families include HPC instance types, however, they do not support spot pricing and can only be used for on-demand.</p>
+<p><strong>Note</strong>: This is only an example configuration. You should customize it for your requirements.</p>
+<pre><code>slurm:
+  Xwo:
+    ManagementServerStackName: exostellar-management-server
+    PartitionName: xwo
+    AvailabilityZone: us-east-1b
+
+    Images:
+      - ImageId: ami-xxxxxxxxxxxxxxxxx
+        ImageName: &lt;your-xio-vm-image-name&gt;
+
+    DefaultImageName: &lt;your-xio-vm-image-name&gt;
+
+    InstanceTypes:
+      - c5a:1
+      - m5a:2
+      - r5a:3
+    SpotFleetTypes:
+      - c5a:1
+      - m5a:2
+      - r5a:3
+
+    PoolSize: 10
+    EnableHyperthreading: false
+    VmRootPasswordSecret: ExostellarVmRootPassword
+</code></pre>
+<h3 id="update-the-cluster-with-the-xwo-configuration">Update the cluster with the XWO configuration</h3>
+<p>Update the cluster with the XWO configuration.</p>
+<p>This will update the profiles and environment on the EMS server and configure the cluster for XWO.
+The only remaining step before you can submit jobs is to create the XWO VM image.</p>
+<p>This is done before creating an image because the XWO scripts get deployed by this step.</p>
+<h3 id="create-an-xwo-image-from-the-xwo-parallelcluster-ami">Create an XWO Image from the XWO ParallelCluster AMI</h3>
+<p>Connect to the head node and create the XWO Image from the AMI you created.
+The IMAGE-NAME should be the same that you configured in the Pools.</p>
+<pre><code>/opt/slurm/etc/exostellar/parse_helper.sh -a &lt;AMI-ID1&gt; -i &lt;IMAGE-NAME&gt;
+</code></pre>
+<h3 id="configure-the-exostellar-certificates-on-the-head-node">Configure the Exostellar Certificates on the Head Node</h3>
+<p>The resume script needs an Exostellar certificate authority and client security certificate
+to be able to call the REST API on the EMS.
+Download the certificates and copy them to the head node.</p>
+<ul>
+<li>Open the EMS in a browser.</li>
+<li>Click on Settings</li>
+<li>Select the Certificates tab</li>
+<li>Click on <strong>Generate Client Certificate</strong>, name it <strong>ExostellarClient.pem</strong>, and save it in the Downloads folder.</li>
+<li>Click on <strong>Download Exostellar CA</strong>, name it <strong>ExostellarRootCA.crt</strong>, and save it in the Downloads folder.</li>
+<li>Copy the two certificates to /etc/ssl/certs/ on the head node.</li>
+</ul>
+<h3 id="test-launching-an-xwo-vm">Test launching an XWO VM</h3>
+<p>Connect to the head node and test launching a VM.
+The pool, profile, and image_name should be from your configuration.
+The host name doesn't matter.</p>
+<pre><code>/opt/slurm/etc/exostellar/test_createVm.sh --pool &lt;pool&gt; --profile &lt;profile&gt; -i &lt;image name&gt; -h &lt;host&gt;
+</code></pre>
+<p>When this is done, the VM, worker, and controller should all terminate on their own.
+If they do not, then connect to the EMS and cancel the job that started the controller.</p>
+<p>Use <code>squeue</code> to list the controller jobs. Use <code>scancel</code> to terminate them.</p>
+<h3 id="run-a-test-job-using-slurm">Run a test job using Slurm</h3>
+<pre><code>srun --pty -p xwo-amd-64g-4c hostname
+</code></pre>
+<h2 id="debug">Debug</h2>
+<h3 id="updateheadnode-resource-failed">UpdateHeadNode resource failed</h3>
+<p>If the UpdateHeadNode resource fails then it is usually because a task in the ansible script failed.
+Connect to the head node and look for errors in:</p>
+<p><code>/var/log/ansible.log</code></p>
+<p>Usually it will be a problem with the <code>/opt/slurm/etc/exostellar/configure_xio.py</code> script.</p>
+<p>When this happens the CloudFormation stack will usually be in UPDATE_ROLLBACK_FAILED status.
+Before you can update it again you will need to complete the rollback.
+Go to Stack Actions, select <code>Continue update rollback</code>, expand <code>Advanced troubleshooting</code>, check the UpdateHeadNode resource, anc click <code>Continue update rollback</code>.</p>
+<h3 id="xwo-controller-not-starting">XWO Controller not starting</h3>
+<p>If a controller doesn't start, then the first thing to check is to make sure that the
+<code>/opt/slurm/exostellar/resume_xspot.sh</code> script ran successfully on the head node.</p>
+<p><code>grep resume_xspot.sh /var/log/messages | less</code></p>
+<p>The script should get "http_code=200". If not, investigate the error.</p>
+<p>If the resume script passed, then a controller should have started.</p>
+<p>On EMS, check that a job is running to create the controller.</p>
+<p><code>squeue</code></p>
+<p>On EMS, check the autoscaling log to see if there are errors starting the instance.</p>
+<p><code>less /var/log/slurm/autoscaling.log</code></p>
+<p>EMS Slurm partions are at:</p>
+<p><code>/xcompute/slurm/bin/partitions.json</code></p>
+<p>They are derived from the partition and pool names.</p>
+<h3 id="worker-instance-not-starting">Worker instance not starting</h3>
+<h3 id="vm-not-starting-on-worker">VM not starting on worker</h3>
+<h3 id="vm-not-starting-slurm-job">VM not starting Slurm job</h3></div>
+            </div>
+        </div>
+
+        <footer class="col-md-12">
+            <hr>
+            <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
+        </footer>
+        <script src="../js/bootstrap.bundle.min.js"></script>
+        <script>
+            var base_url = "..",
+                shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
+        </script>
+        <script src="../js/base.js"></script>
+        <script src="../search/main.js"></script>
+
+        <div class="modal" id="mkdocs_search_modal" tabindex="-1" role="dialog" aria-labelledby="searchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="searchModalLabel">Search</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>From here you can search these documents. Enter your search terms below.</p>
+                <form>
+                    <div class="form-group">
+                        <input type="search" class="form-control" placeholder="Search..." id="mkdocs-search-query" title="Type search term here">
+                    </div>
+                </form>
+                <div id="mkdocs-search-results" data-no-results-text="No results found"></div>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div><div class="modal" id="mkdocs_keyboard_modal" tabindex="-1" role="dialog" aria-labelledby="keyboardModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 20%;">Keys</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="help shortcut"><kbd>?</kbd></td>
+                    <td>Open this help</td>
+                  </tr>
+                  <tr>
+                    <td class="next shortcut"><kbd>n</kbd></td>
+                    <td>Next page</td>
+                  </tr>
+                  <tr>
+                    <td class="prev shortcut"><kbd>p</kbd></td>
+                    <td>Previous page</td>
+                  </tr>
+                  <tr>
+                    <td class="search shortcut"><kbd>s</kbd></td>
+                    <td>Search</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="modal-footer">
+            </div>
+        </div>
+    </div>
+</div>
+
+    </body>
+</html>

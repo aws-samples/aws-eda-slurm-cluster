@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -10,9 +10,13 @@
         <link rel="shortcut icon" href="../img/favicon.ico">
         <title>Configuraton File Format - EDA SLURM Cluster on AWS</title>
         <link href="../css/bootstrap.min.css" rel="stylesheet">
-        <link href="../css/font-awesome.min.css" rel="stylesheet">
+        <link href="../css/fontawesome.min.css" rel="stylesheet">
+        <link href="../css/brands.min.css" rel="stylesheet">
+        <link href="../css/solid.min.css" rel="stylesheet">
+        <link href="../css/v4-font-face.min.css" rel="stylesheet">
         <link href="../css/base.css" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+        <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" >
+        <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css" disabled>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
@@ -24,7 +28,7 @@
             <div class="container">
                 <a class="navbar-brand" href="..">EDA SLURM Cluster on AWS</a>
                 <!-- Expander button -->
-                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar-collapse">
+                <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar-collapse" aria-controls="navbar-collapse" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
 
@@ -32,59 +36,62 @@
                 <div id="navbar-collapse" class="navbar-collapse collapse">
                         <!-- Main navigation -->
                         <ul class="nav navbar-nav">
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href=".." class="nav-link">AWS EDA Slurm Cluster</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../deployment-prerequisites/" class="nav-link">Deployment Prerequisites</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../security-groups/" class="nav-link">Security Groups</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../deploy-parallel-cluster/" class="nav-link">Deploy AWS ParallelCluster</a>
                             </li>
-                            <li class="navitem active">
-                                <a href="./" class="nav-link">Configuraton File Format</a>
+                            <li class="nav-item">
+                                <a href="./" class="nav-link active" aria-current="page">Configuraton File Format</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../res_integration/" class="nav-link">RES Integration</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../soca_integration/" class="nav-link">SOCA Integration</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
+                                <a href="../exostellar-workload-optimizer/" class="nav-link">Exostellar Workload Optimizer (XWO)</a>
+                            </li>
+                            <li class="nav-item">
                                 <a href="../exostellar-infrastructure-optimizer/" class="nav-link">Exostellar Infrastructure Optimizer (XIO)</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../custom-amis/" class="nav-link">Custom AMIs for ParallelCluster</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../run_jobs/" class="nav-link">Run Jobs</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../job_preemption/" class="nav-link">Job Preemption</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../rest_api/" class="nav-link">Slurm REST API</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../onprem/" class="nav-link">On-Premises Integration</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../containers/" class="nav-link">Containers</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../delete-cluster/" class="nav-link">Delete Cluster</a>
                             </li>
-                            <li class="navitem">
+                            <li class="nav-item">
                                 <a href="../debug/" class="nav-link">Debug</a>
                             </li>
                         </ul>
 
-                    <ul class="nav navbar-nav ml-auto">
+                    <ul class="nav navbar-nav ms-md-auto">
                         <li class="nav-item">
-                            <a href="#" class="nav-link" data-toggle="modal" data-target="#mkdocs_search_modal">
+                            <a href="#" class="nav-link" data-bs-toggle="modal" data-bs-target="#mkdocs_search_modal">
                                 <i class="fa fa-search"></i> Search
                             </a>
                         </li>
@@ -99,7 +106,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/config.md" class="nav-link"><i class="fa fa-github"></i> Edit on GitHub</a>
+                                <a href="https://github.com/aws-samples/aws-eda-slurm-cluster/edit/master/docs/config.md" class="nav-link"><i class="fa-brands fa-github"></i> Edit on GitHub</a>
                             </li>
                     </ul>
                 </div>
@@ -108,228 +115,228 @@
 
         <div class="container">
             <div class="row">
-                    <div class="col-md-3"><div class="navbar-light navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
+                    <div class="col-md-3"><div class="navbar-expand-md bs-sidebar hidden-print affix" role="complementary">
     <div class="navbar-header">
-        <button type="button" class="navbar-toggler collapsed" data-toggle="collapse" data-target="#toc-collapse" title="Table of Contents">
+        <button type="button" class="navbar-toggler collapsed" data-bs-toggle="collapse" data-bs-target="#toc-collapse" title="Table of Contents">
             <span class="fa fa-angle-down"></span>
         </button>
     </div>
 
     
-    <div id="toc-collapse" class="navbar-collapse collapse card bg-secondary">
+    <div id="toc-collapse" class="navbar-collapse collapse card bg-body-tertiary">
         <ul class="nav flex-column">
             
-            <li class="nav-item" data-level="1"><a href="#configuraton-file-format" class="nav-link">Configuraton File Format</a>
+            <li class="nav-item" data-bs-level="1"><a href="#configuraton-file-format" class="nav-link">Configuraton File Format</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="2"><a href="#top-level-config" class="nav-link">Top Level Config</a>
+            <li class="nav-item" data-bs-level="2"><a href="#top-level-config" class="nav-link">Top Level Config</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#termination_protection" class="nav-link">termination_protection</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="3"><a href="#stackname" class="nav-link">StackName</a>
+            <li class="nav-item" data-bs-level="3"><a href="#termination_protection" class="nav-link">termination_protection</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#region" class="nav-link">Region</a>
+            <li class="nav-item" data-bs-level="3"><a href="#stackname" class="nav-link">StackName</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#sshkeypair" class="nav-link">SshKeyPair</a>
+            <li class="nav-item" data-bs-level="3"><a href="#region" class="nav-link">Region</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#vpcid" class="nav-link">VpcId</a>
+            <li class="nav-item" data-bs-level="3"><a href="#sshkeypair" class="nav-link">SshKeyPair</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#cidr" class="nav-link">CIDR</a>
+            <li class="nav-item" data-bs-level="3"><a href="#vpcid" class="nav-link">VpcId</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#subnetid" class="nav-link">SubnetId</a>
+            <li class="nav-item" data-bs-level="3"><a href="#cidr" class="nav-link">CIDR</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#errorsnstopicarn" class="nav-link">ErrorSnsTopicArn</a>
+            <li class="nav-item" data-bs-level="3"><a href="#subnetid" class="nav-link">SubnetId</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#timezone" class="nav-link">TimeZone</a>
+            <li class="nav-item" data-bs-level="3"><a href="#errorsnstopicarn" class="nav-link">ErrorSnsTopicArn</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#additionalsecuritygroupsstackname" class="nav-link">AdditionalSecurityGroupsStackName</a>
+            <li class="nav-item" data-bs-level="3"><a href="#timezone" class="nav-link">TimeZone</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#resstackname" class="nav-link">RESStackName</a>
+            <li class="nav-item" data-bs-level="3"><a href="#additionalsecuritygroupsstackname" class="nav-link">AdditionalSecurityGroupsStackName</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#externalloginnodes" class="nav-link">ExternalLoginNodes</a>
+            <li class="nav-item" data-bs-level="3"><a href="#resstackname" class="nav-link">RESStackName</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#domainjoinedinstance" class="nav-link">DomainJoinedInstance</a>
+            <li class="nav-item" data-bs-level="3"><a href="#externalloginnodes" class="nav-link">ExternalLoginNodes</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-              </ul>
-            </li>
-            <li class="nav-item" data-level="2"><a href="#slurm" class="nav-link">slurm</a>
-              <ul class="nav flex-column">
-            <li class="nav-item" data-level="3"><a href="#parallelclusterconfig" class="nav-link">ParallelClusterConfig</a>
-              <ul class="nav flex-column">
-            <li class="nav-item" data-level="4"><a href="#version" class="nav-link">Version</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#clusterconfig" class="nav-link">ClusterConfig</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#image" class="nav-link">Image</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#architecture" class="nav-link">Architecture</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#computenodeami" class="nav-link">ComputeNodeAmi</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#enableefa" class="nav-link">EnableEfa</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#database" class="nav-link">Database</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#slurmdbd" class="nav-link">Slurmdbd</a>
+            <li class="nav-item" data-bs-level="3"><a href="#domainjoinedinstance" class="nav-link">DomainJoinedInstance</a>
               <ul class="nav flex-column">
               </ul>
             </li>
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#clustername" class="nav-link">ClusterName</a>
+            <li class="nav-item" data-bs-level="2"><a href="#slurm" class="nav-link">slurm</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="3"><a href="#parallelclusterconfig" class="nav-link">ParallelClusterConfig</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="4"><a href="#version" class="nav-link">Version</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#mungekeysecret" class="nav-link">MungeKeySecret</a>
+            <li class="nav-item" data-bs-level="4"><a href="#clusterconfig" class="nav-link">ClusterConfig</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#slurmctl" class="nav-link">SlurmCtl</a>
-              <ul class="nav flex-column">
-            <li class="nav-item" data-level="4"><a href="#slurmdport" class="nav-link">SlurmdPort</a>
+            <li class="nav-item" data-bs-level="4"><a href="#image" class="nav-link">Image</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#instance_type" class="nav-link">instance_type</a>
+            <li class="nav-item" data-bs-level="4"><a href="#architecture" class="nav-link">Architecture</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#volume_size" class="nav-link">volume_size</a>
+            <li class="nav-item" data-bs-level="4"><a href="#computenodeami" class="nav-link">ComputeNodeAmi</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#cloudwatchperiod" class="nav-link">CloudWatchPeriod</a>
+            <li class="nav-item" data-bs-level="4"><a href="#enableefa" class="nav-link">EnableEfa</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#preemptmode" class="nav-link">PreemptMode</a>
+            <li class="nav-item" data-bs-level="4"><a href="#database" class="nav-link">Database</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#preempttype" class="nav-link">PreemptType</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#preemptexempttime" class="nav-link">PreemptExemptTime</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#slurmconfoverrides" class="nav-link">SlurmConfOverrides</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#slurmrestduid" class="nav-link">SlurmrestdUid</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#slurmrestapiversion" class="nav-link">SlurmRestApiVersion</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#head-node-additionalsecuritygroups" class="nav-link">Head Node AdditionalSecurityGroups</a>
-              <ul class="nav flex-column">
-              </ul>
-            </li>
-            <li class="nav-item" data-level="4"><a href="#head-node-additionaliampolicies" class="nav-link">Head Node AdditionalIamPolicies</a>
+            <li class="nav-item" data-bs-level="4"><a href="#slurmdbd" class="nav-link">Slurmdbd</a>
               <ul class="nav flex-column">
               </ul>
             </li>
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#instanceconfig" class="nav-link">InstanceConfig</a>
-              <ul class="nav flex-column">
-            <li class="nav-item" data-level="4"><a href="#useondemand" class="nav-link">UseOnDemand</a>
+            <li class="nav-item" data-bs-level="3"><a href="#clustername" class="nav-link">ClusterName</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#usespot" class="nav-link">UseSpot</a>
+            <li class="nav-item" data-bs-level="3"><a href="#mungekeysecret" class="nav-link">MungeKeySecret</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#disablesimultaneousmultithreading" class="nav-link">DisableSimultaneousMultithreading</a>
+            <li class="nav-item" data-bs-level="3"><a href="#slurmctl" class="nav-link">SlurmCtl</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="4"><a href="#slurmdport" class="nav-link">SlurmdPort</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#exclude" class="nav-link">Exclude</a>
+            <li class="nav-item" data-bs-level="4"><a href="#instance_type" class="nav-link">instance_type</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#include" class="nav-link">Include</a>
+            <li class="nav-item" data-bs-level="4"><a href="#volume_size" class="nav-link">volume_size</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#nodecounts" class="nav-link">NodeCounts</a>
+            <li class="nav-item" data-bs-level="4"><a href="#cloudwatchperiod" class="nav-link">CloudWatchPeriod</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#compute-node-additionalsecuritygroups" class="nav-link">Compute Node AdditionalSecurityGroups</a>
+            <li class="nav-item" data-bs-level="4"><a href="#preemptmode" class="nav-link">PreemptMode</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#compute-node-additionaliampolicies" class="nav-link">Compute Node AdditionalIamPolicies</a>
+            <li class="nav-item" data-bs-level="4"><a href="#preempttype" class="nav-link">PreemptType</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="4"><a href="#onpremcomputenodes" class="nav-link">OnPremComputeNodes</a>
+            <li class="nav-item" data-bs-level="4"><a href="#preemptexempttime" class="nav-link">PreemptExemptTime</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#slurmconfoverrides" class="nav-link">SlurmConfOverrides</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#slurmrestduid" class="nav-link">SlurmrestdUid</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#slurmrestapiversion" class="nav-link">SlurmRestApiVersion</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#head-node-additionalsecuritygroups" class="nav-link">Head Node AdditionalSecurityGroups</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#head-node-additionaliampolicies" class="nav-link">Head Node AdditionalIamPolicies</a>
               <ul class="nav flex-column">
               </ul>
             </li>
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#slurmuid" class="nav-link">SlurmUid</a>
+            <li class="nav-item" data-bs-level="3"><a href="#instanceconfig" class="nav-link">InstanceConfig</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="4"><a href="#useondemand" class="nav-link">UseOnDemand</a>
               <ul class="nav flex-column">
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#storage" class="nav-link">storage</a>
+            <li class="nav-item" data-bs-level="4"><a href="#usespot" class="nav-link">UseSpot</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="4"><a href="#extramounts" class="nav-link">ExtraMounts</a>
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#disablesimultaneousmultithreading" class="nav-link">DisableSimultaneousMultithreading</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#exclude" class="nav-link">Exclude</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#include" class="nav-link">Include</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#nodecounts" class="nav-link">NodeCounts</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#compute-node-additionalsecuritygroups" class="nav-link">Compute Node AdditionalSecurityGroups</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#compute-node-additionaliampolicies" class="nav-link">Compute Node AdditionalIamPolicies</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="4"><a href="#onpremcomputenodes" class="nav-link">OnPremComputeNodes</a>
               <ul class="nav flex-column">
               </ul>
             </li>
               </ul>
             </li>
-            <li class="nav-item" data-level="3"><a href="#licenses" class="nav-link">Licenses</a>
+            <li class="nav-item" data-bs-level="3"><a href="#slurmuid" class="nav-link">SlurmUid</a>
               <ul class="nav flex-column">
-            <li class="nav-item" data-level="4"><a href="#licensename" class="nav-link">LicenseName</a>
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#storage" class="nav-link">storage</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="4"><a href="#extramounts" class="nav-link">ExtraMounts</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#licenses" class="nav-link">Licenses</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="4"><a href="#licensename" class="nav-link">LicenseName</a>
               <ul class="nav flex-column">
               </ul>
             </li>
@@ -1098,8 +1105,7 @@ Once all of the license are used by running jobs, then any pending jobs will rem
             <hr>
             <p>Documentation built with <a href="https://www.mkdocs.org/">MkDocs</a>.</p>
         </footer>
-        <script src="../js/jquery-3.6.0.min.js"></script>
-        <script src="../js/bootstrap.min.js"></script>
+        <script src="../js/bootstrap.bundle.min.js"></script>
         <script>
             var base_url = "..",
                 shortcuts = {"help": 191, "next": 78, "previous": 80, "search": 83};
@@ -1112,7 +1118,7 @@ Once all of the license are used by running jobs, then any pending jobs will rem
         <div class="modal-content">
             <div class="modal-header">
                 <h4 class="modal-title" id="searchModalLabel">Search</h4>
-                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p>From here you can search these documents. Enter your search terms below.</p>
@@ -1132,7 +1138,7 @@ Once all of the license are used by running jobs, then any pending jobs will rem
         <div class="modal-content">
             <div class="modal-header">
                 <h4 class="modal-title" id="keyboardModalLabel">Keyboard Shortcuts</h4>
-                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
               <table class="table">
