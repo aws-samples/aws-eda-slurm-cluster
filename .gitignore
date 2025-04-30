@@ -11,3 +11,5 @@ security_scan/cfn_nag.log
 security_scan/ScoutSuite
 
 __pycache__
+
+.venv*
