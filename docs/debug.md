@@ -2,6 +2,15 @@
 
 For ParallelCluster and Slurm issues, refer to the official [AWS ParallelCluster Troubleshooting documentation](https://docs.aws.amazon.com/parallelcluster/latest/ug/troubleshooting-v3.html).
 
+## Config stack deploys, but ParallelCluster stack doesn't
+
+This happens when the lambda function that create the cluster encounters an error.
+This is usually some kind of configuration error that is detected by ParallelCluster.
+
+* Open the CloudWatch console and go the log groups
+* Find the log group named /aws/lambda/*-CreateParallelCluster
+* Look for the error
+
 ## Slurm Head Node
 
 If slurm commands hang, then it's likely a problem with the Slurm controller.

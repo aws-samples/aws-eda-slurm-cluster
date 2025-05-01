@@ -195,6 +195,21 @@ srun --pty -p xwo-amd-64g-4c hostname
 
 ## Debug
 
+### How to connect to EMS
+
+Use ssh to connect to the EMS using your EC2 keypair.
+
+* `ssh-add private-key.pem`
+* `ssh -A rocky@${EMS_IP_ADDRESS}`
+
+You can [install the aws-ssm-agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/agent-install-rocky.html) so that you can connect from the EC2 console using SSM.
+
+### How to connect to Controller
+
+* First ssh to the EMS.
+* Get the IP address of the controller from the EC2 console
+* As root, ssh to the controller
+
 ### UpdateHeadNode resource failed
 
 If the UpdateHeadNode resource fails then it is usually because a task in the ansible script failed.
@@ -207,6 +222,10 @@ Usually it will be a problem with the `/opt/slurm/etc/exostellar/configure_xio.p
 When this happens the CloudFormation stack will usually be in UPDATE_ROLLBACK_FAILED status.
 Before you can update it again you will need to complete the rollback.
 Go to Stack Actions, select `Continue update rollback`, expand `Advanced troubleshooting`, check the UpdateHeadNode resource, anc click `Continue update rollback`.
+
+The problem is usually that there is an XWO controller running that is preventing updates to
+the profile.
+Cancel any XWO jobs and terminate any running workers and controllers and verify that all of the XWO profiles are idle.
 
 ### XWO Controller not starting
 
@@ -227,7 +246,7 @@ On EMS, check the autoscaling log to see if there are errors starting the instan
 
 `less /var/log/slurm/autoscaling.log`
 
-EMS Slurm partions are at:
+EMS Slurm partitions are at:
 
 `/xcompute/slurm/bin/partitions.json`
 
@@ -235,6 +254,7 @@ They are derived from the partition and pool names.
 
 ### Worker instance not starting
 
+Connec
 ### VM not starting on worker
 
 ### VM not starting Slurm job
