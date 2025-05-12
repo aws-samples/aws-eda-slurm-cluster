@@ -44,11 +44,11 @@ Simply install the newer version and then use it to create and activate a virtua
 ```
 $ python3 --version
 Python 3.6.8
-$ yum -y install python3.11
-$ python3.11 -m venv ~/.venv-python3.11
-$ source ~/.venv-python3.11/bin/activate
+$ yum -y install python3.12
+$ python3.12 -m venv ~/.venv-python3.12
+$ source ~/.venv-python3.12/bin/activate
 $ python3 --version
-Python 3.11.5
+Python 3.12.8
 ```
 
 ## Make sure required packages are installed
@@ -81,12 +81,12 @@ Follow the instructions for Python.
 
 [https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_prerequisites](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_prerequisites)
 
-Note that CDK requires a pretty new version of nodejs which you may have to download from, for example, [https://nodejs.org/dist/v16.13.1/node-v16.13.1-linux-x64.tar.xz](https://nodejs.org/dist/v16.13.1/node-v16.13.1-linux-x64.tar.xz)
+Note that CDK requires a pretty new version of nodejs which you may have to download from, for example, [https://nodejs.org/dist/v20.19.0/node-v20.19.0-linux-x64.tar.xz](https://nodejs.org/dist/v20.19.0/node-v20.19.0-linux-x64.tar.xz)
 
 ```
 sudo yum -y install wget
-wget https://nodejs.org/dist/v16.13.1/node-v16.13.1-linux-x64.tar.xz
-tar -xf node-v16.13.1-linux-x64.tar.xz ~
+wget https://nodejs.org/dist/v20.19.0/node-v20.19.0-linux-x64.tar.xz
+tar -xf node-v20.19.0-linux-x64.tar.xz ~
 ```
 
 Add the nodjs bin directory to your path.
@@ -143,6 +143,13 @@ Follow the directions in this [ParallelCluster tutorial to configure slurm accou
 **Note**: Before ParallelCluster 3.10.0, the slurmdbd daemon that connects to the data was created on each cluster's head node.
 The recommended Slurm architecture is to have a shared slurmdbd daemon that is used by all of the clusters.
 Starting in version 3.10.0, ParallelCluster supports specifying an external slurmdbd instance when you create a cluster and provide a cloud formation template to create it.
+
+**Note**: The Slurm version used by slurmdbd must be greater than or equal to the version of your clusters.
+If you have already deployed a slurmdbd instance then you will need to create a new slurmdbd
+instance with the latest version of ParallelCluster.
+Also note that Slurm only maintains backwards compatibility for the 2 previous major releases so
+at some point you will need upgrade your clusters to newer versions before you can use the latest version
+of ParallelCluster.
 
 Follow the directions in this [ParallelCluster tutorial to configure slurmdbd](https://docs.aws.amazon.com/parallelcluster/latest/ug/external-slurmdb-accounting.html#external-slurmdb-accounting-step1).
 This requires that you have already created the slurm database.

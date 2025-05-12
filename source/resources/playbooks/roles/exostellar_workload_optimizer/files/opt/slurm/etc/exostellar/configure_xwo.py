@@ -201,7 +201,7 @@ class ConfigureXwo:
         # Set profile specific fields from the config
         profile['ProfileName'] = profile_name
         profile['NodeGroupName'] = profile_name
-        name_tag = f"xspot-controller-{profile_name}"
+        name_tag = f"xwo-controller-{profile_name}"
         name_tag_found = False
         for tag_dict in profile['Controller']['InstanceTags']:
             if tag_dict['Key'] == 'Name':
@@ -220,7 +220,7 @@ class ConfigureXwo:
         for spot_fleet_type in profile_config['SpotFleetTypes']:
             profile['Worker']['SpotFleetTypes'].append(spot_fleet_type)
         name_tag_found = False
-        name_tag = f"xspot-worker-{profile_name}"
+        name_tag = f"xwo-worker-{profile_name}"
         for tag_dict in profile['Worker']['InstanceTags']:
             if tag_dict['Key'] == 'Name':
                 name_tag_found = True
