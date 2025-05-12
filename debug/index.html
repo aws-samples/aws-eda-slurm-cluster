@@ -128,6 +128,18 @@
             
             <li class="nav-item" data-bs-level="1"><a href="#debug" class="nav-link">Debug</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="2"><a href="#config-stack-deploys-but-parallelcluster-stack-doesnt" class="nav-link">Config stack deploys, but ParallelCluster stack doesn't</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="2"><a href="#parallelcluster-stack-creation-fails" class="nav-link">ParallelCluster stack creation fails</a>
+              <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="3"><a href="#headnodewaitcondition-failed-to-create" class="nav-link">HeadNodeWaitCondition failed to create</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+              </ul>
+            </li>
             <li class="nav-item" data-bs-level="2"><a href="#slurm-head-node" class="nav-link">Slurm Head Node</a>
               <ul class="nav flex-column">
               </ul>
@@ -157,6 +169,21 @@
 
 <h1 id="debug">Debug</h1>
 <p>For ParallelCluster and Slurm issues, refer to the official <a href="https://docs.aws.amazon.com/parallelcluster/latest/ug/troubleshooting-v3.html">AWS ParallelCluster Troubleshooting documentation</a>.</p>
+<h2 id="config-stack-deploys-but-parallelcluster-stack-doesnt">Config stack deploys, but ParallelCluster stack doesn't</h2>
+<p>This happens when the lambda function that create the cluster encounters an error.
+This is usually some kind of configuration error that is detected by ParallelCluster.</p>
+<ul>
+<li>Open the CloudWatch console and go the log groups</li>
+<li>Find the log group named /aws/lambda/*-CreateParallelCluster</li>
+<li>Look for the error</li>
+</ul>
+<h2 id="parallelcluster-stack-creation-fails">ParallelCluster stack creation fails</h2>
+<h3 id="headnodewaitcondition-failed-to-create">HeadNodeWaitCondition failed to create</h3>
+<p>If the stack fails with an error like:</p>
+<p><code>The following resoure(s) failed to create
+[HeadNodeWaitCondition2025050101134602]</code></p>
+<p>Connect to the head node and look in <code>/var/log/ansible.log</code> for errors.</p>
+<p>If it shows that it failed waiting for slurmctld to accept requests then check <code>/var/log/slurmctld.log</code> for errors.</p>
 <h2 id="slurm-head-node">Slurm Head Node</h2>
 <p>If slurm commands hang, then it's likely a problem with the Slurm controller.</p>
 <p>Connect to the head node from the EC2 console using SSM Manager or ssh and switch to the root user.</p>

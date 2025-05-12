@@ -170,6 +170,14 @@
             </li>
             <li class="nav-item" data-bs-level="2"><a href="#debug" class="nav-link">Debug</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="3"><a href="#how-to-connect-to-ems" class="nav-link">How to connect to EMS</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
+            <li class="nav-item" data-bs-level="3"><a href="#how-to-connect-to-controller" class="nav-link">How to connect to Controller</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
             <li class="nav-item" data-bs-level="3"><a href="#updateheadnode-resource-failed" class="nav-link">UpdateHeadNode resource failed</a>
               <ul class="nav flex-column">
               </ul>
@@ -808,6 +816,19 @@ If they do not, then connect to the EMS and cancel the job that started the cont
 <pre><code>srun --pty -p xio-
 </code></pre>
 <h2 id="debug">Debug</h2>
+<h3 id="how-to-connect-to-ems">How to connect to EMS</h3>
+<p>Use ssh to connect to the EMS using your EC2 keypair.</p>
+<ul>
+<li><code>ssh-add private-key.pem</code></li>
+<li><code>ssh -A rocky@${EMS_IP_ADDRESS}</code></li>
+</ul>
+<p>You can <a href="https://docs.aws.amazon.com/systems-manager/latest/userguide/agent-install-rocky.html">install the aws-ssm-agent</a> so that you can connect from the EC2 console using SSM.</p>
+<h3 id="how-to-connect-to-controller">How to connect to Controller</h3>
+<ul>
+<li>First ssh to the EMS.</li>
+<li>Get the IP address of the controller from the EC2 console</li>
+<li>As root, ssh to the controller</li>
+</ul>
 <h3 id="updateheadnode-resource-failed">UpdateHeadNode resource failed</h3>
 <p>If the UpdateHeadNode resource fails then it is usually because as task in the ansible script failed.
 Connect to the head node and look for errors in:</p>
@@ -816,17 +837,30 @@ Connect to the head node and look for errors in:</p>
 <p>When this happens the CloudFormation stack will usually be in UPDATE_ROLLBACK_FAILED status.
 Before you can update it again you will need to complete the rollback.
 Go to Stack Actions, select <code>Continue update rollback</code>, expand <code>Advanced troubleshooting</code>, check the UpdateHeadNode resource, anc click <code>Continue update rollback</code>.</p>
+<p>The problem is usually that there is an XWO controller running that is preventing updates to
+the profile.
+Cancel any XWO jobs and terminate any running workers and controllers and verify that all of the XWO profiles are idle.</p>
 <h3 id="xio-controller-not-starting">XIO Controller not starting</h3>
 <p>On EMS, check that a job is running to create the controller.</p>
 <p><code>squeue</code></p>
 <p>On EMS, check the autoscaling log to see if there are errors starting the instance.</p>
 <p><code>less /var/log/slurm/autoscaling.log</code></p>
-<p>EMS Slurm partions are at:</p>
+<p>EMS Slurm partitions are at:</p>
 <p><code>/xcompute/slurm/bin/partitions.json</code></p>
 <p>They are derived from the partition and pool names.</p>
 <h3 id="worker-instance-not-starting">Worker instance not starting</h3>
 <h3 id="vm-not-starting-on-worker">VM not starting on worker</h3>
-<h3 id="vm-not-starting-slurm-job">VM not starting Slurm job</h3></div>
+<p>Connect to the controller instance and run the following command to get a list of worker instances and VMs.</p>
+<pre><code>xspot ps
+</code></pre>
+<p>Connect to the worker VM using the following command.</p>
+<pre><code>xspot console vm-abcd
+</code></pre>
+<p>This will show the console logs.
+If you configured the root password then you can log in as root to do further debug.</p>
+<h3 id="vm-not-starting-slurm-job">VM not starting Slurm job</h3>
+<p>Connect to the VM as above.</p>
+<p>Check /var/log/slurmd.log for errors.</p></div>
             </div>
         </div>
 
