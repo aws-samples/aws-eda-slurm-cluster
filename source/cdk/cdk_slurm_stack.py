@@ -99,6 +99,8 @@ class CdkSlurmStack(Stack):
 
         self.onprem_cidr = None
 
+        self.exostellar_vm_root_password_secret_arn = None
+
         self.principals_suffix = {
             "backup": f"backup.{Aws.URL_SUFFIX}",
             "cloudwatch": f"cloudwatch.{Aws.URL_SUFFIX}",
@@ -1192,8 +1194,6 @@ class CdkSlurmStack(Stack):
             exit(1)
 
     def get_exostellar_vm_root_password_secret_arn(self, config_key):
-        self.exostellar_vm_root_password_secret_arn = None
-
         self.exostellar_vm_root_password_secret = self.config['slurm'][config_key].get('VmRootPasswordSecret', '')
         if self.exostellar_vm_root_password_secret == '':
             return None

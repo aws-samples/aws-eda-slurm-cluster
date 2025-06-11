@@ -102,6 +102,9 @@ logger.setLevel(logging.INFO)
 # 3.13.0:
 #     * Upgrade Slurm to 24.05.07
 #     * Upgrade to Python 3.12.8
+# 3.13.1:
+#     * Upgrade Slurm to 24.05.08
+#     * EFS utils to fix Rocky builds
 MIN_PARALLEL_CLUSTER_VERSION = parse_version('3.6.0')
 # Update source/resources/default_config.yml with latest version when this is updated.
 PARALLEL_CLUSTER_VERSIONS = [
@@ -121,6 +124,7 @@ PARALLEL_CLUSTER_VERSIONS = [
     '3.11.1',
     '3.12.0',
     '3.13.0',
+    '3.13.1',
 ]
 PARALLEL_CLUSTER_ENROOT_VERSIONS = {
     # This can be found on the head node by running 'yum info enroot'
@@ -128,6 +132,7 @@ PARALLEL_CLUSTER_ENROOT_VERSIONS = {
     '3.11.1':  '3.4.1', # confirmed
     '3.12.0':  '3.4.1', # confirmed
     '3.13.0':  '3.4.1', # confirmed
+    '3.13.1':  '3.4.1', # confirmed
 }
 PARALLEL_CLUSTER_PYXIS_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/sources
@@ -135,6 +140,7 @@ PARALLEL_CLUSTER_PYXIS_VERSIONS = {
     '3.11.1':  '0.20.0', # confirmed
     '3.12.0':  '0.20.0', # confirmed
     '3.13.0':  '0.20.0', # confirmed
+    '3.13.1':  '0.20.0', # confirmed
 }
 PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/sources
@@ -155,6 +161,7 @@ PARALLEL_CLUSTER_MUNGE_VERSIONS = {
     '3.11.1':  '0.5.16', # confirmed
     '3.12.0':  '0.5.16', # confirmed
     '3.13.0':  '0.5.16', # confirmed
+    '3.13.1':  '0.5.16', # confirmed
 }
 PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     # This can be found on the head node at /opt/parallelcluster/pyenv/versions
@@ -174,6 +181,7 @@ PARALLEL_CLUSTER_PYTHON_VERSIONS = {
     '3.11.1':  '3.9.20', # confirmed
     '3.12.0':  '3.9.20', # confirmed
     '3.13.0':  '3.12.0', # confirmed
+    '3.13.1':  '3.12.8', # confirmed
 }
 PARALLEL_CLUSTER_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -193,6 +201,7 @@ PARALLEL_CLUSTER_SLURM_VERSIONS = {
     '3.11.1':  '23.11.10', # confirmed
     '3.12.0':  '23.11.10', # confirmed
     '3.13.0':  '24.05.7',  # confirmed
+    '3.13.1':  '24.05.8',  # confirmed
 }
 PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     # This can be found on the head node at /etc/chef/local-mode-cache/cache/
@@ -212,6 +221,7 @@ PARALLEL_CLUSTER_PC_SLURM_VERSIONS = {
     '3.11.1':  '23-11-10-1', # confirmed
     '3.12.0':  '23-11-10-1', # confirmed
     '3.13.0':  '24-05-7-1',  # confirmed
+    '3.13.1':  '24-05-8-1',  # confirmed
 }
 SLURM_REST_API_VERSIONS = {
     '23-02-2-1': '0.0.39',
@@ -224,6 +234,7 @@ SLURM_REST_API_VERSIONS = {
     '23-11-7-1': '0.0.39',
     '23-11-10-1': '0.0.39',
     '24-05-7-1': '0.0.39',
+    '24-05-8-1': '0.0.39',
 }
 
 def get_parallel_cluster_version(config):

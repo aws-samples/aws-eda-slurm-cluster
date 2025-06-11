@@ -84,6 +84,28 @@
       - python3
       - python3-pip
 
+- name: Install python3.11
+  tags:
+    - python
+    - packages
+    - pip
+  yum:
+    state: present
+    name:
+      - python3.11
+      - python3.11-pip
+
+- name: Install python3.12
+  tags:
+    - python
+    - packages
+    - pip
+  yum:
+    state: present
+    name:
+      - python3.12
+      - python3.12-pip
+
 - name: Install packages required by python packages
   when: (rhel8 or rhel8clone or rhel9 or rhel9clone) and architecture == 'arm64'
   tags:
