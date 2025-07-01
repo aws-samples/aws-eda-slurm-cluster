@@ -560,3 +560,25 @@ The mount information can be found from the FSx console.
         type: nfs
         options: noatime,nfsvers=3,sync,nconnect=16,rsize=1048576,wsize=1048576
 ```
+
+### Configure Custom Partitions (Optional)
+
+Partitions are automatically created based on spot/on-demand, instance types, and memory and core configuration.
+In addition a partition called batch is created that contains all compute nodes.
+Another partition called interactive is created that contains all compute nodes that has a higher priority so that its jobs are scheduled before the jobs in the batch queue.
+
+You can create your own custom partitions and specify which compute nodes it uses and what its priority is relative to other partitions.
+You do this by using ParallelCluster's [CustomSlurmSettings](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#yaml-Scheduling-SlurmSettings-CustomSlurmSettings).
+
+```
+slurm:
+  ParallelClusterConfig:
+    ClusterConfig:
+      Scheduling:
+        SlurmSettings:
+          CustomSlurmSettings:
+            - PartitionName: sim-16-gb
+              Default: 'NO'
+              PriorityTier: 1
+              Nodes: sp-r7i-l-dy-sp-16-gb-1-cores-[1-100],sp-r7a-l-dy-sp-16-gb-2-cores-[1-20]
+```
