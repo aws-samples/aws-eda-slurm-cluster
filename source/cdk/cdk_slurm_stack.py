@@ -255,6 +255,13 @@ class CdkSlurmStack(Stack):
             logger.error(f"You must provide --stack-name on the command line or StackName in the config file.")
             config_errors += 1
 
+        if 'ClusterName' not in self.config['slurm']:
+            if self.stack_name.endswith('-config'):
+                self.config['slurm']['ClusterName'] = self.stack_name[0:-7]
+            else:
+                self.config['slurm']['ClusterName'] = f"{self.stack_name}-cl"
+            logger.info(f"slurm/ClusterName defaulted to {self.config['slurm']['ClusterName']}")
+
         if 'AdditionalSecurityGroupsStackName' in self.config:
             self.update_config_with_additional_security_groups()
 
@@ -274,13 +281,6 @@ class CdkSlurmStack(Stack):
 
         if 'ErrorSnsTopicArn' not in self.config:
             logger.warning(f"ErrorSnsTopicArn not set. Provide error-sns-topic-arn on the command line or ErrorSnsTopicArn in the config file to get error notifications.")
-
-        if 'ClusterName' not in self.config['slurm']:
-            if self.stack_name.endswith('-config'):
-                self.config['slurm']['ClusterName'] = self.stack_name[0:-7]
-            else:
-                self.config['slurm']['ClusterName'] = f"{self.stack_name}-cl"
-            logger.info(f"slurm/ClusterName defaulted to {self.config['slurm']['ClusterName']}")
 
         self.PARALLEL_CLUSTER_VERSION = parse_version(self.config['slurm']['ParallelClusterConfig']['Version'])
 
@@ -1023,17 +1023,17 @@ class CdkSlurmStack(Stack):
         logger.info(f"exostellar_config:\n{json.dumps(exostellar_config, indent=4)}")
 
         for cpu_vendor in cpu_vendor_instance_types:
-            profile_name = cpu_vendor
+            profile_name = re.sub(r'[^a-zA-Z0-9]', '', self.config['slurm']['ClusterName'] + '-' + cpu_vendor)
             if profile_name not in exostellar_config['Profiles']:
                 exostellar_config['Profiles'][profile_name] = {
                     'CpuVendor': cpu_vendor,
-                    'NodeGroupName': cpu_vendor,
+                    'NodeGroupName': profile_name,
                     'MaxControllers': exostellar_config['MaxControllers'],
                     'InstanceTypes': list(cpu_vendor_instance_types[cpu_vendor]['InstanceTypes'].keys()),
                     'SpotFleetTypes': list(cpu_vendor_instance_types[cpu_vendor]['SpotFleetTypes'].keys()),
                     'EnableHyperthreading': exostellar_config['EnableHyperthreading']
                 }
-        logger.info(f"exostellar_config:\n{json.dumps(exostellar_config, indent=4)}")
+        logger.info(f"exostellar_config after configuring profiles:\n{json.dumps(exostellar_config, indent=4)}")
 
         # Create pools
         # Get all instance types and bucket them by amount of memory and number of cores
@@ -1073,7 +1073,7 @@ class CdkSlurmStack(Stack):
                 if pool_name in exostellar_config['Pools']:
                     continue
                 exostellar_config['Pools'][pool_name] = {
-                    'ProfileName': cpu_vendor,
+                    'ProfileName': re.sub(r'[^a-zA-Z0-9]', '', self.config['slurm']['ClusterName'] + '-' + cpu_vendor),
                     'CPUs': vcpus
                 }
                 pool_config = exostellar_config['Pools'][pool_name]
@@ -1089,7 +1089,7 @@ class CdkSlurmStack(Stack):
                     pool_config['ImageName'] = exostellar_config['DefaultImageName']
                 pool_config['MaxMemory'] = max_memory[cpu_vendor][mem_gb]
 
-        logger.info(f"exostellar_config:\n{json.dumps(exostellar_config, indent=4)}")
+        logger.info(f"exostellar_config after configuring pools:\n{json.dumps(exostellar_config, indent=4)}")
 
         # Check that all of the profiles used by the pools are defined
         logger.debug(f"{config_key} config:\n{json.dumps(exostellar_config, indent=4)}")
@@ -1101,20 +1101,20 @@ class CdkSlurmStack(Stack):
             'amd':   3,
             'intel': 3
         }
-        xio_profile_configs = {}
+        exostellar_profile_configs = {}
         self.instance_type_info = self.plugin.get_instance_types_info(self.cluster_region)
         self.instance_family_info = self.plugin.get_instance_families_info(self.cluster_region)
         for profile_name, profile_config in exostellar_config['Profiles'].items():
             # Check that profile name is alphanumeric
             if not re.compile('^[a-zA-z0-9]+$').fullmatch(profile_name):
-                logger.error(f"Invalid XIO profile name: {profile_name}. Name must be alphanumeric.")
+                logger.error(f"Invalid {config_key} profile name: {profile_name}. Name must be alphanumeric.")
                 number_of_errors += 1
                 continue
-            if profile_name in xio_profile_configs:
-                logger.error(f"{profile_config['ProfileNmae']} XIO profile already defined")
+            if profile_name in exostellar_profile_configs:
+                logger.error(f"{profile_config['ProfileName']} {config_key} profile already defined")
                 number_of_errors += 1
                 continue
-            xio_profile_configs[profile_name] = profile_config
+            exostellar_profile_configs[profile_name] = profile_config
             # Check that all instance types and families are from the correct CPU vendor
             profile_cpu_vendor = profile_config['CpuVendor']
             invalid_instance_types = []
@@ -1159,7 +1159,7 @@ class CdkSlurmStack(Stack):
                 number_of_errors += 1
                 continue
             profile_name = pool_config['ProfileName']
-            if profile_name not in xio_profile_configs:
+            if profile_name not in exostellar_profile_configs:
                 logger.error(f"{config_key} pool {pool_name} using undefined profile: {pool_config['ProfileName']}")
                 number_of_errors += 1
                 continue
@@ -1181,7 +1181,7 @@ class CdkSlurmStack(Stack):
                 pool_config['MaxMemory'] = pool_config['InstanceMemory'] - hypervisor_usage
                 assert(pool_config['MaxMemory'] > 0)
             if 'Weight' not in pool_config:
-                profile_config = xio_profile_configs[profile_name]
+                profile_config = exostellar_profile_configs[profile_name]
                 cpu_vendor = profile_config['CpuVendor']
                 pool_config['Weight'] = pool_config['CPUs'] * WEIGHT_PER_CORE[cpu_vendor] + int(pool_config.get('InstanceMemory', pool_config.get('MaxMemory'))/1024 * WEIGHT_PER_GB[cpu_vendor])
             # Set/validate pool's VolumeSize
