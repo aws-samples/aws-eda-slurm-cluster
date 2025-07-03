@@ -2332,6 +2332,24 @@ def get_config_schema(config):
                             },
                         }
                     ]
+                },
+                Optional('ComputeNodeCustomActions'): {
+                    Optional('OnNodeStart'): {
+                        'Sequence': [
+                            {
+                                'Script': str,
+                                'Args': [str]
+                            }
+                        ]
+                    },
+                    Optional('OnNodeConfigured'): {
+                        'Sequence': [
+                            {
+                                'Script': str,
+                                'Args': [str]
+                            }
+                        ]
+                    }
                 }
             },
             #

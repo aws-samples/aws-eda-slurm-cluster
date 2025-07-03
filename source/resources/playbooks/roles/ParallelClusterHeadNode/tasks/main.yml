@@ -1,5 +1,6 @@
 ---
 
+- { include_tasks: config-scripts.yml }
 - { include_tasks: config-users-groups.yml,    tags: users-groups }
 - { include_tasks: config-high-throughput.yml, tags: high-throughput }
 - { include_tasks: config-external-login-node-access.yml, tags: external-login-node }

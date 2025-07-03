@@ -47,7 +47,15 @@ fi
 
 export PATH=/usr/sbin:$PATH
 
+if [[ -e $config_bin_dir/on_head_node_updated_custom_prolog.sh ]]; then
+    $config_bin_dir/on_head_node_updated_custom_prolog.sh
+fi
+
 $config_bin_dir/on_head_node_configured.sh
+
+if [[ -e $config_bin_dir/on_head_node_updated_custom_epilog.sh ]]; then
+    $config_bin_dir/on_head_node_updated_custom_epilog.sh
+fi
 
 echo "$(date): Finished ${script_name}"
 

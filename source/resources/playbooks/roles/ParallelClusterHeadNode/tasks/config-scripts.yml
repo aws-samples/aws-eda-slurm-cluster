@@ -1,0 +1,71 @@
+---
+
+- name: Create /opt/slurm/config
+  ansible.builtin.file:
+    path: "/opt/slurm/config"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create /opt/slurm/config/bin
+  ansible.builtin.file:
+    path: "/opt/slurm/config/bin"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create /opt/slurm/config/bin/on_head_node_updated_custom_prolog.sh
+  ansible.builtin.copy:
+    dest: "/opt/slurm/config/bin/on_head_node_updated_custom_prolog.sh"
+    src:   "opt/slurm/config/bin/on_head_node_updated_custom_prolog.sh"
+    owner: root
+    group: root
+    mode: '0700'
+    force: false
+
+- name: Create /opt/slurm/config/bin/on_head_node_updated_custom_epilog.sh
+  ansible.builtin.copy:
+    dest: "/opt/slurm/config/bin/on_head_node_updated_custom_epilog.sh"
+    src:   "opt/slurm/config/bin/on_head_node_updated_custom_epilog.sh"
+    owner: root
+    group: root
+    mode: '0700'
+    force: false
+
+- name: Create /opt/slurm/config/bin/on_compute_node_start_custom_prolog.sh
+  ansible.builtin.copy:
+    dest: "/opt/slurm/config/bin/on_compute_node_start_custom_prolog.sh"
+    src:   "opt/slurm/config/bin/on_compute_node_start_custom_prolog.sh"
+    owner: root
+    group: root
+    mode: '0700'
+    force: false
+
+- name: Create /opt/slurm/config/bin/on_compute_node_start_custom_epilog.sh
+  ansible.builtin.copy:
+    dest: "/opt/slurm/config/bin/on_compute_node_start_custom_epilog.sh"
+    src:   "opt/slurm/config/bin/on_compute_node_start_custom_epilog.sh"
+    owner: root
+    group: root
+    mode: '0700'
+    force: false
+
+- name: Create /opt/slurm/config/bin/on_compute_node_configured_custom_prolog.sh
+  ansible.builtin.copy:
+    dest: "/opt/slurm/config/bin/on_compute_node_configured_custom_prolog.sh"
+    src:   "opt/slurm/config/bin/on_compute_node_configured_custom_prolog.sh"
+    owner: root
+    group: root
+    mode: '0700'
+    force: false
+
+- name: Create /opt/slurm/config/bin/on_compute_node_configured_custom_epilog.sh
+  ansible.builtin.copy:
+    dest: "/opt/slurm/config/bin/on_compute_node_configured_custom_epilog.sh"
+    src:   "opt/slurm/config/bin/on_compute_node_configured_custom_epilog.sh"
+    owner: root
+    group: root
+    mode: '0700'
+    force: false

@@ -3382,7 +3382,7 @@ class CdkSlurmStack(Stack):
             },
             'CustomActions': {
                 'OnNodeStart': {
-                    'Sequence': [
+                    'Sequence': self.config['slurm']['ParallelClusterConfig'].get('ComputeNodeCustomActions', {}).get('OnNodeStart', {}).get('Sequence', []) + [
                         {
                             'Script': self.custom_action_s3_urls['config/bin/on_compute_node_start.sh'],
                             'Args': []
@@ -3390,7 +3390,7 @@ class CdkSlurmStack(Stack):
                     ]
                 },
                 'OnNodeConfigured': {
-                    'Sequence': [
+                    'Sequence': self.config['slurm']['ParallelClusterConfig'].get('ComputeNodeCustomActions', {}).get('OnNodeConfigured', {}).get('Sequence', []) + [
                         {
                             'Script': self.custom_action_s3_urls['config/bin/on_compute_node_configured.sh'],
                             'Args': []
