@@ -582,3 +582,72 @@ slurm:
               PriorityTier: 1
               Nodes: sp-r7i-l-dy-sp-16-gb-1-cores-[1-100],sp-r7a-l-dy-sp-16-gb-2-cores-[1-20]
 ```
+
+### Configure Custom Head/Compute Node Scripts
+
+ParallelCluster support custom scripts for the head and compute nodes.
+
+#### Head Node Scripts
+
+Custom scripts for the head node are defined in the [CustomActions](https://docs.aws.amazon.com/parallelcluster/latest/ug/HeadNode-v3.html#HeadNode-v3-CustomActions) section of the ParallelCluster configuration.
+
+**NOTE:** The CustomActions cannot be updated once the cluster is created.
+
+```
+slurm:
+  ParallelClusterConfig:
+    ClusterConfig:
+      HeadNode:
+        CustomActions:
+          OnNodeStart:
+            Sequence:
+              - Script: string
+                Args:
+                  - string
+          OnNodeConfigured:
+            Sequence:
+              - Script: string
+                Args:
+                  - string
+          OnNodeUpdated:
+            Sequence:
+              - Script: string
+                Args:
+                  - string
+```
+
+When the cluster is created, the following two scripts are created that you can locally modify on the head node to customize the actions that are taken when the head node is updated.
+
+* /opt/slurm/config/bin/on_head_node_updated_prolog.sh
+* /opt/slurm/config/bin/on_head_node_updated_epilog.sh
+
+These scripts are called at the beginning and end of the `on_head_node_updated.sh` script.
+
+#### Compute Node Scripts
+
+If the following scripts exist they will be executed at the beginning and end of the `on_compute_node_configured.sh` script:
+
+* /opt/slurm/config/bin/on_compute_node_configured_custom_prolog.sh
+* /opt/slurm/config/bin/on_compute_node_configured_custom_epilog.sh
+
+You can also add additional scripts to all of the ParallelCluster compute nodes that will be prepended to the [CustomActions](https://docs.aws.amazon.com/parallelcluster/latest/ug/Scheduling-v3.html#Scheduling-v3-SlurmQueues-CustomActions) arrays in the ParallelCluster queues.
+
+**NOTE:** Updating these configuration parameters either requires the cluster to be stopped or the QueueUpdateStrategy to be set.
+
+The custom scripts are declared using the following configuration parameters.
+
+```
+slurm:
+  ParallelClusterConfig:
+    ComputeNodeCustomActions:
+      OnNodeStart:
+        Sequence:
+          - Script: string
+            Args:
+              - string
+      OnNodeConfigured:
+        Sequence:
+          - Script: string
+            Args:
+              - string
+```
