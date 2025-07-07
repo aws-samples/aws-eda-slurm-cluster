@@ -3315,6 +3315,7 @@ class CdkSlurmStack(Stack):
                 'ParallelClusterConfigHash': self.assets_hash.hexdigest(),
             }
         )
+        self.update_head_node.node.add_dependency(self.build_config_files)
         self.update_head_node.node.add_dependency(self.parallel_cluster)
 
         if 'DomainJoinedInstance' in self.config:

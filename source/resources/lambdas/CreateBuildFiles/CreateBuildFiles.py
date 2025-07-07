@@ -52,7 +52,7 @@ def get_image_builder_parent_image(distribution, version, architecture, parallel
         filters.extend(
             [
                 {'Name': 'owner-alias', 'Values': ['aws-marketplace']},
-                {'Name': 'name', 'Values': [f"Rocky-{version}-EC2-Base-{version}.8*"]},
+                {'Name': 'name', 'Values': [f"Rocky-{version}-EC2-Base-{version}.*"]},
             ],
         )
     else:

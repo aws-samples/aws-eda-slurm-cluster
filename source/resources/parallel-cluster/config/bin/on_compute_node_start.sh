@@ -30,10 +30,6 @@ trap on_exit EXIT
 
 # /opt/slurm isn't mounted yet.
 
-if [ -e $config_bin_dir/on_compute_node_start_custom_prolog.sh ]; then
-    $config_bin_dir/on_compute_node_start_custom_prolog.sh
-fi
-
 # Configure pyxis and enroot
 
 # Configure Enroot
@@ -44,18 +40,16 @@ sudo mkdir -p $ENROOT_PERSISTENT_DIR
 sudo chmod 1777 $ENROOT_PERSISTENT_DIR
 sudo mkdir -p $ENROOT_VOLATILE_DIR
 sudo chmod 1777 $ENROOT_VOLATILE_DIR
-sudo cp /opt/parallelcluster/examples/enroot/enroot.conf /etc/enroot/enroot.conf
-sudo chmod 0644 /etc/enroot/enroot.conf
+if [[ -e /opt/parallelcluster/examples/enroot/enroot.conf ]] && [[ -d /etc/enroot/ ]]; then
+    sudo cp /opt/parallelcluster/examples/enroot/enroot.conf /etc/enroot/enroot.conf
+    sudo chmod 0644 /etc/enroot/enroot.conf
+fi
 
 # Configure Pyxis
 PYXIS_RUNTIME_DIR="/run/pyxis"
 
 sudo mkdir -p $PYXIS_RUNTIME_DIR
 sudo chmod 1777 $PYXIS_RUNTIME_DIR
-
-if [ -e $config_bin_dir/on_compute_node_start_custom_epilog.sh ]; then
-    $config_bin_dir/on_compute_node_start_custom_epilog.sh
-fi
 
 echo "$(date): Finished ${script_name}"
 

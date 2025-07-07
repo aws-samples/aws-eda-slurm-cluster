@@ -468,7 +468,7 @@ class SlurmInstaller():
         cfn_client = boto3.client("cloudformation", region_name=self.config['Region'])
 
         valid_states = ['CREATE_COMPLETE', 'UPDATE_COMPLETE']
-        invalid_states = ['ROLLBACK_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
+        invalid_states = ['CREATE_FAILED', 'DELETE_IN_PROGRESS', 'ROLLBACK_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE']
         stack_status = None
         while stack_status not in (valid_states + invalid_states):
             try:
