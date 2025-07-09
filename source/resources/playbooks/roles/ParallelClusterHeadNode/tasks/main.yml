@@ -9,4 +9,5 @@
 - { include_tasks: config-licenses.yml, tags: licenses }
 - { include_tasks: config-slurmdb-accounts.yml, tags: accounts }
 - { include_tasks: config-oci.yml }
-- { include_tasks: config-pyxis.yml }
+- include_tasks: config-pyxis.yml
+  when: enable_pyxis | bool
