@@ -128,6 +128,10 @@
             
             <li class="nav-item" data-bs-level="1"><a href="#res-integration" class="nav-link">RES Integration</a>
               <ul class="nav flex-column">
+            <li class="nav-item" data-bs-level="2"><a href="#res-deployment" class="nav-link">RES Deployment</a>
+              <ul class="nav flex-column">
+              </ul>
+            </li>
             <li class="nav-item" data-bs-level="2"><a href="#res-setup" class="nav-link">RES Setup</a>
               <ul class="nav flex-column">
             <li class="nav-item" data-bs-level="3"><a href="#onboard-your-file-systems" class="nav-link">Onboard your file systems</a>
@@ -187,6 +191,15 @@ We'll describe here how to integrate RES virtual desktops with one or more Paral
 <p>First you will need to deploy RES.
 The easiest way is to <a href="https://docs.aws.amazon.com/res/latest/ug/create-demo-env.html">deploy the demo environment</a> which provides all of the prerequisites and completely automates the deployment.
 If you want to use an existing VPC or Active Directory, then you will need to follow the instructions to <a href="https://docs.aws.amazon.com/res/latest/ug/deploy-the-product.html">deploy the product</a>.</p>
+<h2 id="res-deployment">RES Deployment</h2>
+<p>The <code>res</code> directory contains customized CloudFormation templates that allows you to deploy the RES prerequisites (VPC with customizable CIDR range, EFS home file system, Active Directory, default admins and users) and RES separately.
+The templates are based on the RES demo environment that uses Keycloak for single sign on, but allow the CIDR range to be customize and for the batteries included (BI) and RES stacks to be deployed separately.</p>
+<p>This allows you to easily upgrade the RES stack to new versions without affecting the BI stack.</p>
+<p>Clone the repo and upload the templates to your S3 bucket for deployment.</p>
+<pre><code>cd aws-eda-slurm-cluster/res
+./upload-res-templates.py --s3-bucket &lt;your-bucket&gt; --s3-base-key &lt;your-bucket-key&gt;
+</code></pre>
+<p>This will output the quick links to deploy the BI and RES stacks.</p>
 <h2 id="res-setup">RES Setup</h2>
 <p>After you've deployed RES, you need to configure it so that the remote desktops can be used as external login nodes and so that they have access to any file systems that you created.</p>
 <h3 id="onboard-your-file-systems">Onboard your file systems</h3>
