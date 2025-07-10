@@ -16,7 +16,7 @@ Metadata:
           - CogntioUserPoolId
           - EnvironmentBaseURL
           - SAMLRedirectUrl
-      
+
 Parameters:
   Keypair:
     Description: EC2 Keypair to access management instance.
@@ -31,17 +31,17 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     AllowedPattern: vpc-[0-9a-f]{17}
     ConstraintDescription: VpcId must begin with 'vpc-', only contain letters (a-f) or numbers(0-9) and must be 21 characters in length
-  
+
   PublicSubnet:
     Type: AWS::EC2::Subnet::Id
     AllowedPattern: subnet-.+
     Description: Select a public subnet from the already selected VPC
-  
+
   ServiceAccountUserDN:
     Type: String
     AllowedPattern: .+
     Description: Provide the Distinguished name (DN) of the service account user in the Active Directory
-  
+
   UsersDN:
     Type: String
     AllowedPattern: .+
@@ -69,15 +69,15 @@ Parameters:
 
 Mappings:
   Keycloak:
-    Config: 
+    Config:
       Version: "24.0.3"
-   
+
 
 Resources:
   KeycloakSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub 
+      Name: !Sub
         - KeycloakSecret-${AWS::StackName}-${StackIdSuffix}
         - StackIdSuffix: !Select [2, !Split ['/', !Ref 'AWS::StackId']]
       Description: Keycloak secret
@@ -106,7 +106,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: 
+                Resource:
                   - !Ref KeycloakSecret
                   - !Ref ServiceAccountCredentialsSecretArn
               - Effect: Allow
@@ -115,7 +115,7 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: '*'
-                
+
   KeycloakEC2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -144,7 +144,7 @@ Resources:
         Timeout: PT15M
     Properties:
       ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64:75}}'
-      InstanceType: t3.micro
+      InstanceType: t3.medium
       KeyName: !Ref Keypair
       IamInstanceProfile: !Ref KeycloakEC2InstanceProfile
       SubnetId: !Ref PublicSubnet
@@ -154,7 +154,7 @@ Resources:
        - Key: Name
          Value: !Sub keycloak-${AWS::StackName}
       UserData:
-        Fn::Base64: 
+        Fn::Base64:
           Fn::Sub:
             - |
               #!/bin/sh -x
@@ -202,9 +202,9 @@ Resources:
               export KEYCLOAK_VERSION=${KeycloakVersion}
               wget https://github.com/keycloak/keycloak/releases/download/$KEYCLOAK_VERSION/keycloak-$KEYCLOAK_VERSION.zip
               unzip keycloak-$KEYCLOAK_VERSION.zip
-              
+
               cd keycloak-$KEYCLOAK_VERSION
-              
+
               export KC_HTTP_PORT=80
               export KEYCLOAK_ADMIN=admin
               set +x
@@ -239,7 +239,7 @@ Resources:
               # Set sslRequired to NONE
               ./bin/kcadm.sh update realms/master -s sslRequired=NONE --server $SERVER_URL
               ./bin/kcadm.sh update realms/res -s sslRequired=NONE --server $SERVER_URL
-              
+
               #Configure Keycloak
               #Get ServiceAccount passsword
               set +x

@@ -8,6 +8,7 @@ Metadata:
         Parameters:
           - EnvironmentName
           - AdministratorEmail
+          - CreateActiveDirectory
       - Label:
           default: Access Management
         Parameters:
@@ -26,8 +27,8 @@ Parameters:
     Description: Provide name of the RES Environment. Must be unique for your account and AWS Region.
     Type: String
     Default: res-demo
-    AllowedPattern: ^res-[A-Za-z\-\_0-9]{0,7}$
-    ConstraintDescription: EnvironmentName must start with "res-" and should be less than or equal to 11 characters.
+    AllowedPattern: ^res-[a-z\-\_0-9]{0,7}$
+    ConstraintDescription: EnvironmentName must start with "res-" without capital letters and should be less than or equal to 11 characters.
 
   AdministratorEmail:
     Type: String
@@ -40,18 +41,28 @@ Parameters:
     ConstraintDescription: Value must be a valid IP or network range of the form x.x.x.x/x.
 
   InboundPrefixList:
-    Description: (Optional) VPC Prefix List controlling inbound access to Web UI, bastion host, and Windows AD admin host. 
+    Description: (Optional) VPC Prefix List controlling inbound access to Web UI, bastion host, and Windows AD admin host.
     Default: ""
     Type: String
     AllowedPattern: ^(pl-[a-z0-9]{8,20})?$
     ConstraintDescription: Must be a valid VPC Prefix List ID, which begins with `pl-` or be empty.
 
+  CreateActiveDirectory:
+    Description: Create a demo Active Directory for RES to connect to.
+    Type: String
+    Default: "False"
+    AllowedValues:
+         - "True"
+         - "False"
+
 Conditions:
   UseEnvironmentName: !Not [!Equals [!Ref EnvironmentName, ""]]
+  CreateAD: !Equals [!Ref CreateActiveDirectory, "True"]
 
 Resources:
 
   AdminPassword:
+    Condition: CreateAD
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Active Directory Administrator Account Password.
@@ -67,6 +78,7 @@ Resources:
           Value: !Ref EnvironmentName
 
   ServiceAccountPassword:
+    Condition: CreateAD
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Active Directory Service Account Password.
@@ -88,11 +100,12 @@ Resources:
         PortalDomainName: ""
         Keypair: !Ref Keypair
         EnvironmentName: !If [UseEnvironmentName, !Ref EnvironmentName, ""]
-        AdminPassword: !Ref AdminPassword
-        ServiceAccountPassword: !Ref ServiceAccountPassword
+        AdminPassword: !If [CreateAD, !Ref AdminPassword, ""]
+        ServiceAccountPassword: !If [CreateAD, !Ref ServiceAccountPassword, ""]
         ClientIpCidr: !Ref ClientIpCidr
         ClientPrefixList: !Ref InboundPrefixList
-        RetainStorageResources: "False"  
+        RetainStorageResources: "False"
+        CreateActiveDirectory: !Ref CreateActiveDirectory
       TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/bi.yaml
 
   RES:
@@ -116,24 +129,30 @@ Resources:
         InfrastructureHostSubnets: !GetAtt [ RESExternal, Outputs.PrivateSubnets ]
         VdiSubnets: !GetAtt [ RESExternal, Outputs.PrivateSubnets ]
         IsLoadBalancerInternetFacing: "true"
-        ActiveDirectoryName: !GetAtt [ RESExternal, Outputs.ActiveDirectoryName ]
-        ADShortName: !GetAtt [ RESExternal, Outputs.ADShortName ]
-        LDAPBase: !GetAtt [ RESExternal, Outputs.LDAPBase ]
-        LDAPConnectionURI: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
-        SudoersGroupName: RESAdministrators
-        ServiceAccountCredentialsSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
-        UsersOU: !GetAtt [ RESExternal, Outputs.UsersOU ]
-        GroupsOU: !GetAtt [ RESExternal, Outputs.GroupsOU ]
-        ComputersOU: !GetAtt [ RESExternal, Outputs.ComputersOU ]
+        ActiveDirectoryName: !If [CreateAD, !GetAtt [ RESExternal, Outputs.ActiveDirectoryName ], ""]
+        ADShortName: !If [CreateAD, !GetAtt [ RESExternal, Outputs.ADShortName ], ""]
+        LDAPBase: !If [CreateAD, !GetAtt [ RESExternal, Outputs.LDAPBase ], ""]
+        LDAPConnectionURI: !If [CreateAD, !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ], ""]
+        SudoersGroupName: !If [CreateAD, RESAdministrators, ""]
+        ServiceAccountCredentialsSecretArn: !If [CreateAD, !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ], ""]
+        UsersOU: !If [CreateAD, !GetAtt [ RESExternal, Outputs.UsersOU ], ""]
+        GroupsOU: !If [CreateAD, !GetAtt [ RESExternal, Outputs.GroupsOU ], ""]
+        ComputersOU: !If [CreateAD, !GetAtt [ RESExternal, Outputs.ComputersOU ], ""]
         SharedHomeFileSystemId: !GetAtt [ RESExternal, Outputs.SharedHomeFilesystemId ]
         InfrastructureHostAMI: ""
         EnableLdapIDMapping: "True"
         IAMPermissionBoundary: ""
         DisableADJoin: "False"
-        ServiceAccountUserDN: !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ]
+        ServiceAccountUserDN: !If [CreateAD, !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ], ""]
+        HttpProxy: ""
+        HttpsProxy: ""
+        NoProxy: ""
+        IAMResourcePrefix: ""
+        IAMResourcePath: ""
       TemplateURL: https://research-engineering-studio-us-east-1.s3.amazonaws.com/releases/latest/ResearchAndEngineeringStudio.template.json
 
   RESSsoKeycloak:
+    Condition: CreateAD
     Type: AWS::CloudFormation::Stack
     DependsOn: RES
     Properties:
@@ -177,7 +196,7 @@ Resources:
 
   InvokeDeleteSharedSecurityGroupHandlerFunction:
       Type: 'AWS::Lambda::Function'
-      DependsOn: 
+      DependsOn:
       - InvokeDeleteSharedStorageSecurityGroupRole
       Properties:
         Description: 'Deletes the shared storage security group when the stack is deleted.'
@@ -194,7 +213,7 @@ Resources:
             import cfnresponse
 
             logger = logging.getLogger()
-            logger.setLevel(logging.INFO)              
+            logger.setLevel(logging.INFO)
 
             def handler(event, context):
               logger.info(f"Received event: {event}")
@@ -206,14 +225,14 @@ Resources:
                   sgResponse = ec2.describe_security_groups(
                     Filters=[
                       {
-                        'Name': 'group-name', 
-                        'Values': [ 
+                        'Name': 'group-name',
+                        'Values': [
                           f"{os.environ['ENVIRONMENT_NAME']}-shared-storage-security-group",
                         ]
                       }
                     ]
                   )
-                  
+
                   if len(sgResponse['SecurityGroups']) == 0:
                     response['Output'] = "Shared storage security group not found."
                   else:
@@ -294,7 +313,7 @@ Resources:
             import cfnresponse
 
             logger = logging.getLogger()
-            logger.setLevel(logging.INFO)              
+            logger.setLevel(logging.INFO)
 
             def handler(event, context):
               logger.info(f"Received event: {event}")
@@ -304,21 +323,21 @@ Resources:
                 try:
                   dynamodb = boto3.resource('dynamodb')
                   cluster_settings_table = dynamodb.Table(f"{os.environ['ENVIRONMENT_NAME']}.cluster-settings")
-                    
+
                   demo_config = {
                     'shared-storage.enable_file_browser': True
                   }
-                  
+
                   for key, value in demo_config.items():
                     item_response = cluster_settings_table.get_item(
                         Key={
                             'key': key
                         }
                     )
-              
+
                     if 'Item' in item_response:
                         logger.info(f"Item found: {item_response['Item']}")
-                    
+
                         # Update the item
                         update_response = cluster_settings_table.update_item(
                             Key={
@@ -333,11 +352,11 @@ Resources:
                             },
                             ReturnValues="UPDATED_NEW"
                         )
-                    
+
                         logger.info(f"Item updated: {update_response['Attributes']}")
                     else:
                         logger.info(f"Item with key '{key}' not found")
-                  
+
                   response['Output'] = 'RES demo environment has been pre-configured.'
                   cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
                 except Exception as e:
@@ -359,9 +378,12 @@ Outputs:
   KeycloakUrl:
     Description: Keycloak Administrator Url
     Value: !GetAtt [ RESSsoKeycloak, Outputs.KeycloakUrl ]
+    Condition: CreateAD
   KeycloakAdminPasswordSecretArn:
     Description: Keycloak password for admin user
     Value: !GetAtt [ RESSsoKeycloak, Outputs.KeycloakAdminPasswordSecretArn ]
+    Condition: CreateAD
   ApplicationUrl:
     Description: RES application Url
     Value: !GetAtt [ RESSsoKeycloak, Outputs.ApplicationUrl ]
+    Condition: CreateAD

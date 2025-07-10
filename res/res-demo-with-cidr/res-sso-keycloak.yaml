@@ -23,15 +23,15 @@ Parameters:
   InstanceType:
     Description: EC2 instance type of keycloak server.
     Type: String
-    Default: t3.small
+    Default: t3.medium
   # endchange
 
   EnvironmentName:
     Description: Provide name of the RES Environment. Must be unique for your account and AWS Region.
     Type: String
     Default: res-demo
-    AllowedPattern: ^res-[A-Za-z\-\_0-9]{0,7}$
-    ConstraintDescription: EnvironmentName must start with "res-" and should be less than or equal to 11 characters.
+    AllowedPattern: ^res-[a-z\-\_0-9]{0,7}$
+    ConstraintDescription: EnvironmentName must start with "res-" without capital letters and should be less than or equal to 11 characters.
 
   Keypair:
     Description: EC2 Keypair to access management instance.

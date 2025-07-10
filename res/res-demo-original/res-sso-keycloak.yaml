@@ -21,8 +21,8 @@ Parameters:
     Description: Provide name of the RES Environment. Must be unique for your account and AWS Region.
     Type: String
     Default: res-demo
-    AllowedPattern: ^res-[A-Za-z\-\_0-9]{0,7}$
-    ConstraintDescription: EnvironmentName must start with "res-" and should be less than or equal to 11 characters.
+    AllowedPattern: ^res-[a-z\-\_0-9]{0,7}$
+    ConstraintDescription: EnvironmentName must start with "res-" without capital letters and should be less than or equal to 11 characters.
 
   Keypair:
     Description: EC2 Keypair to access management instance.
@@ -37,17 +37,17 @@ Parameters:
     Type: AWS::EC2::VPC::Id
     AllowedPattern: vpc-[0-9a-f]{17}
     ConstraintDescription: VpcId must begin with 'vpc-', only contain letters (a-f) or numbers(0-9) and must be 21 characters in length
-  
+
   PublicSubnet:
     Type: AWS::EC2::Subnet::Id
     AllowedPattern: subnet-.+
     Description: Select a public subnet from the already selected VPC
-  
+
   ServiceAccountUserDN:
     Type: String
     AllowedPattern: .+
     Description: Provide the Distinguished name (DN) of the service account user in the Active Directory
-  
+
   UsersDN:
     Type: String
     AllowedPattern: .+
@@ -134,12 +134,12 @@ Resources:
           import botocore.exceptions
           import logging
           from typing import TypedDict
-          
+
           logger = logging.getLogger()
           logger.setLevel(logging.INFO)
 
           TAG_NAME = "res:EnvironmentName"
-          
+
           class CustomResourceResponse(TypedDict):
             Status: str
             Reason: str
@@ -147,7 +147,7 @@ Resources:
             StackId: str
             RequestId: str
             LogicalResourceId: str
-          
+
           def send_response(url, response):
             request = urllib.request.Request(
               method="PUT",
@@ -155,7 +155,7 @@ Resources:
               data=json.dumps(response).encode("utf-8"),
             )
             urllib.request.urlopen(request)
-          
+
           def get_cognito_data(cluster_name, region_name):
             cognito_client = boto3.client("cognito-idp")
             logger.info(f"Working on getting Cognito details")
@@ -201,7 +201,7 @@ Resources:
                 return f'https://{load_balancer["DNSName"]}'
               else:
                 logger.info("No matching tags found")
-          
+
           def handler(event, _):
             logger.info(f"Received event: {event}")
             request_type = event["RequestType"]
@@ -218,7 +218,7 @@ Resources:
             if request_type == "Delete":
               send_response(response_url, response)
               return
-            
+
             cluster_name = os.environ['CLUSTER_NAME']
             region_name = os.environ['AWS_REGION']
 
@@ -245,7 +245,7 @@ Resources:
     Type: Custom::KeycloakDataGather
     Properties:
       ServiceToken: !GetAtt KeycloakDataGatherHandlerFunction.Arn
-  
+
   InvokeConfigureSSOLambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -275,7 +275,7 @@ Resources:
 
   InvokeConfigureSSOHandlerFunction:
     Type: 'AWS::Lambda::Function'
-    DependsOn: 
+    DependsOn:
      - InvokeConfigureSSOLambdaRole
      - Keycloak
     Properties:
@@ -300,10 +300,10 @@ Resources:
           import base64
           import logging
           from typing import TypedDict
-          
+
           logger = logging.getLogger()
           logger.setLevel(logging.INFO)
-          
+
           class CustomResourceResponse(TypedDict):
             Status: str
             Reason: str
@@ -311,7 +311,7 @@ Resources:
             StackId: str
             RequestId: str
             LogicalResourceId: str
-          
+
           def send_response(url, response):
             request = urllib.request.Request(
               method="PUT",
@@ -319,7 +319,7 @@ Resources:
               data=json.dumps(response).encode("utf-8"),
             )
             urllib.request.urlopen(request)
-          
+
           def handler(event, _):
             logger.info(f"Received event: {event}")
 
@@ -353,11 +353,11 @@ Resources:
               saml_metadata_base64_string = saml_metadata_base64_bytes.decode("utf-8")
 
               #Build payload
-              payload = json.dumps({ 
+              payload = json.dumps({
                 'configure_sso_request': {
-                  'provider_name': 'idc', 
-                  'provider_type': 'SAML', 
-                  'provider_email_attribute': 'email', 
+                  'provider_name': 'idc',
+                  'provider_type': 'SAML',
+                  'provider_email_attribute': 'email',
                   'saml_metadata_file': saml_metadata_base64_string
                 }
               })

@@ -1,26 +1,24 @@
-Description: Research and Engineering Studio Batteries Included (BI). Can be used by the res-only.yml to create 1 or more RES stacks.
+Description: Research and Engineering Studio on AWS demo batteries included only. Based on res-demo-stack.yaml. This stack deletes the RES-specific parameters and resources.
 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
           # change
-          default: RES shared storage configuration
+          default: RES batteries included configuration
           # endchange
         Parameters:
           - EnvironmentName
-          # change
-          # - AdministratorEmail
-          # - KeycloakInstanceType
-          # endchange
+          - CreateActiveDirectory
       - Label:
           default: Access Management
         Parameters:
           - Keypair
           - ClientIpCidr
           - InboundPrefixList
+        # change
       - Label:
-          default: AD user and group configuration
+          default: AD user and group and network configuration
         Parameters:
           - LDIFS3Path
       - Label:
@@ -33,6 +31,7 @@ Metadata:
           - VpcCidrPrivateSubnetA
           - VpcCidrPrivateSubnetB
           - VpcCidrPrivateSubnetC
+        # endchange
 
 Parameters:
 
@@ -51,18 +50,8 @@ Parameters:
     # endchange
     MinLength: 5
     MaxLength: 11
-    AllowedPattern: ^res-[A-Za-z\-\_0-9]{0,7}$
-    ConstraintDescription: EnvironmentName must start with "res-" and should be less than or equal to 11 characters.
-
-  # change
-  # AdministratorEmail:
-  #   Type: String
-  #   AllowedPattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
-
-  # KeycloakInstanceType:
-  #   Type: String
-  #   Default: m7a.medium
-  # endchange
+    AllowedPattern: ^res-[a-z\-\_0-9]{0,7}$
+    ConstraintDescription: EnvironmentName must start with "res-" without capital letters and should be less than or equal to 11 characters.
 
   ClientIpCidr:
     Description: Default IP(s) allowed to directly access the Web UI, SSH into the bastion host, and access the Windows AD admin host. We recommend that you restrict it with your own IP/subnet (x.x.x.x/32 for your own ip or x.x.x.x/24 for range. Replace x.x.x.x with your own PUBLIC IP. You can get your public IP using tools such as https://ifconfig.co/)
@@ -77,6 +66,15 @@ Parameters:
     AllowedPattern: ^(pl-[a-z0-9]{8,20})?$
     ConstraintDescription: Must be a valid VPC Prefix List ID, which begins with `pl-` or be empty.
 
+  CreateActiveDirectory:
+    Description: Create a demo Active Directory for RES to connect to.
+    Type: String
+    Default: "False"
+    AllowedValues:
+         - "True"
+         - "False"
+
+  # change
   LDIFS3Path:
     Description: An S3 Path (without the s3://) to an LDIF file that will be used during stack creation.
     Type: String
@@ -123,13 +121,16 @@ Parameters:
     Default: 10.3.160.0/20
     Description: VPC CIDR Block for the Private Subnet C
     Type: String
+  # endchange
 
 Conditions:
   UseEnvironmentName: !Not [!Equals [!Ref EnvironmentName, ""]]
+  CreateAD: !Equals [!Ref CreateActiveDirectory, "True"]
 
 Resources:
 
   AdminPassword:
+    Condition: CreateAD
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Active Directory Administrator Account Password.
@@ -145,6 +146,7 @@ Resources:
           Value: !Ref EnvironmentName
 
   ServiceAccountPassword:
+    Condition: CreateAD
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Active Directory Service Account Password.
@@ -163,6 +165,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+        # change
         LDIFS3Path : !Ref LDIFS3Path
         VpcCidrBlock: !Ref VpcCidrBlock
         VpcCidrPublicSubnetA: !Ref VpcCidrPublicSubnetA
@@ -171,71 +174,20 @@ Resources:
         VpcCidrPrivateSubnetA: !Ref VpcCidrPrivateSubnetA
         VpcCidrPrivateSubnetB: !Ref VpcCidrPrivateSubnetB
         VpcCidrPrivateSubnetC: !Ref VpcCidrPrivateSubnetC
+        # endchange
         PortalDomainName: ""
         Keypair: !Ref Keypair
         EnvironmentName: !If [UseEnvironmentName, !Ref EnvironmentName, ""]
-        AdminPassword: !Ref AdminPassword
-        ServiceAccountPassword: !Ref ServiceAccountPassword
+        AdminPassword: !If [CreateAD, !Ref AdminPassword, ""]
+        ServiceAccountPassword: !If [CreateAD, !Ref ServiceAccountPassword, ""]
         ClientIpCidr: !Ref ClientIpCidr
         ClientPrefixList: !Ref InboundPrefixList
         RetainStorageResources: "False"
+        CreateActiveDirectory: !Ref CreateActiveDirectory
+      # change
       #TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/bi.yaml
       TemplateURL: https://{{TemplateBucket}}.s3.amazonaws.com/{{TemplateBaseKey}}/bi.yaml
-
-  # change
-  # RES:
-  #   Type: AWS::CloudFormation::Stack
-  #   DependsOn: InvokeDeleteSharedStorageSecurityGroup
-  #   Properties:
-  #     Parameters:
-  #       EnvironmentName: !Ref EnvironmentName
-  #       AdministratorEmail: !Ref AdministratorEmail
-  #       SSHKeyPair: !Ref Keypair
-  #       ClientIp: !Ref ClientIpCidr
-  #       ClientPrefixList: !Ref InboundPrefixList
-  #       CustomDomainNameforWebApp: ""
-  #       ACMCertificateARNforWebApp: ""
-  #       CustomDomainNameforVDI: ""
-  #       PrivateKeySecretARNforVDI: ""
-  #       CertificateSecretARNforVDI: ""
-  #       DomainTLSCertificateSecretArn: ""
-  #       VpcId: !GetAtt [ RESExternal, Outputs.VpcId ]
-  #       LoadBalancerSubnets: !GetAtt [ RESExternal, Outputs.PublicSubnets ]
-  #       InfrastructureHostSubnets: !GetAtt [ RESExternal, Outputs.PrivateSubnets ]
-  #       VdiSubnets: !GetAtt [ RESExternal, Outputs.PrivateSubnets ]
-  #       IsLoadBalancerInternetFacing: "true"
-  #       ActiveDirectoryName: !GetAtt [ RESExternal, Outputs.ActiveDirectoryName ]
-  #       ADShortName: !GetAtt [ RESExternal, Outputs.ADShortName ]
-  #       LDAPBase: !GetAtt [ RESExternal, Outputs.LDAPBase ]
-  #       LDAPConnectionURI: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
-  #       SudoersGroupName: RESAdministrators
-  #       ServiceAccountCredentialsSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
-  #       UsersOU: !GetAtt [ RESExternal, Outputs.UsersOU ]
-  #       GroupsOU: !GetAtt [ RESExternal, Outputs.GroupsOU ]
-  #       ComputersOU: !GetAtt [ RESExternal, Outputs.ComputersOU ]
-  #       SharedHomeFileSystemId: !GetAtt [ RESExternal, Outputs.SharedHomeFilesystemId ]
-  #       InfrastructureHostAMI: ""
-  #       EnableLdapIDMapping: "True"
-  #       IAMPermissionBoundary: ""
-  #       DisableADJoin: "False"
-  #       ServiceAccountUserDN: !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ]
-  #     TemplateURL: https://research-engineering-studio-us-east-1.s3.amazonaws.com/releases/latest/ResearchAndEngineeringStudio.template.json
-
-  # RESSsoKeycloak:
-  #   Type: AWS::CloudFormation::Stack
-  #   DependsOn: RES
-  #   Properties:
-  #     Parameters:
-  #       EnvironmentName: !Ref EnvironmentName
-  #       Keypair: !Ref Keypair
-  #       ServiceAccountCredentialsSecretArn: !GetAtt [ RESExternal, Outputs.ServiceAccountCredentialsSecretArn ]
-  #       VpcId: !GetAtt [ RESExternal, Outputs.VpcId ]
-  #       PublicSubnet: !Select [0, !Split [",", !GetAtt RESExternal.Outputs.PublicSubnets]]
-  #       ServiceAccountUserDN: !GetAtt [ RESExternal, Outputs.ServiceAccountUserDN ]
-  #       UsersDN: !GetAtt [ RESExternal, Outputs.LDAPBase ]
-  #       LDAPConnectionURI: !GetAtt [ RESExternal, Outputs.LDAPConnectionURI ]
-  #     TemplateURL: https://aws-hpc-recipes.s3.us-east-1.amazonaws.com/main/recipes/res/res_demo_env/assets/res-sso-keycloak.yaml
-  # endchange
+      # endchange
 
   InvokeDeleteSharedStorageSecurityGroupRole:
     Type: 'AWS::IAM::Role'
@@ -325,127 +277,6 @@ Resources:
     Properties:
       ServiceToken: !GetAtt InvokeDeleteSharedSecurityGroupHandlerFunction.Arn
 
-  # change
-  # RESPostDeploymentConfiguationFunctionRole:
-  #   Type: 'AWS::IAM::Role'
-  #   DependsOn: RES
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: lambda.amazonaws.com
-  #           Action: 'sts:AssumeRole'
-  #     Policies:
-  #       - PolicyName: LogOutput
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - logs:CreateLogGroup
-  #                 - logs:CreateLogStream
-  #                 - logs:PutLogEvents
-  #               Resource: '*'
-  #       - PolicyName: DynamoDBReadWritePolicy
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - dynamodb:GetItem
-  #                 - dynamodb:UpdateItem
-  #               Resource:
-  #                   - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}.cluster-settings
-  #                   - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}.cluster-settings/stream/*
-  #               Condition:
-  #                 ForAllValues:StringLike:
-  #                   dynamodb:LeadingKeys:
-  #                     - shared-storage.*
-
-  # RESPostDeploymentConfiguationFunction:
-  #     Type: 'AWS::Lambda::Function'
-  #     DependsOn:
-  #     - RES
-  #     - RESPostDeploymentConfiguationFunctionRole
-  #     Properties:
-  #       Description: 'Post configuration of RES for demo purposes'
-  #       FunctionName: !Sub ${EnvironmentName}-RESPostDeploymentConfiguationFunction-${AWS::StackName}
-  #       Timeout: 60
-  #       Role: !GetAtt RESPostDeploymentConfiguationFunctionRole.Arn
-  #       Handler: index.handler
-  #       Runtime: python3.11
-  #       Code:
-  #         ZipFile: |
-  #           import boto3
-  #           import os
-  #           import logging
-  #           import cfnresponse
-
-  #           logger = logging.getLogger()
-  #           logger.setLevel(logging.INFO)
-
-  #           def handler(event, context):
-  #             logger.info(f"Received event: {event}")
-  #             response = {}
-
-  #             if event["RequestType"] == "Create":
-  #               try:
-  #                 dynamodb = boto3.resource('dynamodb')
-  #                 cluster_settings_table = dynamodb.Table(f"{os.environ['ENVIRONMENT_NAME']}.cluster-settings")
-
-  #                 demo_config = {
-  #                   'shared-storage.enable_file_browser': True
-  #                 }
-
-  #                 for key, value in demo_config.items():
-  #                   item_response = cluster_settings_table.get_item(
-  #                       Key={
-  #                           'key': key
-  #                       }
-  #                   )
-
-  #                   if 'Item' in item_response:
-  #                       logger.info(f"Item found: {item_response['Item']}")
-
-  #                       # Update the item
-  #                       update_response = cluster_settings_table.update_item(
-  #                           Key={
-  #                               'key': key
-  #                           },
-  #                           UpdateExpression="SET #val = :val",
-  #                           ExpressionAttributeNames={
-  #                               '#val': 'value'
-  #                           },
-  #                           ExpressionAttributeValues={
-  #                               ':val': value
-  #                           },
-  #                           ReturnValues="UPDATED_NEW"
-  #                       )
-
-  #                       logger.info(f"Item updated: {update_response['Attributes']}")
-  #                   else:
-  #                       logger.info(f"Item with key '{key}' not found")
-
-  #                 response['Output'] = 'RES demo environment has been pre-configured.'
-  #                 cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
-  #               except Exception as e:
-  #                 logger.error(f"Error: Unable to pre-configure RES demo environment: {e}")
-  #                 response['Output'] = f"Error: Unable to pre-configure RES demo environment: {e}"
-  #                 cfnresponse.send(event, context, cfnresponse.FAILED, response)
-  #             else:
-  #               cfnresponse.send(event, context, cfnresponse.SUCCESS, response)
-  #       Environment:
-  #         Variables:
-  #           ENVIRONMENT_NAME: !Ref EnvironmentName
-
-  # RESPostDeploymentConfiguation:
-  #   Type: Custom::RESPostDeploymentConfiguation
-  #   Properties:
-  #     ServiceToken: !GetAtt RESPostDeploymentConfiguationFunction.Arn
-  # endchange
-
 Outputs:
   # change
   VpcId:
@@ -510,4 +341,3 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-ServiceAccountUserDN"
   # endchange
-

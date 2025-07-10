@@ -4,6 +4,8 @@
 #
 # Download the original templates from s3
 # This is so that they can be used to create modified versions
+#
+# https://s3.amazonaws.com/aws-hpc-recipes/main/recipes/res/res_demo_env/assets/bi.yaml
 
 script_dir=$(dirname $(realpath $0))
 cd $script_dir

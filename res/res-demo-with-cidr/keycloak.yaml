@@ -25,7 +25,7 @@ Parameters:
   InstanceType:
     Description: EC2 instance type of keycloak server.
     Type: String
-    Default: t3.small
+    Default: t3.medium
   # endchange
 
   Keypair:
