@@ -1,6 +1,6 @@
 # RES Integration
 
-[Research and Engineering Studio](https://aws.amazon.com/hpc/res/) (RES) si an open source, easy-to-use web-based portal for administrators to create and manage secure cloud-based research and engineering environments.
+[Research and Engineering Studio](https://aws.amazon.com/hpc/res/) (RES) is an open source, easy-to-use web-based portal for administrators to create and manage secure cloud-based research and engineering environments.
 It enables users to self-provision virtual desktops.
 It currently doesn't have integrated support for an HPC cluster.
 We'll describe here how to integrate RES virtual desktops with one or more ParallelCluster clusters and use them from the RES desktops.
@@ -8,6 +8,22 @@ We'll describe here how to integrate RES virtual desktops with one or more Paral
 First you will need to deploy RES.
 The easiest way is to [deploy the demo environment](https://docs.aws.amazon.com/res/latest/ug/create-demo-env.html) which provides all of the prerequisites and completely automates the deployment.
 If you want to use an existing VPC or Active Directory, then you will need to follow the instructions to [deploy the product](https://docs.aws.amazon.com/res/latest/ug/deploy-the-product.html).
+
+## RES Deployment
+
+The `res` directory contains customized CloudFormation templates that allows you to deploy the RES prerequisites (VPC with customizable CIDR range, EFS home file system, Active Directory, default admins and users) and RES separately.
+The templates are based on the RES demo environment that uses Keycloak for single sign on, but allow the CIDR range to be customize and for the batteries included (BI) and RES stacks to be deployed separately.
+
+This allows you to easily upgrade the RES stack to new versions without affecting the BI stack.
+
+Clone the repo and upload the templates to your S3 bucket for deployment.
+
+```
+cd aws-eda-slurm-cluster/res
+./upload-res-templates.py --s3-bucket <your-bucket> --s3-base-key <your-bucket-key>
+```
+
+This will output the quick links to deploy the BI and RES stacks.
 
 ## RES Setup
 

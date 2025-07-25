@@ -199,7 +199,7 @@
     set -o pipefail
 
     cd {{ slurm_src_dir }}/slurm-{{ slurm_version }}
-    ./configure --prefix {{ slurm_os_dir }} --with-slurmrestd --enable-slurmrestd --with-slurmrestd-port={{ slurmrestd_port }} &> configure.log
+    ./configure --prefix {{ slurm_os_dir }} --with-slurmrestd-port={{ slurmrestd_port }} &> configure.log
     CORES=$(grep processor /proc/cpuinfo | wc -l)
     make -j $CORES &> slurm-make.log
     make -j $CORES contrib &> slurm-make-contrib.log

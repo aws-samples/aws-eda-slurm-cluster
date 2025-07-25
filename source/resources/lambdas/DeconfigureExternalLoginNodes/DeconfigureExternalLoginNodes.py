@@ -119,6 +119,10 @@ def lambda_handler(event, context):
             set -ex
 
             script="/opt/aws-eda-slurm-cluster/{cluster_name}/bin/external_login_node_deconfigure.sh"
+            if ! timeout 1s test -e $script; then
+                echo "{cluster_name} not configured"
+                exit 0
+            fi
             sudo $script
 
             """)
